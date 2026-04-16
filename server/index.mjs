@@ -648,6 +648,7 @@ app.post('/api/auth/telegram-widget', (request, response) => {
   const lastName = payload.last_name
   const username = payload.username
   const photoUrl = payload.photo_url
+  const location = payload.location
 
   if (!telegramId || !firstName) {
     response.status(400).json({ error: 'Неверные данные авторизации' })
@@ -669,9 +670,9 @@ app.post('/api/auth/telegram-widget', (request, response) => {
       handle: ensureUniqueHandle(state, username || firstName),
       avatarUrl: photoUrl || null,
       email: null,
-      city: null,
-      country: null,
-      geoAllowed: false,
+      city: location?.city || null,
+      country: location?.country || null,
+      geoAllowed: Boolean(location),
       bio: 'Telegram-профиль через Login Widget.',
       tagline: 'webapp connected',
       badges: ['TG'],

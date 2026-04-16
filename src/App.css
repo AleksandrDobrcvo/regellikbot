@@ -1642,6 +1642,28 @@ select {
   margin: 0 auto;
 }
 
+/* Telegram Login Widget card */
+.telegram-widget-card {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  padding: 18px;
+  border-radius: 18px;
+  background: rgba(0, 136, 204, 0.08);
+  border: 1px solid rgba(0, 136, 204, 0.18);
+}
+
+.telegram-widget-mount {
+  min-height: 44px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.telegram-widget-mount iframe {
+  border-radius: 14px !important;
+}
+
 @media (max-width: 480px) {
   .landing-hero h1 {
     font-size: 28px;

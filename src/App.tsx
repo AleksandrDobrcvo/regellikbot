@@ -1,5 +1,5 @@
 import type { FormEvent } from 'react'
-import { useEffect, useMemo, useState } from 'react'
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import {
   BadgeCheck,
   Bell,
@@ -171,6 +171,7 @@ type AdminDraft = AdminManagedUser & {
 const SESSION_KEY = 'regellik.session'
 const API_BASE_URL = (import.meta.env.VITE_API_BASE_URL || '').replace(/\/$/, '')
 const WS_URL = import.meta.env.VITE_WS_URL || ''
+const TELEGRAM_BOT_USERNAME = import.meta.env.VITE_TELEGRAM_BOT_USERNAME || 'regellik_clonebot'
 
 function resolveApiPath(path: string) {
   if (/^https?:\/\//.test(path)) {
@@ -585,6 +586,54 @@ function App() {
     }
   }
 
+  const widgetContainerRef = useRef<HTMLDivElement>(null)
+  const widgetLoadedRef = useRef(false)
+
+  const signInTelegramWidget = useCallback(async (widgetData: Record<string, unknown>) => {
+    try {
+      const data = await apiRequest<AuthResponse>('/api/auth/telegram-widget', {
+        method: 'POST',
+        body: JSON.stringify({ ...widgetData, location: resolvedLocation }),
+      })
+      await completeAuth(data)
+    } catch (error) {
+      showToast(error instanceof Error ? error.message : 'Вход через Telegram не выполнен', 'error')
+    }
+  }, [resolvedLocation])
+
+  // Mount Telegram Login Widget when auth modal opens (for browser users)
+  useEffect(() => {
+    if (!authOpen || !siteSettings.telegramAuthEnabled) return
+    // Skip widget if inside Telegram WebApp
+    if (webApp?.initDataUnsafe?.user) return
+    if (!widgetContainerRef.current) return
+    if (widgetLoadedRef.current) return
+
+    widgetLoadedRef.current = true
+    const container = widgetContainerRef.current
+
+    // Global callback for the widget
+    ;(window as any).onTelegramWidgetAuth = (user: Record<string, unknown>) => {
+      void signInTelegramWidget(user)
+    }
+
+    const script = document.createElement('script')
+    script.src = 'https://telegram.org/js/telegram-widget.js?22'
+    script.async = true
+    script.setAttribute('data-telegram-login', TELEGRAM_BOT_USERNAME)
+    script.setAttribute('data-size', 'large')
+    script.setAttribute('data-radius', '14')
+    script.setAttribute('data-onauth', 'onTelegramWidgetAuth(user)')
+    script.setAttribute('data-request-access', 'write')
+    container.innerHTML = ''
+    container.appendChild(script)
+
+    return () => {
+      widgetLoadedRef.current = false
+      delete (window as any).onTelegramWidgetAuth
+    }
+  }, [authOpen, siteSettings.telegramAuthEnabled, webApp, signInTelegramWidget])
+
   const signInTelegram = async (silent = false) => {
     const telegramUser = webApp?.initDataUnsafe?.user
     if (!telegramUser) {
@@ -892,6 +941,15 @@ function App() {
                   </div>
                   <ChevronRight size={18} />
                 </button>
+              )}
+
+              {/* Telegram Login Widget — для браузера (не внутри Telegram) */}
+              {!webApp?.initDataUnsafe?.user && siteSettings.telegramAuthEnabled && (
+                <div className="auth-card telegram-widget-card">
+                  <div className="auth-title">📲 Войти через Telegram</div>
+                  <div className="auth-note">Нажми кнопку ниже — откроется Telegram для подтверждения</div>
+                  <div className="telegram-widget-mount" ref={widgetContainerRef} />
+                </div>
               )}
 
               <form className="email-card" onSubmit={signInEmail}>
