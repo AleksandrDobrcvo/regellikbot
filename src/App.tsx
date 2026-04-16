@@ -321,6 +321,12 @@ function App() {
   const [grantIdentifier, setGrantIdentifier] = useState('')
   const [telegramAuthTried, setTelegramAuthTried] = useState(false)
 
+  useEffect(() => {
+    if (authOpen) {
+      setMenuOpen(false)
+    }
+  }, [authOpen])
+
   const isSignedIn = Boolean(viewer)
   const isAdmin = viewer?.role === 'admin'
   const sortedDirectory = useMemo(() => [...directory].sort((left, right) => right.stats.received - left.stats.received), [directory])
@@ -974,10 +980,10 @@ function App() {
       )}
 
       {/* Плавающая кнопка-меню в углу */}
-      <div className="corner-menu">
+      <div className={authOpen ? 'corner-menu hidden' : 'corner-menu'}>
         <button className="corner-menu-btn" onClick={() => setMenuOpen(!menuOpen)}>
           {menuOpen ? <X size={22} /> : <Menu size={22} />}
-          <span>{isSignedIn ? 'Меню' : 'Зайти'}</span>
+          <span className="corner-menu-label">{isSignedIn ? 'Меню' : 'Зайти'}</span>
         </button>
 
         {menuOpen && (
