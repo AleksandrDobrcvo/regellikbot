@@ -1000,14 +1000,6 @@ select {
   box-shadow: 0 0 26px rgba(111, 230, 255, 0.08);
 }
 
-.telegram-widget-card {
-  display: flex;
-  flex-direction: column;
-  gap: 12px;
-  background: linear-gradient(135deg, rgba(42, 171, 238, 0.14), rgba(8, 24, 16, 0.92));
-  box-shadow: 0 0 26px rgba(42, 171, 238, 0.08);
-}
-
 .email-card {
   background: rgba(7, 20, 14, 0.92);
 }
@@ -1434,5 +1426,65 @@ select {
   .dev-float {
     width: calc(100% - 24px);
     justify-content: center;
+  }
+}
+
+@media (max-width: 480px) {
+  .app-shell {
+    padding: 10px 10px 96px;
+  }
+
+  .topbar,
+  .hero-panel,
+  .panel-card,
+  .auth-sheet {
+    border-radius: 18px;
+    padding: 14px;
+  }
+
+  .auth-sheet {
+    margin: 20px 10px 0;
+  }
+
+  .auth-card,
+  .email-card {
+    border-radius: 16px;
+    padding: 14px;
+  }
+
+  .hero-copy h1,
+  .sheet-head h2,
+  .panel-head h2,
+  .profile-hero h2,
+  .profile-empty h2,
+  .support-card h2 {
+    font-size: 24px;
+  }
+
+  .auth-title {
+    font-size: 18px;
+  }
+
+  .brand-name {
+    font-size: 18px;
+  }
+
+  .brand-sub {
+    font-size: 11px;
+  }
+
+  .tab-bar {
+    gap: 4px;
+    padding: 8px;
+  }
+
+  .tab-btn {
+    padding: 10px 8px;
+    font-size: 12px;
+  }
+
+  input,
+  textarea {
+    font-size: 16px;
   }
 }

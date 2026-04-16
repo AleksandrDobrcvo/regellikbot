@@ -1,5 +1,5 @@
 import type { FormEvent } from 'react'
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
+import { useEffect, useMemo, useState } from 'react'
 import {
   AtSign,
   BadgeCheck,
@@ -174,7 +174,6 @@ type AdminDraft = AdminManagedUser & {
 const SESSION_KEY = 'regellik.session'
 const API_BASE_URL = (import.meta.env.VITE_API_BASE_URL || '').replace(/\/$/, '')
 const WS_URL = import.meta.env.VITE_WS_URL || ''
-const TELEGRAM_BOT_USERNAME = import.meta.env.VITE_TELEGRAM_BOT_USERNAME || ''
 
 function resolveApiPath(path: string) {
   if (/^https?:\/\//.test(path)) {
@@ -617,53 +616,6 @@ function App() {
     }
   }
 
-  const signInTelegramWidget = useCallback(async (telegramUser: Record<string, unknown>) => {
-    try {
-      const data = await apiRequest<AuthResponse>('/api/auth/telegram-widget', {
-        method: 'POST',
-        body: JSON.stringify(telegramUser),
-      })
-      await completeAuth(data)
-    } catch (error) {
-      showToast(error instanceof Error ? error.message : 'Вход не выполнен', 'error')
-    }
-  }, [])
-
-  const widgetContainerRef = useRef<HTMLDivElement>(null)
-  const widgetLoadedRef = useRef(false)
-
-  useEffect(() => {
-    if (!authOpen || !TELEGRAM_BOT_USERNAME || webApp?.initDataUnsafe?.user) {
-      widgetLoadedRef.current = false
-      return
-    }
-
-    const container = widgetContainerRef.current
-    if (!container || widgetLoadedRef.current) {
-      return
-    }
-
-    widgetLoadedRef.current = true
-    container.innerHTML = ''
-    ;(window as unknown as Record<string, (user: Record<string, unknown>) => void>).onTelegramWidgetAuth = (user) => {
-      void signInTelegramWidget(user)
-    }
-
-    const script = document.createElement('script')
-    script.src = 'https://telegram.org/js/telegram-widget.js?22'
-    script.setAttribute('data-telegram-login', TELEGRAM_BOT_USERNAME)
-    script.setAttribute('data-size', 'large')
-    script.setAttribute('data-radius', '14')
-    script.setAttribute('data-onauth', 'onTelegramWidgetAuth(user)')
-    script.setAttribute('data-request-access', 'write')
-    script.async = true
-    container.appendChild(script)
-
-    return () => {
-      widgetLoadedRef.current = false
-    }
-  }, [authOpen, signInTelegramWidget, webApp])
-
   const signInEmail = async (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault()
 
@@ -924,8 +876,7 @@ function App() {
             <div className="sheet-head">
               <div>
                 <span className="eyebrow">🔐 Вход</span>
-                <h2>Выбери способ входа</h2>
-                <p>{webApp?.initDataUnsafe?.user ? 'Telegram WebApp найден, можно логиниться напрямую.' : 'Telegram Login работает в любом браузере. Email — тоже.'}</p>
+                <h2>Войди или создай аккаунт</h2>
               </div>
               <button className="ghost-icon" onClick={() => setAuthOpen(false)}>
                 ×
@@ -933,32 +884,24 @@ function App() {
             </div>
 
             <div className="auth-stack">
-              <button className="auth-card telegram-card" onClick={() => void signInTelegram(false)} disabled={!siteSettings.telegramAuthEnabled}>
-                <div>
-                  <div className="auth-title">📲 Telegram WebApp</div>
-                  <div className="auth-note">Авторизация через initData и профиль пользователя</div>
-                </div>
-                <ChevronRight size={18} />
-              </button>
-
-              {TELEGRAM_BOT_USERNAME && !webApp?.initDataUnsafe?.user && (
-                <div className="auth-card telegram-widget-card">
+              {webApp?.initDataUnsafe?.user && (
+                <button className="auth-card telegram-card" onClick={() => void signInTelegram(false)} disabled={!siteSettings.telegramAuthEnabled}>
                   <div>
-                    <div className="auth-title">🔐 Telegram Login</div>
-                    <div className="auth-note">Вход через Telegram в обычном браузере</div>
+                    <div className="auth-title">📲 Войти через Telegram</div>
+                    <div className="auth-note">Ты в Telegram — нажми и войдёшь моментально</div>
                   </div>
-                  <div ref={widgetContainerRef} />
-                </div>
+                  <ChevronRight size={18} />
+                </button>
               )}
 
               <form className="email-card" onSubmit={signInEmail}>
                 <div className="auth-title">✉️ Email</div>
-                <div className="auth-note">Если почта новая, аккаунт создастся. Если уже существует, нужен правильный пароль.</div>
+                <div className="auth-note">Новая почта — создастся аккаунт. Существующая — введи пароль.</div>
                 <div className="form-grid">
-                  <input value={emailName} onChange={(event) => setEmailName(event.target.value)} placeholder="Имя для нового аккаунта" />
-                  <input value={emailValue} onChange={(event) => setEmailValue(event.target.value)} placeholder="Email" type="email" />
+                  <input value={emailName} onChange={(event) => setEmailName(event.target.value)} placeholder="Имя (для нового аккаунта)" />
+                  <input value={emailValue} onChange={(event) => setEmailValue(event.target.value)} placeholder="Email" type="email" required />
                 </div>
-                <input value={emailPassword} onChange={(event) => setEmailPassword(event.target.value)} placeholder="Пароль" type="password" />
+                <input value={emailPassword} onChange={(event) => setEmailPassword(event.target.value)} placeholder="Пароль" type="password" required />
                 <button className="primary-btn wide" type="submit" disabled={!siteSettings.emailAuthEnabled}>
                   <Mail size={16} />
                   Войти / создать аккаунт
