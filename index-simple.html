@@ -1,0 +1,211 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>dev @palmaron</title>
+    <script src="https://telegram.org/js/telegram-web-app.js"></script>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+        
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+            background: var(--tg-theme-bg-color, #ffffff);
+            color: var(--tg-theme-text-color, #000000);
+            padding: 20px;
+            min-height: 100vh;
+        }
+        
+        .container {
+            max-width: 400px;
+            margin: 0 auto;
+        }
+        
+        .header {
+            text-align: center;
+            margin-bottom: 30px;
+        }
+        
+        .header h1 {
+            font-size: 24px;
+            margin-bottom: 10px;
+        }
+        
+        .header p {
+            color: var(--tg-theme-hint-color, #666666);
+        }
+        
+        .card {
+            background: var(--tg-theme-secondary-bg-color, #f8f9fa);
+            border-radius: 12px;
+            padding: 16px;
+            margin-bottom: 16px;
+            border: 1px solid var(--tg-theme-section-separator-color, #e0e0e0);
+        }
+        
+        .card h3 {
+            margin-bottom: 12px;
+            font-size: 16px;
+        }
+        
+        .user-info {
+            font-size: 14px;
+            line-height: 1.5;
+        }
+        
+        .user-info div {
+            margin-bottom: 4px;
+        }
+        
+        .button {
+            background: var(--tg-theme-button-color, #0077ff);
+            color: var(--tg-theme-button-text-color, #ffffff);
+            border: none;
+            padding: 12px 20px;
+            border-radius: 8px;
+            font-size: 16px;
+            cursor: pointer;
+            width: 100%;
+            margin-bottom: 8px;
+            transition: opacity 0.2s;
+        }
+        
+        .button:hover {
+            opacity: 0.8;
+        }
+        
+        .button.secondary {
+            background: var(--tg-theme-secondary-bg-color, #f8f9fa);
+            color: var(--tg-theme-text-color, #000000);
+            border: 1px solid var(--tg-theme-section-separator-color, #e0e0e0);
+        }
+        
+        .loading {
+            text-align: center;
+            padding: 40px;
+            font-size: 18px;
+        }
+        
+        .features {
+            font-size: 14px;
+            line-height: 1.6;
+        }
+        
+        .features li {
+            margin-bottom: 4px;
+            list-style-position: inside;
+        }
+    </style>
+</head>
+<body>
+    <div id="app">
+        <div class="loading">
+            <div>Loading...</div>
+        </div>
+    </div>
+
+    <script>
+        let webApp;
+        let user;
+
+        function initApp() {
+            webApp = window.Telegram.WebApp;
+            
+            webApp.ready();
+            webApp.expand();
+            
+            user = webApp.initDataUnsafe?.user;
+            
+            webApp.MainButton.setText('Start');
+            webApp.MainButton.show();
+            webApp.MainButton.onClick(() => {
+                webApp.showAlert('Hello from MiniApp!');
+            });
+            
+            renderApp();
+        }
+
+        function renderApp() {
+            const app = document.getElementById('app');
+            
+            const userCard = user ? `
+                <div class="card">
+                    <h3>User Info</h3>
+                    <div class="user-info">
+                        <div><strong>Name:</strong> ${user.first_name} ${user.last_name || ''}</div>
+                        <div><strong>Username:</strong> @${user.username || 'N/A'}</div>
+                        <div><strong>ID:</strong> ${user.id}</div>
+                    </div>
+                </div>
+            ` : '';
+
+            app.innerHTML = `
+                <div class="container">
+                    <div class="header">
+                        <h1>Telegram MiniApp</h1>
+                        <p>Welcome to your first MiniApp!</p>
+                    </div>
+
+                    ${userCard}
+
+                    <div class="card">
+                        <h3>Features</h3>
+                        <div class="features">
+                            <ul>
+                                <li>Telegram WebApp SDK integration</li>
+                                <li>Vanilla JavaScript (no dependencies)</li>
+                                <li>CSS variables for theming</li>
+                                <li>Main button integration</li>
+                                <li>User authentication</li>
+                            </ul>
+                        </div>
+                    </div>
+
+                    <div class="card">
+                        <h3>Actions</h3>
+                        <button class="button" onclick="showAlert()">Show Alert</button>
+                        <button class="button secondary" onclick="showConfirm()">Show Confirm</button>
+                        <button class="button secondary" onclick="openTelegram()">Open Telegram</button>
+                    </div>
+                </div>
+            `;
+        }
+
+        function showAlert() {
+            webApp.showAlert('Hello from MiniApp!');
+        }
+
+        function showConfirm() {
+            webApp.showConfirm('Are you sure?', (confirmed) => {
+                if (confirmed) {
+                    webApp.showAlert('Confirmed!');
+                }
+            });
+        }
+
+        function openTelegram() {
+            webApp.openLink('https://telegram.org');
+        }
+
+        // Initialize when Telegram WebApp is ready
+        if (window.Telegram) {
+            initApp();
+        } else {
+            // Fallback for testing in browser
+            setTimeout(() => {
+                user = {
+                    first_name: 'Test',
+                    last_name: 'User',
+                    username: 'testuser',
+                    id: 12345
+                };
+                renderApp();
+            }, 1000);
+        }
+    </script>
+</body>
+</html>
