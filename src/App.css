@@ -1488,3 +1488,179 @@ select {
     font-size: 16px;
   }
 }
+
+/* --- New UI Components --- */
+
+.accent-login {
+  background: linear-gradient(135deg, rgba(185, 255, 59, 0.92), rgba(111, 230, 255, 0.78));
+  color: #041008;
+  font-weight: 800;
+  font-size: 15px;
+  padding: 12px 20px;
+  border-radius: 999px;
+  border: none;
+  cursor: pointer;
+}
+
+.landing-hero {
+  text-align: center;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+}
+
+.landing-hero .hero-copy {
+  max-width: 600px;
+  margin: 0 auto;
+}
+
+.landing-hero h1 {
+  font-size: 42px;
+  margin-bottom: 16px;
+}
+
+.landing-stats-row {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 16px;
+  margin-bottom: 20px;
+}
+
+.app-footer {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  justify-content: center;
+  padding: 24px 0;
+  font-size: 13px;
+  color: rgba(255, 255, 255, 0.4);
+}
+
+/* Limits card */
+.limits-card .panel-head h2 {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.premium-badge {
+  display: inline-block;
+  padding: 2px 10px;
+  border-radius: 999px;
+  background: linear-gradient(135deg, rgba(185, 255, 59, 0.2), rgba(111, 230, 255, 0.2));
+  border: 1px solid rgba(185, 255, 59, 0.3);
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--accent);
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+}
+
+.limits-grid {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+}
+
+.limit-row {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.limit-label {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  min-width: 120px;
+  font-size: 14px;
+  color: rgba(255, 255, 255, 0.7);
+}
+
+.limit-bar {
+  flex: 1;
+  height: 10px;
+  background: rgba(255, 255, 255, 0.08);
+  border-radius: 999px;
+  overflow: hidden;
+}
+
+.limit-fill {
+  height: 100%;
+  border-radius: 999px;
+  background: linear-gradient(90deg, var(--accent), rgba(185, 255, 59, 0.6));
+  transition: width 0.3s ease;
+}
+
+.limit-fill.blue-fill {
+  background: linear-gradient(90deg, rgba(111, 230, 255, 0.9), rgba(111, 230, 255, 0.5));
+}
+
+.limits-note {
+  margin-top: 12px;
+  padding: 12px;
+  border-radius: 14px;
+  background: rgba(255, 255, 255, 0.04);
+  border: 1px solid rgba(255, 255, 255, 0.06);
+  font-size: 13px;
+  color: rgba(255, 255, 255, 0.5);
+  line-height: 1.5;
+}
+
+/* Referral card */
+.referral-stats {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 16px;
+  margin-top: 16px;
+}
+
+.referral-stat {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 4px;
+  padding: 16px;
+  border-radius: 18px;
+  background: rgba(255, 255, 255, 0.04);
+  border: 1px solid rgba(255, 255, 255, 0.06);
+}
+
+.referral-stat strong {
+  font-size: 28px;
+  color: var(--accent);
+}
+
+.referral-stat span {
+  font-size: 12px;
+  color: rgba(255, 255, 255, 0.5);
+}
+
+/* Transactions screen */
+.transactions-screen {
+  max-width: 720px;
+  margin: 0 auto;
+}
+
+@media (max-width: 480px) {
+  .landing-hero h1 {
+    font-size: 28px;
+  }
+
+  .landing-stats-row {
+    grid-template-columns: 1fr;
+  }
+
+  .limit-label {
+    min-width: 90px;
+    font-size: 13px;
+  }
+
+  .referral-stats {
+    grid-template-columns: 1fr;
+  }
+
+  .referral-stat strong {
+    font-size: 22px;
+  }
+}

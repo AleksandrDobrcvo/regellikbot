@@ -1,14 +1,11 @@
 import type { FormEvent } from 'react'
 import { useEffect, useMemo, useState } from 'react'
 import {
-  AtSign,
   BadgeCheck,
   Bell,
   ChevronRight,
   Eye,
   EyeOff,
-  LifeBuoy,
-  LocateFixed,
   LogOut,
   Mail,
   MapPin,
@@ -27,7 +24,7 @@ import {
 import { TelegramWebApp } from './types/telegram'
 import './App.css'
 
-type TabId = 'feed' | 'profile' | 'admin' | 'support'
+type TabId = 'feed' | 'chats' | 'profile' | 'transactions' | 'admin'
 type AuthProvider = 'telegram' | 'email'
 type LocationState = 'idle' | 'loading' | 'granted' | 'denied'
 type ToastTone = 'success' | 'error' | 'info'
@@ -321,10 +318,12 @@ function App() {
   const [telegramAuthTried, setTelegramAuthTried] = useState(false)
 
   const isSignedIn = Boolean(viewer)
-  const geoEnabled = locationState === 'granted'
-  const authEnabled = isSignedIn
   const isAdmin = viewer?.role === 'admin'
   const sortedDirectory = useMemo(() => [...directory].sort((left, right) => right.stats.received - left.stats.received), [directory])
+  const messages24h = useMemo(() => {
+    const oneDayAgo = Date.now() - 86400000
+    return publicFeed.filter((item) => new Date(item.createdAt).getTime() > oneDayAgo).length
+  }, [publicFeed])
   const viewerLocation = useMemo(() => {
     if (viewer?.city) {
       return `${viewer.city}${viewer.country ? `, ${viewer.country}` : ''}`
@@ -575,6 +574,7 @@ function App() {
     setSessionToken(data.token)
     setViewer(data.viewer)
     setAuthOpen(false)
+    setActiveTab('chats')
     setEmailName('')
     setEmailValue('')
     setEmailPassword('')
@@ -917,277 +917,255 @@ function App() {
           <div className="brand-mark">&gt;]</div>
           <div>
             <div className="brand-name">Regellik</div>
-            <div className="brand-sub">💬 анонимки • 👤 профили • 🛠️ админка</div>
+            <div className="brand-sub">анонимки • профили • транзакции</div>
           </div>
-        </div>
-
-        <div className="live-box">
-          <span>⚡ онлайн</span>
-          <strong>{siteSettings.onlineCounterVisible ? onlineCount : '—'}</strong>
-          <small>{siteSettings.onlineCounterVisible ? 'live now' : 'скрыто'}</small>
         </div>
 
         <div className="top-actions">
-          <div className="energy-pill">
-            <Zap size={16} />
-            <span>{viewer?.powers ?? 0}</span>
-          </div>
-          <button className="login-pill" onClick={() => setAuthOpen(true)}>
-            {isSignedIn ? `${viewer?.role === 'admin' ? '🛡️' : '👤'} ${viewer?.provider === 'telegram' ? 'Telegram' : 'Email'}` : '🔐 Войти'}
-          </button>
-          <button className="notify-pill" onClick={() => setActiveTab('feed')}>
-            <Bell size={16} />
-          </button>
+          {isSignedIn ? (
+            <button className="login-pill" onClick={signOut}>
+              <LogOut size={16} />
+              <span>Выйти</span>
+            </button>
+          ) : (
+            <button className="login-pill accent-login" onClick={() => setAuthOpen(true)}>
+              🔽 Зайти в Регель
+            </button>
+          )}
         </div>
       </header>
 
-      <main className="main-layout">
-        <section className="hero-panel">
-          <div className="hero-copy">
-            <span className="eyebrow">⚡ главное</span>
-            <h1>Профили, админка и Telegram WebApp уже в одном потоке.</h1>
-            <p>
-              Вход работает через Telegram WebApp или Email. Профиль редактируется прямо внутри приложения. Админка управляет балансом, ролями, статусом,
-              видимостью, сайтом и доступами.
-            </p>
-
-            <div className="hero-actions">
-              <button className="primary-btn" onClick={() => setActiveTab('profile')}>
-                <User size={16} />
-                👤 Профиль
-              </button>
-              <button className="secondary-btn" onClick={requestLocation}>
-                <LocateFixed size={16} />
-                📍 Включить гео
-              </button>
-              {isAdmin && (
-                <button className="secondary-btn" onClick={() => setActiveTab('admin')}>
-                  <UserCog size={16} />
-                  🛠️ Админка
-                </button>
-              )}
-            </div>
-
-            <div className="hero-meta-grid four-up">
-              <article className="hero-stat-card accent-green">
-                <span>⚡ баланс</span>
-                <strong>{viewer?.powers ?? 0}</strong>
-                <small>живой счёт</small>
-              </article>
-              <article className={geoEnabled ? 'hero-stat-card accent-green' : 'hero-stat-card accent-rose'}>
-                <span>📍 гео</span>
-                <strong>{geoEnabled ? 'вкл' : 'выкл'}</strong>
-                <small>{locationLabel}</small>
-              </article>
-              <article className={authEnabled ? 'hero-stat-card accent-green' : 'hero-stat-card accent-rose'}>
-                <span>🔐 вход</span>
-                <strong>{authEnabled ? 'вкл' : 'выкл'}</strong>
-                <small>{viewer?.provider || 'нет'}</small>
-              </article>
-              <article className={siteSettings.maintenanceMode ? 'hero-stat-card accent-rose' : 'hero-stat-card accent-orange'}>
-                <span>🛠️ режим сайта</span>
-                <strong>{siteSettings.maintenanceMode ? 'service' : 'live'}</strong>
-                <small>{siteSettings.registrationsOpen ? 'регистрация открыта' : 'регистрация закрыта'}</small>
-              </article>
-            </div>
-          </div>
-
-          <div className="hero-side">
-            <article className="info-card major-card">
-              <div className="info-kicker">👤 активный профиль</div>
-              <div className="profile-mini-head">
-                <div className="profile-mini-avatar">
-                  {viewer?.avatarUrl ? <img src={viewer.avatarUrl} alt={viewer.name} /> : <span>{viewer?.name?.[0] || '>'}</span>}
-                </div>
-                <div>
-                  <strong>{viewer?.name || 'Гость'}</strong>
-                  <span>{viewer?.handle || '@regellik'}</span>
-                </div>
+      {/* --- ГЛАВНАЯ (для всех, без табов пока не залогинен) --- */}
+      {!isSignedIn && activeTab === 'feed' && (
+        <main className="main-layout">
+          <section className="hero-panel landing-hero">
+            <div className="hero-copy">
+              <h1>Кто онлайн?</h1>
+              <div className="landing-stats-row">
+                <article className="hero-stat-card accent-green">
+                  <span>⚡ онлайн</span>
+                  <strong>{siteSettings.onlineCounterVisible ? onlineCount : '—'}</strong>
+                  <small>сейчас</small>
+                </article>
+                <article className="hero-stat-card accent-orange">
+                  <span>💬 анонимки</span>
+                  <strong>{messages24h}</strong>
+                  <small>за 24 часа</small>
+                </article>
               </div>
-              <div className="geo-row">
-                <MapPin size={14} />
-                <span>{viewerLocation}</span>
-              </div>
-              {viewer && <p className="hero-card-copy">{viewer.bio}</p>}
-            </article>
 
-            <article className="info-card compact-card">
-              <div className="info-kicker">🧭 статус системы</div>
-              <strong>{siteSettings.telegramAuthEnabled ? 'Telegram auth подключён' : 'Telegram auth отключён'}</strong>
-              <span>{siteSettings.geoRequiredForSend ? 'Для отправки гео обязательно.' : 'Гео для отправки сейчас не обязательно.'}</span>
-            </article>
-          </div>
-        </section>
+              <p>Отправляй анонимки, получай ответы, зарабатывай на рефералах. Вход через Email — пару секунд.</p>
 
-        <section className="tabs-row">
-          <button className={activeTab === 'feed' ? 'tab-btn active' : 'tab-btn'} onClick={() => setActiveTab('feed')}>
-            <MessageCircle size={16} />
-            💬 Лента
-          </button>
-          <button className={activeTab === 'profile' ? 'tab-btn active' : 'tab-btn'} onClick={() => setActiveTab('profile')}>
-            <User size={16} />
-            👤 Профиль
-          </button>
-          {isAdmin && (
-            <button className={activeTab === 'admin' ? 'tab-btn active' : 'tab-btn'} onClick={() => setActiveTab('admin')}>
-              <UserCog size={16} />
-              🛠️ Админка
-            </button>
-          )}
-          <button className={activeTab === 'support' ? 'tab-btn active' : 'tab-btn'} onClick={() => setActiveTab('support')}>
-            <LifeBuoy size={16} />
-            🛟 Поддержка
-          </button>
-        </section>
-
-        {activeTab === 'feed' && (
-          <section className="content-grid">
-            <div className="content-main">
-              <section className="panel-card directory-panel">
-                <div className="panel-head">
-                  <div>
-                    <span className="eyebrow">👥 кому писать</span>
-                    <h2>Профили</h2>
-                  </div>
-                  <div className="head-chip">
-                    <Users size={15} />
-                    <span>{sortedDirectory.length}</span>
-                  </div>
-                </div>
-
-                <div className="directory-grid">
-                  {sortedDirectory.map((item) => (
-                    <button
-                      key={item.id}
-                      className={selectedRecipient === item.id ? 'directory-card selected' : 'directory-card'}
-                      onClick={() => setSelectedRecipient(item.id)}
-                    >
-                      <div className="directory-avatar">
-                        {item.avatarUrl ? <img src={item.avatarUrl} alt={item.name} /> : <span>{item.name[0]}</span>}
-                      </div>
-                      <div className="directory-copy">
-                        <strong>{item.name}</strong>
-                        <span>{item.handle}</span>
-                        <small>{item.city}, {item.country}</small>
-                        <small>{item.tagline}</small>
-                        <div className="badge-row">
-                          {item.badges.slice(0, 3).map((badge) => (
-                            <span key={badge} className="mini-badge">{badge}</span>
-                          ))}
-                        </div>
-                      </div>
-                    </button>
-                  ))}
-                </div>
-              </section>
-
-              <section className="panel-card compose-panel">
-                <div className="panel-head">
-                  <div>
-                    <span className="eyebrow">✍️ анонимка</span>
-                    <h2>Отправка</h2>
-                  </div>
-                  <div className={viewer?.geoAllowed ? 'status-chip success' : 'status-chip danger'}>
-                    <MapPin size={14} />
-                    <span>{siteSettings.geoRequiredForSend ? (viewer?.geoAllowed ? 'гео вкл' : 'гео выкл') : 'гео не требуется'}</span>
-                  </div>
-                </div>
-
-                <form className="compose-form" onSubmit={sendMessage}>
-                  <textarea value={messageText} onChange={(event) => setMessageText(event.target.value)} placeholder="Напиши анонимное сообщение" />
-                  <button className="primary-btn wide" type="submit" disabled={isSending || (siteSettings.geoRequiredForSend && !viewer?.geoAllowed)}>
-                    <Send size={16} />
-                    {isSending ? '⏳ Отправка...' : '🚀 Отправить'}
-                  </button>
-                </form>
-              </section>
-
-              <section className="panel-card feed-panel">
-                <div className="panel-head">
-                  <div>
-                    <span className="eyebrow">🌐 лента</span>
-                    <h2>Публично</h2>
-                  </div>
-                </div>
-
-                <div className="feed-list">
-                  {publicFeed.map((item) => (
-                    <article key={item.id} className="feed-card">
-                      <div className="feed-card-head">
-                        <div>
-                          <strong>{item.authorName}</strong>
-                          <span>{item.authorHandle}</span>
-                        </div>
-                        <div className="city-pill">
-                          <MapPin size={14} />
-                          <span>{item.city}</span>
-                        </div>
-                      </div>
-                      <p>{item.text}</p>
-                      <small>{formatRelativeTime(item.createdAt)}</small>
-                    </article>
-                  ))}
-                </div>
-              </section>
+              <button className="primary-btn wide" onClick={() => setAuthOpen(true)}>
+                🔽 Зайти в Регель
+              </button>
             </div>
-
-            <aside className="content-side">
-              <section className="panel-card inbox-panel">
-                <div className="panel-head">
-                  <div>
-                    <span className="eyebrow">📥 входящие</span>
-                    <h2>Личные</h2>
-                  </div>
-                </div>
-
-                <div className="inbox-list">
-                  {inbox.map((item) => (
-                    <article key={item.id} className="inbox-card">
-                      <div className="inbox-head">
-                        <div>
-                          <strong>{item.senderLabel}</strong>
-                          <span>{item.senderHandle}</span>
-                        </div>
-                        <div className="geo-mini">
-                          <MapPin size={13} />
-                          <span>{item.senderCity}</span>
-                        </div>
-                      </div>
-                      <p>{item.text}</p>
-                      <small>{item.senderCity}, {item.senderCountry} • {formatRelativeTime(item.createdAt)}</small>
-                    </article>
-                  ))}
-                </div>
-              </section>
-
-              <section className="panel-card side-info">
-                <div className="side-line">
-                  <ShieldCheck size={16} />
-                  <span>🟢 в ленте только имя и город</span>
-                </div>
-                <div className="side-line">
-                  <AtSign size={16} />
-                  <span>👁️ в личке скрытый отправитель это &gt;]Regellik</span>
-                </div>
-                <div className="side-line">
-                  <LocateFixed size={16} />
-                  <span>📍 telegram и гео синхронизируются после входа</span>
-                </div>
-              </section>
-            </aside>
           </section>
-        )}
 
-        {activeTab === 'profile' && (
-          <section className="profile-screen deep-profile-screen">
-            {!viewer ? (
-              <article className="panel-card profile-empty">
-                <span className="eyebrow">👤 профиль</span>
-                <h2>Вход не выполнен</h2>
-                <p>Открой вход в правом углу и выбери Telegram WebApp или Email.</p>
-              </article>
-            ) : (
-              <>
+          {publicFeed.length > 0 && (
+            <section className="panel-card feed-panel">
+              <div className="panel-head">
+                <div>
+                  <span className="eyebrow">🌐 лента</span>
+                  <h2>Последние анонимки</h2>
+                </div>
+              </div>
+              <div className="feed-list">
+                {publicFeed.slice(0, 5).map((item) => (
+                  <article key={item.id} className="feed-card">
+                    <div className="feed-card-head">
+                      <div>
+                        <strong>{item.authorName}</strong>
+                        <span>{item.authorHandle}</span>
+                      </div>
+                      <div className="city-pill">
+                        <MapPin size={14} />
+                        <span>{item.city}</span>
+                      </div>
+                    </div>
+                    <p>{item.text}</p>
+                    <small>{formatRelativeTime(item.createdAt)}</small>
+                  </article>
+                ))}
+              </div>
+            </section>
+          )}
+
+          <footer className="app-footer">
+            <span>Regellik © 2024</span>
+            <span>•</span>
+            <span>Нормы и Согласие</span>
+            <span>•</span>
+            <span>Обратная связь</span>
+            <span>•</span>
+            <span>О Нас</span>
+          </footer>
+        </main>
+      )}
+
+      {/* --- ОСНОВНОЙ КОНТЕНТ (залогинен) --- */}
+      {isSignedIn && (
+        <>
+          <section className="tabs-row">
+            <button className={activeTab === 'chats' ? 'tab-btn active' : 'tab-btn'} onClick={() => setActiveTab('chats')}>
+              <MessageCircle size={16} />
+              Чаты
+            </button>
+            <button className={activeTab === 'profile' ? 'tab-btn active' : 'tab-btn'} onClick={() => setActiveTab('profile')}>
+              <User size={16} />
+              Профиль
+            </button>
+            <button className={activeTab === 'transactions' ? 'tab-btn active' : 'tab-btn'} onClick={() => setActiveTab('transactions')}>
+              <Wallet size={16} />
+              Транзакции
+            </button>
+            {isAdmin && (
+              <button className={activeTab === 'admin' ? 'tab-btn active' : 'tab-btn'} onClick={() => setActiveTab('admin')}>
+                <UserCog size={16} />
+                Админка
+              </button>
+            )}
+          </section>
+
+          <main className="main-layout">
+            {/* --- ЧАТЫ --- */}
+            {activeTab === 'chats' && (
+              <section className="content-grid">
+                <div className="content-main">
+                  <div className="landing-stats-row">
+                    <article className="hero-stat-card accent-green">
+                      <span>⚡ онлайн</span>
+                      <strong>{siteSettings.onlineCounterVisible ? onlineCount : '—'}</strong>
+                      <small>сейчас</small>
+                    </article>
+                    <article className="hero-stat-card accent-orange">
+                      <span>💬 анонимки</span>
+                      <strong>{messages24h}</strong>
+                      <small>за 24 часа</small>
+                    </article>
+                  </div>
+
+                  <section className="panel-card directory-panel">
+                    <div className="panel-head">
+                      <div>
+                        <span className="eyebrow">👥 кому писать</span>
+                        <h2>Профили</h2>
+                      </div>
+                      <div className="head-chip">
+                        <Users size={15} />
+                        <span>{sortedDirectory.length}</span>
+                      </div>
+                    </div>
+
+                    <div className="directory-grid">
+                      {sortedDirectory.map((item) => (
+                        <button
+                          key={item.id}
+                          className={selectedRecipient === item.id ? 'directory-card selected' : 'directory-card'}
+                          onClick={() => setSelectedRecipient(item.id)}
+                        >
+                          <div className="directory-avatar">
+                            {item.avatarUrl ? <img src={item.avatarUrl} alt={item.name} /> : <span>{item.name[0]}</span>}
+                          </div>
+                          <div className="directory-copy">
+                            <strong>{item.name}</strong>
+                            <span>{item.handle}</span>
+                            <small>{item.city}, {item.country}</small>
+                            <small>{item.tagline}</small>
+                            <div className="badge-row">
+                              {item.badges.slice(0, 3).map((badge) => (
+                                <span key={badge} className="mini-badge">{badge}</span>
+                              ))}
+                            </div>
+                          </div>
+                        </button>
+                      ))}
+                    </div>
+                  </section>
+
+                  <section className="panel-card compose-panel">
+                    <div className="panel-head">
+                      <div>
+                        <span className="eyebrow">✍️ анонимка</span>
+                        <h2>Отправка</h2>
+                      </div>
+                      <div className={viewer?.geoAllowed ? 'status-chip success' : 'status-chip danger'}>
+                        <MapPin size={14} />
+                        <span>{siteSettings.geoRequiredForSend ? (viewer?.geoAllowed ? 'гео вкл' : 'гео выкл') : 'гео не требуется'}</span>
+                      </div>
+                    </div>
+
+                    <form className="compose-form" onSubmit={sendMessage}>
+                      <textarea value={messageText} onChange={(event) => setMessageText(event.target.value)} placeholder="Напиши анонимное сообщение" />
+                      <button className="primary-btn wide" type="submit" disabled={isSending || (siteSettings.geoRequiredForSend && !viewer?.geoAllowed)}>
+                        <Send size={16} />
+                        {isSending ? '⏳ Отправка...' : '🚀 Отправить'}
+                      </button>
+                    </form>
+                  </section>
+
+                  <section className="panel-card feed-panel">
+                    <div className="panel-head">
+                      <div>
+                        <span className="eyebrow">🌐 лента</span>
+                        <h2>Публично</h2>
+                      </div>
+                    </div>
+                    <div className="feed-list">
+                      {publicFeed.map((item) => (
+                        <article key={item.id} className="feed-card">
+                          <div className="feed-card-head">
+                            <div>
+                              <strong>{item.authorName}</strong>
+                              <span>{item.authorHandle}</span>
+                            </div>
+                            <div className="city-pill">
+                              <MapPin size={14} />
+                              <span>{item.city}</span>
+                            </div>
+                          </div>
+                          <p>{item.text}</p>
+                          <small>{formatRelativeTime(item.createdAt)}</small>
+                        </article>
+                      ))}
+                    </div>
+                  </section>
+                </div>
+
+                <aside className="content-side">
+                  <section className="panel-card inbox-panel">
+                    <div className="panel-head">
+                      <div>
+                        <span className="eyebrow">📥 входящие</span>
+                        <h2>Личные</h2>
+                      </div>
+                    </div>
+                    <div className="inbox-list">
+                      {inbox.map((item) => (
+                        <article key={item.id} className="inbox-card">
+                          <div className="inbox-head">
+                            <div>
+                              <strong>{item.senderLabel}</strong>
+                              <span>{item.senderHandle}</span>
+                            </div>
+                            <div className="geo-mini">
+                              <MapPin size={13} />
+                              <span>{item.senderCity}</span>
+                            </div>
+                          </div>
+                          <p>{item.text}</p>
+                          <small>{item.senderCity}, {item.senderCountry} • {formatRelativeTime(item.createdAt)}</small>
+                        </article>
+                      ))}
+                    </div>
+                  </section>
+                </aside>
+              </section>
+            )}
+
+            {/* --- ПРОФИЛЬ --- */}
+            {activeTab === 'profile' && viewer && (
+              <section className="profile-screen deep-profile-screen">
                 <article className="panel-card profile-hero">
                   <div className="profile-hero-main">
                     <div className="profile-avatar-large">
@@ -1199,7 +1177,7 @@ function App() {
                       <div className="profile-subline">
                         <span>{viewer.handle}</span>
                         <span className="dot-separator" />
-                        <span>{viewer.provider === 'telegram' ? 'Telegram WebApp' : 'Email'}</span>
+                        <span>{viewer.provider === 'telegram' ? 'Telegram' : 'Email'}</span>
                         <span className="dot-separator" />
                         <span>{viewer.role === 'admin' ? 'admin' : 'user'}</span>
                       </div>
@@ -1209,13 +1187,44 @@ function App() {
                       </div>
                     </div>
                   </div>
-
-                  <button className="secondary-btn" onClick={signOut}>
-                    <LogOut size={16} />
-                    Выйти
-                  </button>
                 </article>
 
+                {/* Суточные лимиты */}
+                <article className="panel-card limits-card">
+                  <div className="panel-head">
+                    <div>
+                      <span className="eyebrow">📊 суточные лимиты</span>
+                      <h2>Regellik+ <span className="premium-badge">premium</span></h2>
+                    </div>
+                  </div>
+                  <div className="limits-grid">
+                    <div className="limit-row">
+                      <div className="limit-label">
+                        <Send size={16} />
+                        <span>Отправка</span>
+                      </div>
+                      <div className="limit-bar">
+                        <div className="limit-fill" style={{ width: `${Math.min(100, (viewer.stats.sent / 50) * 100)}%` }} />
+                      </div>
+                      <strong>{viewer.stats.sent}/50</strong>
+                    </div>
+                    <div className="limit-row">
+                      <div className="limit-label">
+                        <Mail size={16} />
+                        <span>Получение</span>
+                      </div>
+                      <div className="limit-bar">
+                        <div className="limit-fill blue-fill" style={{ width: `${Math.min(100, (viewer.stats.received / 50) * 100)}%` }} />
+                      </div>
+                      <strong>{viewer.stats.received}/50</strong>
+                    </div>
+                  </div>
+                  <div className="limits-note">
+                    <span>💡 Бесплатная версия: 1 отправка и 1 получение в сутки. Если получатель не оплатил вовремя — анонимка не доставляется.</span>
+                  </div>
+                </article>
+
+                {/* Статистика */}
                 <div className="profile-stats-grid">
                   <article className="profile-stat-box green-box">
                     <span>отправлено</span>
@@ -1235,6 +1244,32 @@ function App() {
                   </article>
                 </div>
 
+                {/* Рефералы */}
+                <article className="panel-card referral-card">
+                  <div className="panel-head">
+                    <div>
+                      <span className="eyebrow">🔗 рефералы</span>
+                      <h2>Пригласи друзей</h2>
+                    </div>
+                  </div>
+                  <p className="hero-card-copy">
+                    Приглашай друзей — получай бонусы к лимитам. Каждый реферал = +5 отправок и +5 получений в сутки.
+                  </p>
+                  <div className="referral-stats">
+                    <div className="referral-stat">
+                      <Users size={20} />
+                      <strong>{viewer.stats.referrals}</strong>
+                      <span>приглашённых</span>
+                    </div>
+                    <div className="referral-stat">
+                      <Zap size={20} />
+                      <strong>+{viewer.stats.referrals * 5}</strong>
+                      <span>бонус лимитов</span>
+                    </div>
+                  </div>
+                </article>
+
+                {/* Редактирование профиля */}
                 <form className="panel-card profile-editor-card" onSubmit={updateProfile}>
                   <div className="panel-head">
                     <div>
@@ -1267,9 +1302,9 @@ function App() {
                     <span>О себе</span>
                     <textarea value={profileBio} onChange={(event) => setProfileBio(event.target.value)} />
                   </label>
-
                 </form>
 
+                {/* Инфо */}
                 <article className="panel-card profile-meta-card">
                   <div className="meta-row">
                     <span>мой id</span>
@@ -1281,10 +1316,10 @@ function App() {
                   </div>
                   <div className="meta-row">
                     <span>контакт</span>
-                    <strong>{viewer.email || 'Telegram WebApp'}</strong>
+                    <strong>{viewer.email || 'Telegram'}</strong>
                   </div>
                   <div className="meta-row">
-                    <span>дата входа в систему</span>
+                    <span>дата регистрации</span>
                     <strong>{formatDate(viewer.joinedAt)}</strong>
                   </div>
                   <div className="meta-row">
@@ -1302,7 +1337,7 @@ function App() {
                       </div>
                     </div>
                     <p className="hero-card-copy">
-                      Введи admin code, который задан на сервере. После этого твой текущий аккаунт получит роль admin и появится вкладка админки.
+                      Введи admin code, который задан на сервере.
                     </p>
                     <label className="input-block">
                       <span>Admin code</span>
@@ -1314,286 +1349,284 @@ function App() {
                     </button>
                   </form>
                 )}
-              </>
+
+                <footer className="app-footer">
+                  <span>Нормы и Согласие</span>
+                  <span>•</span>
+                  <span>Обратная связь</span>
+                  <span>•</span>
+                  <span>О Нас</span>
+                </footer>
+              </section>
             )}
-          </section>
-        )}
 
-        {activeTab === 'admin' && isAdmin && (
-          <section className="admin-screen">
-            <div className="admin-grid">
-              <div className="admin-left-column">
-                <form className="panel-card admin-settings-card" onSubmit={saveSiteSettings}>
+            {/* --- ТРАНЗАКЦИИ --- */}
+            {activeTab === 'transactions' && (
+              <section className="transactions-screen">
+                <article className="panel-card">
                   <div className="panel-head">
                     <div>
-                      <span className="eyebrow">⚙️ сайт</span>
-                      <h2>Глубокие настройки</h2>
-                    </div>
-                    <button className="primary-btn" type="submit" disabled={isSavingSite}>
-                      <Save size={16} />
-                      {isSavingSite ? 'Сохраняю...' : 'Сохранить'}
-                    </button>
-                  </div>
-
-                  <div className="toggle-grid admin-toggle-grid">
-                    <button className={siteSettings.telegramAuthEnabled ? 'toggle-card active' : 'toggle-card'} type="button" onClick={() => toggleSiteSetting('telegramAuthEnabled')}>
-                      <ShieldCheck size={16} />
-                      <span>Telegram auth</span>
-                    </button>
-                    <button className={siteSettings.emailAuthEnabled ? 'toggle-card active' : 'toggle-card'} type="button" onClick={() => toggleSiteSetting('emailAuthEnabled')}>
-                      <Mail size={16} />
-                      <span>Email auth</span>
-                    </button>
-                    <button className={siteSettings.geoRequiredForSend ? 'toggle-card active' : 'toggle-card'} type="button" onClick={() => toggleSiteSetting('geoRequiredForSend')}>
-                      <MapPin size={16} />
-                      <span>Geo required</span>
-                    </button>
-                    <button className={siteSettings.registrationsOpen ? 'toggle-card active' : 'toggle-card'} type="button" onClick={() => toggleSiteSetting('registrationsOpen')}>
-                      <Users size={16} />
-                      <span>Регистрация</span>
-                    </button>
-                    <button className={siteSettings.maintenanceMode ? 'toggle-card active danger' : 'toggle-card'} type="button" onClick={() => toggleSiteSetting('maintenanceMode')}>
-                      <Settings2 size={16} />
-                      <span>Maintenance</span>
-                    </button>
-                    <button className={siteSettings.onlineCounterVisible ? 'toggle-card active' : 'toggle-card'} type="button" onClick={() => toggleSiteSetting('onlineCounterVisible')}>
-                      <Zap size={16} />
-                      <span>Online counter</span>
-                    </button>
-                    <button className={siteSettings.publicFeedVisible ? 'toggle-card active' : 'toggle-card'} type="button" onClick={() => toggleSiteSetting('publicFeedVisible')}>
-                      <MessageCircle size={16} />
-                      <span>Лента</span>
-                    </button>
-                    <button className={siteSettings.inboxEnabled ? 'toggle-card active' : 'toggle-card'} type="button" onClick={() => toggleSiteSetting('inboxEnabled')}>
-                      <Mail size={16} />
-                      <span>Личка</span>
-                    </button>
-                    <button className={siteSettings.devBadgeVisible ? 'toggle-card active' : 'toggle-card'} type="button" onClick={() => toggleSiteSetting('devBadgeVisible')}>
-                      <BadgeCheck size={16} />
-                      <span>DEV badge</span>
-                    </button>
-                    <button className={siteSettings.profileEditEnabled ? 'toggle-card active' : 'toggle-card'} type="button" onClick={() => toggleSiteSetting('profileEditEnabled')}>
-                      <User size={16} />
-                      <span>Редактирование</span>
-                    </button>
-                  </div>
-                </form>
-
-                <form className="panel-card admin-grant-card" onSubmit={grantAdmin}>
-                  <div className="panel-head">
-                    <div>
-                      <span className="eyebrow">🛡️ выдача админки</span>
-                      <h2>Роль admin</h2>
+                      <span className="eyebrow">💰 транзакции</span>
+                      <h2>Баланс и операции</h2>
                     </div>
                   </div>
-                  <label className="input-block">
-                    <span>id, handle или email</span>
-                    <input value={grantIdentifier} onChange={(event) => setGrantIdentifier(event.target.value)} placeholder="@user или email@example.com" />
-                  </label>
-                  <button className="primary-btn wide" type="submit" disabled={isGrantingAdmin}>
-                    <ShieldCheck size={16} />
-                    {isGrantingAdmin ? 'Выдаю...' : 'Выдать admin'}
-                  </button>
-                </form>
-
-                <article className="panel-card audit-card">
-                  <div className="panel-head">
-                    <div>
-                      <span className="eyebrow">📜 журнал</span>
-                      <h2>Audit log</h2>
-                    </div>
+                  <div className="landing-stats-row">
+                    <article className="hero-stat-card accent-green">
+                      <span>⚡ баланс</span>
+                      <strong>{viewer?.powers ?? 0}</strong>
+                      <small>powers</small>
+                    </article>
+                    <article className="hero-stat-card accent-orange">
+                      <span>🔗 рефералы</span>
+                      <strong>{viewer?.stats.referrals ?? 0}</strong>
+                      <small>приглашённых</small>
+                    </article>
                   </div>
-                  <div className="audit-list">
-                    {auditLog.map((item) => (
-                      <div key={item.id} className="audit-item">
-                        <strong>{item.action}</strong>
-                        <span>{item.details}</span>
-                        <small>{formatRelativeTime(item.createdAt)}</small>
-                      </div>
-                    ))}
+                  <div className="limits-note" style={{ marginTop: '16px' }}>
+                    <span>💡 Regellik+ (premium) — увеличенные лимиты, приоритетная доставка анонимок, эксклюзивные бейджи. Скоро.</span>
                   </div>
                 </article>
-              </div>
+              </section>
+            )}
 
-              <div className="admin-right-column">
-                <article className="panel-card admin-users-card">
-                  <div className="panel-head">
-                    <div>
-                      <span className="eyebrow">👥 пользователи</span>
-                      <h2>Управление</h2>
-                    </div>
-                  </div>
-                  <div className="admin-user-list">
-                    {adminUsers.map((item) => (
-                      <button
-                        key={item.id}
-                        className={selectedAdminUserId === item.id ? 'admin-user-item active' : 'admin-user-item'}
-                        onClick={() => setSelectedAdminUserId(item.id)}
-                      >
+            {/* --- АДМИНКА --- */}
+            {activeTab === 'admin' && isAdmin && (
+              <section className="admin-screen">
+                <div className="admin-grid">
+                  <div className="admin-left-column">
+                    <form className="panel-card admin-settings-card" onSubmit={saveSiteSettings}>
+                      <div className="panel-head">
                         <div>
-                          <strong>{item.name}</strong>
-                          <span>{item.handle}</span>
+                          <span className="eyebrow">⚙️ сайт</span>
+                          <h2>Настройки</h2>
                         </div>
-                        <div className="admin-user-meta">
-                          <span>{item.role}</span>
-                          <span>{item.status}</span>
-                          <span>{item.powers}</span>
-                        </div>
-                      </button>
-                    ))}
-                  </div>
-                </article>
-
-                {adminDraft && (
-                  <form className="panel-card admin-editor-card" onSubmit={saveAdminUser}>
-                    <div className="panel-head">
-                      <div>
-                        <span className="eyebrow">🛠️ редактор пользователя</span>
-                        <h2>{adminDraft.name}</h2>
+                        <button className="primary-btn" type="submit" disabled={isSavingSite}>
+                          <Save size={16} />
+                          {isSavingSite ? 'Сохраняю...' : 'Сохранить'}
+                        </button>
                       </div>
-                      <button className="primary-btn" type="submit" disabled={isSavingAdminUser}>
-                        <Save size={16} />
-                        {isSavingAdminUser ? 'Сохраняю...' : 'Сохранить'}
-                      </button>
-                    </div>
 
-                    <div className="field-grid-3">
+                      <div className="toggle-grid admin-toggle-grid">
+                        <button className={siteSettings.telegramAuthEnabled ? 'toggle-card active' : 'toggle-card'} type="button" onClick={() => toggleSiteSetting('telegramAuthEnabled')}>
+                          <ShieldCheck size={16} />
+                          <span>Telegram auth</span>
+                        </button>
+                        <button className={siteSettings.emailAuthEnabled ? 'toggle-card active' : 'toggle-card'} type="button" onClick={() => toggleSiteSetting('emailAuthEnabled')}>
+                          <Mail size={16} />
+                          <span>Email auth</span>
+                        </button>
+                        <button className={siteSettings.geoRequiredForSend ? 'toggle-card active' : 'toggle-card'} type="button" onClick={() => toggleSiteSetting('geoRequiredForSend')}>
+                          <MapPin size={16} />
+                          <span>Geo required</span>
+                        </button>
+                        <button className={siteSettings.registrationsOpen ? 'toggle-card active' : 'toggle-card'} type="button" onClick={() => toggleSiteSetting('registrationsOpen')}>
+                          <Users size={16} />
+                          <span>Регистрация</span>
+                        </button>
+                        <button className={siteSettings.maintenanceMode ? 'toggle-card active danger' : 'toggle-card'} type="button" onClick={() => toggleSiteSetting('maintenanceMode')}>
+                          <Settings2 size={16} />
+                          <span>Maintenance</span>
+                        </button>
+                        <button className={siteSettings.onlineCounterVisible ? 'toggle-card active' : 'toggle-card'} type="button" onClick={() => toggleSiteSetting('onlineCounterVisible')}>
+                          <Zap size={16} />
+                          <span>Online counter</span>
+                        </button>
+                        <button className={siteSettings.publicFeedVisible ? 'toggle-card active' : 'toggle-card'} type="button" onClick={() => toggleSiteSetting('publicFeedVisible')}>
+                          <MessageCircle size={16} />
+                          <span>Лента</span>
+                        </button>
+                        <button className={siteSettings.inboxEnabled ? 'toggle-card active' : 'toggle-card'} type="button" onClick={() => toggleSiteSetting('inboxEnabled')}>
+                          <Mail size={16} />
+                          <span>Личка</span>
+                        </button>
+                        <button className={siteSettings.devBadgeVisible ? 'toggle-card active' : 'toggle-card'} type="button" onClick={() => toggleSiteSetting('devBadgeVisible')}>
+                          <BadgeCheck size={16} />
+                          <span>DEV badge</span>
+                        </button>
+                        <button className={siteSettings.profileEditEnabled ? 'toggle-card active' : 'toggle-card'} type="button" onClick={() => toggleSiteSetting('profileEditEnabled')}>
+                          <User size={16} />
+                          <span>Редактирование</span>
+                        </button>
+                      </div>
+                    </form>
+
+                    <form className="panel-card admin-grant-card" onSubmit={grantAdmin}>
+                      <div className="panel-head">
+                        <div>
+                          <span className="eyebrow">🛡️ выдача админки</span>
+                          <h2>Роль admin</h2>
+                        </div>
+                      </div>
                       <label className="input-block">
-                        <span>Имя</span>
-                        <input value={adminDraft.name} onChange={(event) => setAdminDraft((current) => (current ? { ...current, name: event.target.value } : current))} />
+                        <span>id, handle или email</span>
+                        <input value={grantIdentifier} onChange={(event) => setGrantIdentifier(event.target.value)} placeholder="@user или email@example.com" />
                       </label>
-                      <label className="input-block">
-                        <span>Handle</span>
-                        <input value={adminDraft.handle} onChange={(event) => setAdminDraft((current) => (current ? { ...current, handle: event.target.value } : current))} />
-                      </label>
-                      <label className="input-block">
-                        <span>Баланс</span>
-                        <input
-                          type="number"
-                          value={adminDraft.powers}
-                          onChange={(event) => setAdminDraft((current) => (current ? { ...current, powers: Number(event.target.value) || 0 } : current))}
-                        />
-                      </label>
-                    </div>
-
-                    <div className="quick-actions-row">
-                      <button className="secondary-btn" type="button" onClick={() => adjustAdminPowers(-100)}>
-                        <Wallet size={16} />
-                        -100
-                      </button>
-                      <button className="secondary-btn" type="button" onClick={() => adjustAdminPowers(100)}>
-                        <Wallet size={16} />
-                        +100
-                      </button>
-                      <button className="secondary-btn" type="button" onClick={() => adjustAdminPowers(500)}>
-                        <Wallet size={16} />
-                        +500
-                      </button>
-                    </div>
-
-                    <div className="field-grid-2">
-                      <label className="input-block">
-                        <span>Город</span>
-                        <input value={adminDraft.city || ''} onChange={(event) => setAdminDraft((current) => (current ? { ...current, city: event.target.value } : current))} />
-                      </label>
-                      <label className="input-block">
-                        <span>Страна</span>
-                        <input value={adminDraft.country || ''} onChange={(event) => setAdminDraft((current) => (current ? { ...current, country: event.target.value } : current))} />
-                      </label>
-                    </div>
-
-                    <div className="field-grid-2">
-                      <label className="input-block">
-                        <span>Роль</span>
-                        <select value={adminDraft.role} onChange={(event) => setAdminDraft((current) => (current ? { ...current, role: event.target.value as UserRole } : current))}>
-                          <option value="user">user</option>
-                          <option value="admin">admin</option>
-                        </select>
-                      </label>
-                      <label className="input-block">
-                        <span>Статус</span>
-                        <select value={adminDraft.status} onChange={(event) => setAdminDraft((current) => (current ? { ...current, status: event.target.value as UserStatus } : current))}>
-                          <option value="active">active</option>
-                          <option value="suspended">suspended</option>
-                        </select>
-                      </label>
-                    </div>
-
-                    <label className="input-block">
-                      <span>Tagline</span>
-                      <input value={adminDraft.tagline} onChange={(event) => setAdminDraft((current) => (current ? { ...current, tagline: event.target.value } : current))} />
-                    </label>
-
-                    <label className="input-block">
-                      <span>Bio</span>
-                      <textarea value={adminDraft.bio} onChange={(event) => setAdminDraft((current) => (current ? { ...current, bio: event.target.value } : current))} />
-                    </label>
-
-                    <label className="input-block">
-                      <span>Бейджи</span>
-                      <input value={adminDraft.badgesText} onChange={(event) => setAdminDraft((current) => (current ? { ...current, badgesText: event.target.value } : current))} />
-                    </label>
-
-                    <div className="toggle-grid admin-toggle-grid">
-                      <button className={adminDraft.isVisible ? 'toggle-card active' : 'toggle-card danger'} type="button" onClick={() => setAdminDraft((current) => (current ? { ...current, isVisible: !current.isVisible } : current))}>
-                        {adminDraft.isVisible ? <Eye size={16} /> : <EyeOff size={16} />}
-                        <span>Видимость профиля</span>
-                      </button>
-                      <button className={adminDraft.geoAllowed ? 'toggle-card active' : 'toggle-card danger'} type="button" onClick={() => setAdminDraft((current) => (current ? { ...current, geoAllowed: !current.geoAllowed } : current))}>
-                        <MapPin size={16} />
-                        <span>Гео доступ</span>
-                      </button>
-                      <button className={adminDraft.preferences.allowInbox ? 'toggle-card active' : 'toggle-card'} type="button" onClick={() => toggleAdminPref('allowInbox')}>
-                        <MessageCircle size={16} />
-                        <span>Личка</span>
-                      </button>
-                      <button className={adminDraft.preferences.showCity ? 'toggle-card active' : 'toggle-card'} type="button" onClick={() => toggleAdminPref('showCity')}>
-                        <MapPin size={16} />
-                        <span>Показывать город</span>
-                      </button>
-                      <button className={adminDraft.preferences.neonProfile ? 'toggle-card active' : 'toggle-card'} type="button" onClick={() => toggleAdminPref('neonProfile')}>
-                        <Sparkles size={16} />
-                        <span>Неоновый профиль</span>
-                      </button>
-                      <button className={adminDraft.preferences.emailAlerts ? 'toggle-card active' : 'toggle-card'} type="button" onClick={() => toggleAdminPref('emailAlerts')}>
-                        <Bell size={16} />
-                        <span>Email alerts</span>
-                      </button>
-                      <button className={adminDraft.preferences.telegramAutoAuth ? 'toggle-card active' : 'toggle-card'} type="button" onClick={() => toggleAdminPref('telegramAutoAuth')}>
+                      <button className="primary-btn wide" type="submit" disabled={isGrantingAdmin}>
                         <ShieldCheck size={16} />
-                        <span>Telegram auto auth</span>
+                        {isGrantingAdmin ? 'Выдаю...' : 'Выдать admin'}
                       </button>
-                    </div>
-                  </form>
-                )}
-              </div>
-            </div>
-          </section>
-        )}
+                    </form>
 
-        {activeTab === 'support' && (
-          <section className="support-screen">
-            <article className="panel-card support-card big-support">
-              <span className="eyebrow">🛟 поддержка</span>
-              <h2>Что важно</h2>
-              <div className="support-grid">
-                <div className="support-row">
-                  <ShieldCheck size={18} />
-                  <span>🔐 Для Telegram-авторизации нужен TELEGRAM_BOT_TOKEN на сервере и запуск mini app внутри Telegram.</span>
+                    <article className="panel-card audit-card">
+                      <div className="panel-head">
+                        <div>
+                          <span className="eyebrow">📜 журнал</span>
+                          <h2>Audit log</h2>
+                        </div>
+                      </div>
+                      <div className="audit-list">
+                        {auditLog.map((item) => (
+                          <div key={item.id} className="audit-item">
+                            <strong>{item.action}</strong>
+                            <span>{item.details}</span>
+                            <small>{formatRelativeTime(item.createdAt)}</small>
+                          </div>
+                        ))}
+                      </div>
+                    </article>
+                  </div>
+
+                  <div className="admin-right-column">
+                    <article className="panel-card admin-users-card">
+                      <div className="panel-head">
+                        <div>
+                          <span className="eyebrow">👥 пользователи</span>
+                          <h2>Управление</h2>
+                        </div>
+                      </div>
+                      <div className="admin-user-list">
+                        {adminUsers.map((item) => (
+                          <button
+                            key={item.id}
+                            className={selectedAdminUserId === item.id ? 'admin-user-item active' : 'admin-user-item'}
+                            onClick={() => setSelectedAdminUserId(item.id)}
+                          >
+                            <div>
+                              <strong>{item.name}</strong>
+                              <span>{item.handle}</span>
+                            </div>
+                            <div className="admin-user-meta">
+                              <span>{item.role}</span>
+                              <span>{item.status}</span>
+                              <span>{item.powers}</span>
+                            </div>
+                          </button>
+                        ))}
+                      </div>
+                    </article>
+
+                    {adminDraft && (
+                      <form className="panel-card admin-editor-card" onSubmit={saveAdminUser}>
+                        <div className="panel-head">
+                          <div>
+                            <span className="eyebrow">🛠️ редактор</span>
+                            <h2>{adminDraft.name}</h2>
+                          </div>
+                          <button className="primary-btn" type="submit" disabled={isSavingAdminUser}>
+                            <Save size={16} />
+                            {isSavingAdminUser ? 'Сохраняю...' : 'Сохранить'}
+                          </button>
+                        </div>
+
+                        <div className="field-grid-3">
+                          <label className="input-block">
+                            <span>Имя</span>
+                            <input value={adminDraft.name} onChange={(event) => setAdminDraft((current) => (current ? { ...current, name: event.target.value } : current))} />
+                          </label>
+                          <label className="input-block">
+                            <span>Handle</span>
+                            <input value={adminDraft.handle} onChange={(event) => setAdminDraft((current) => (current ? { ...current, handle: event.target.value } : current))} />
+                          </label>
+                          <label className="input-block">
+                            <span>Баланс</span>
+                            <input type="number" value={adminDraft.powers} onChange={(event) => setAdminDraft((current) => (current ? { ...current, powers: Number(event.target.value) || 0 } : current))} />
+                          </label>
+                        </div>
+
+                        <div className="quick-actions-row">
+                          <button className="secondary-btn" type="button" onClick={() => adjustAdminPowers(-100)}>-100</button>
+                          <button className="secondary-btn" type="button" onClick={() => adjustAdminPowers(100)}>+100</button>
+                          <button className="secondary-btn" type="button" onClick={() => adjustAdminPowers(500)}>+500</button>
+                        </div>
+
+                        <div className="field-grid-2">
+                          <label className="input-block">
+                            <span>Город</span>
+                            <input value={adminDraft.city || ''} onChange={(event) => setAdminDraft((current) => (current ? { ...current, city: event.target.value } : current))} />
+                          </label>
+                          <label className="input-block">
+                            <span>Страна</span>
+                            <input value={adminDraft.country || ''} onChange={(event) => setAdminDraft((current) => (current ? { ...current, country: event.target.value } : current))} />
+                          </label>
+                        </div>
+
+                        <div className="field-grid-2">
+                          <label className="input-block">
+                            <span>Роль</span>
+                            <select value={adminDraft.role} onChange={(event) => setAdminDraft((current) => (current ? { ...current, role: event.target.value as UserRole } : current))}>
+                              <option value="user">user</option>
+                              <option value="admin">admin</option>
+                            </select>
+                          </label>
+                          <label className="input-block">
+                            <span>Статус</span>
+                            <select value={adminDraft.status} onChange={(event) => setAdminDraft((current) => (current ? { ...current, status: event.target.value as UserStatus } : current))}>
+                              <option value="active">active</option>
+                              <option value="suspended">suspended</option>
+                            </select>
+                          </label>
+                        </div>
+
+                        <label className="input-block">
+                          <span>Tagline</span>
+                          <input value={adminDraft.tagline} onChange={(event) => setAdminDraft((current) => (current ? { ...current, tagline: event.target.value } : current))} />
+                        </label>
+
+                        <label className="input-block">
+                          <span>Bio</span>
+                          <textarea value={adminDraft.bio} onChange={(event) => setAdminDraft((current) => (current ? { ...current, bio: event.target.value } : current))} />
+                        </label>
+
+                        <label className="input-block">
+                          <span>Бейджи</span>
+                          <input value={adminDraft.badgesText} onChange={(event) => setAdminDraft((current) => (current ? { ...current, badgesText: event.target.value } : current))} />
+                        </label>
+
+                        <div className="toggle-grid admin-toggle-grid">
+                          <button className={adminDraft.isVisible ? 'toggle-card active' : 'toggle-card danger'} type="button" onClick={() => setAdminDraft((current) => (current ? { ...current, isVisible: !current.isVisible } : current))}>
+                            {adminDraft.isVisible ? <Eye size={16} /> : <EyeOff size={16} />}
+                            <span>Видимость</span>
+                          </button>
+                          <button className={adminDraft.geoAllowed ? 'toggle-card active' : 'toggle-card danger'} type="button" onClick={() => setAdminDraft((current) => (current ? { ...current, geoAllowed: !current.geoAllowed } : current))}>
+                            <MapPin size={16} />
+                            <span>Гео</span>
+                          </button>
+                          <button className={adminDraft.preferences.allowInbox ? 'toggle-card active' : 'toggle-card'} type="button" onClick={() => toggleAdminPref('allowInbox')}>
+                            <MessageCircle size={16} />
+                            <span>Личка</span>
+                          </button>
+                          <button className={adminDraft.preferences.showCity ? 'toggle-card active' : 'toggle-card'} type="button" onClick={() => toggleAdminPref('showCity')}>
+                            <MapPin size={16} />
+                            <span>Город</span>
+                          </button>
+                          <button className={adminDraft.preferences.neonProfile ? 'toggle-card active' : 'toggle-card'} type="button" onClick={() => toggleAdminPref('neonProfile')}>
+                            <Sparkles size={16} />
+                            <span>Неон</span>
+                          </button>
+                          <button className={adminDraft.preferences.emailAlerts ? 'toggle-card active' : 'toggle-card'} type="button" onClick={() => toggleAdminPref('emailAlerts')}>
+                            <Bell size={16} />
+                            <span>Email alerts</span>
+                          </button>
+                        </div>
+                      </form>
+                    )}
+                  </div>
                 </div>
-                <div className="support-row">
-                  <MapPin size={18} />
-                  <span>📍 Для входа по email теперь нужен пароль, поэтому по чужой почте зайти уже нельзя.</span>
-                </div>
-                <div className="support-row">
-                  <LifeBuoy size={18} />
-                  <span>💬 Admin code задаётся на сервере через ADMIN_BOOTSTRAP_CODE.</span>
-                </div>
-              </div>
-            </article>
-          </section>
-        )}
-      </main>
+              </section>
+            )}
+          </main>
+        </>
+      )}
 
       {siteSettings.devBadgeVisible && (
         <a className="dev-float" href="https://t.me/PALMARON" target="_blank" rel="noreferrer">
