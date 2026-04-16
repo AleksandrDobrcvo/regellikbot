@@ -9,6 +9,7 @@ import {
   LogOut,
   Mail,
   MapPin,
+  Menu,
   MessageCircle,
   Save,
   Send,
@@ -19,6 +20,7 @@ import {
   UserCog,
   Users,
   Wallet,
+  X,
   Zap,
 } from 'lucide-react'
 import { TelegramWebApp } from './types/telegram'
@@ -292,6 +294,7 @@ function App() {
   const [onlineCount, setOnlineCount] = useState(0)
   const [activeTab, setActiveTab] = useState<TabId>('feed')
   const [authOpen, setAuthOpen] = useState(false)
+  const [menuOpen, setMenuOpen] = useState(false)
   const [emailName, setEmailName] = useState('')
   const [emailValue, setEmailValue] = useState('')
   const [emailPassword, setEmailPassword] = useState('')
@@ -970,28 +973,57 @@ function App() {
         </div>
       )}
 
-      <header className="topbar">
-        <div className="brand-block">
-          <div className="brand-mark">&gt;]</div>
-          <div>
-            <div className="brand-name">Regellik</div>
-            <div className="brand-sub">анонимки • профили • транзакции</div>
-          </div>
-        </div>
+      {/* Плавающая кнопка-меню в углу */}
+      <div className="corner-menu">
+        <button className="corner-menu-btn" onClick={() => setMenuOpen(!menuOpen)}>
+          {menuOpen ? <X size={22} /> : <Menu size={22} />}
+          <span>{isSignedIn ? 'Меню' : 'Зайти'}</span>
+        </button>
 
-        <div className="top-actions">
-          {isSignedIn ? (
-            <button className="login-pill" onClick={signOut}>
-              <LogOut size={16} />
-              <span>Выйти</span>
-            </button>
-          ) : (
-            <button className="login-pill accent-login" onClick={() => setAuthOpen(true)}>
-              🔽 Зайти в Регель
-            </button>
-          )}
-        </div>
-      </header>
+        {menuOpen && (
+          <>
+            <div className="corner-menu-backdrop" onClick={() => setMenuOpen(false)} />
+            <nav className="corner-menu-dropdown">
+              <div className="corner-menu-header">
+                <div className="brand-mark">&gt;]</div>
+                <div>
+                  <div className="brand-name">Regellik</div>
+                  <div className="brand-sub">анонимки • профили • транзакции</div>
+                </div>
+              </div>
+
+              {!isSignedIn && (
+                <button className="corner-menu-item accent-item" onClick={() => { setMenuOpen(false); setAuthOpen(true) }}>
+                  🔽 Зайти в Регель
+                </button>
+              )}
+
+              {isSignedIn && (
+                <>
+                  <button className={activeTab === 'chats' ? 'corner-menu-item active' : 'corner-menu-item'} onClick={() => { setActiveTab('chats'); setMenuOpen(false) }}>
+                    <MessageCircle size={16} /> Чаты
+                  </button>
+                  <button className={activeTab === 'profile' ? 'corner-menu-item active' : 'corner-menu-item'} onClick={() => { setActiveTab('profile'); setMenuOpen(false) }}>
+                    <User size={16} /> Профиль
+                  </button>
+                  <button className={activeTab === 'transactions' ? 'corner-menu-item active' : 'corner-menu-item'} onClick={() => { setActiveTab('transactions'); setMenuOpen(false) }}>
+                    <Wallet size={16} /> Транзакции
+                  </button>
+                  {isAdmin && (
+                    <button className={activeTab === 'admin' ? 'corner-menu-item active' : 'corner-menu-item'} onClick={() => { setActiveTab('admin'); setMenuOpen(false) }}>
+                      <UserCog size={16} /> Админка
+                    </button>
+                  )}
+                  <div className="corner-menu-divider" />
+                  <button className="corner-menu-item danger-item" onClick={() => { setMenuOpen(false); void signOut() }}>
+                    <LogOut size={16} /> Выйти
+                  </button>
+                </>
+              )}
+            </nav>
+          </>
+        )}
+      </div>
 
       {/* --- ГЛАВНАЯ (для всех, без табов пока не залогинен) --- */}
       {!isSignedIn && activeTab === 'feed' && (
@@ -1064,27 +1096,6 @@ function App() {
       {/* --- ОСНОВНОЙ КОНТЕНТ (залогинен) --- */}
       {isSignedIn && (
         <>
-          <section className="tabs-row">
-            <button className={activeTab === 'chats' ? 'tab-btn active' : 'tab-btn'} onClick={() => setActiveTab('chats')}>
-              <MessageCircle size={16} />
-              Чаты
-            </button>
-            <button className={activeTab === 'profile' ? 'tab-btn active' : 'tab-btn'} onClick={() => setActiveTab('profile')}>
-              <User size={16} />
-              Профиль
-            </button>
-            <button className={activeTab === 'transactions' ? 'tab-btn active' : 'tab-btn'} onClick={() => setActiveTab('transactions')}>
-              <Wallet size={16} />
-              Транзакции
-            </button>
-            {isAdmin && (
-              <button className={activeTab === 'admin' ? 'tab-btn active' : 'tab-btn'} onClick={() => setActiveTab('admin')}>
-                <UserCog size={16} />
-                Админка
-              </button>
-            )}
-          </section>
-
           <main className="main-layout">
             {/* --- ЧАТЫ --- */}
             {activeTab === 'chats' && (
