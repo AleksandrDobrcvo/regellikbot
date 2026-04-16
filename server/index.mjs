@@ -241,6 +241,32 @@ function validateTelegramInitData(initData) {
   return computed === hash
 }
 
+function validateTelegramWidgetData(data) {
+  if (!data || !TELEGRAM_BOT_TOKEN) {
+    return false
+  }
+
+  const hash = data.hash
+  if (!hash) {
+    return false
+  }
+
+  const authDate = Number(data.auth_date)
+  if (!authDate || (Date.now() / 1000 - authDate) > 86400) {
+    return false
+  }
+
+  const pairs = Object.keys(data)
+    .filter((key) => key !== 'hash')
+    .sort()
+    .map((key) => `${key}=${data[key]}`)
+
+  const dataCheckString = pairs.join('\n')
+  const secretKey = crypto.createHash('sha256').update(TELEGRAM_BOT_TOKEN).digest()
+  const computed = crypto.createHmac('sha256', secretKey).update(dataCheckString).digest('hex')
+  return computed === hash
+}
+
 function normalizeHandle(value, fallback = 'regellik') {
   const base = String(value || fallback)
     .toLowerCase()
@@ -588,6 +614,81 @@ app.post('/api/auth/telegram', (request, response) => {
       username: username || user.telegramMeta?.username || null,
       isLinked: true,
       initData: payload.initData || user.telegramMeta?.initData || '',
+    }
+  }
+
+  const token = createToken()
+  state.sessions = state.sessions.filter((item) => item.userId !== user.id)
+  state.sessions.push({ token, userId: user.id, createdAt: new Date().toISOString() })
+  saveState(state)
+  response.json({ token, viewer: publicUser(user) })
+})
+
+app.post('/api/auth/telegram-widget', (request, response) => {
+  const state = readState()
+  const payload = request.body || {}
+
+  if (!state.siteSettings.telegramAuthEnabled) {
+    response.status(403).json({ error: 'Telegram-вход отключён' })
+    return
+  }
+
+  if (TELEGRAM_AUTH_STRICT && !TELEGRAM_BOT_TOKEN) {
+    response.status(500).json({ error: 'На сервере не настроен TELEGRAM_BOT_TOKEN' })
+    return
+  }
+
+  if (TELEGRAM_BOT_TOKEN && !validateTelegramWidgetData(payload)) {
+    response.status(403).json({ error: 'Данные Telegram Login Widget не прошли проверку' })
+    return
+  }
+
+  const telegramId = payload.id
+  const firstName = payload.first_name
+  const lastName = payload.last_name
+  const username = payload.username
+  const photoUrl = payload.photo_url
+
+  if (!telegramId || !firstName) {
+    response.status(400).json({ error: 'Неверные данные авторизации' })
+    return
+  }
+
+  let user = state.users.find((item) => item.provider === 'telegram' && item.providerId === String(telegramId))
+  if (!canSignIn(state, user)) {
+    response.status(403).json({ error: 'Сейчас вход ограничен настройками сайта' })
+    return
+  }
+
+  if (!user) {
+    user = createSeedUser({
+      id: createToken(),
+      provider: 'telegram',
+      providerId: String(telegramId),
+      name: [firstName, lastName].filter(Boolean).join(' '),
+      handle: ensureUniqueHandle(state, username || firstName),
+      avatarUrl: photoUrl || null,
+      email: null,
+      city: null,
+      country: null,
+      geoAllowed: false,
+      bio: 'Telegram-профиль через Login Widget.',
+      tagline: 'webapp connected',
+      badges: ['TG'],
+      telegramMeta: {
+        username: username || null,
+        isLinked: true,
+      },
+    })
+    state.users.push(user)
+    pushAudit(state, 'auth.telegram-widget.register', user.id, user.id, 'Создан telegram-пользователь через Login Widget.')
+  } else {
+    user.name = [firstName, lastName].filter(Boolean).join(' ')
+    user.handle = username ? ensureUniqueHandle(state, username, user.id) : user.handle
+    user.avatarUrl = photoUrl || user.avatarUrl
+    user.telegramMeta = {
+      username: username || user.telegramMeta?.username || null,
+      isLinked: true,
     }
   }
 

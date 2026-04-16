@@ -174,6 +174,7 @@ type AdminDraft = AdminManagedUser & {
 const SESSION_KEY = 'regellik.session'
 const API_BASE_URL = (import.meta.env.VITE_API_BASE_URL || '').replace(/\/$/, '')
 const WS_URL = import.meta.env.VITE_WS_URL || ''
+const TELEGRAM_BOT_USERNAME = import.meta.env.VITE_TELEGRAM_BOT_USERNAME || ''
 
 function resolveApiPath(path: string) {
   if (/^https?:\/\//.test(path)) {
@@ -616,6 +617,38 @@ function App() {
     }
   }
 
+  const signInTelegramWidget = async (telegramUser: Record<string, unknown>) => {
+    try {
+      const data = await apiRequest<AuthResponse>('/api/auth/telegram-widget', {
+        method: 'POST',
+        body: JSON.stringify(telegramUser),
+      })
+      await completeAuth(data)
+    } catch (error) {
+      showToast(error instanceof Error ? error.message : 'Вход не выполнен', 'error')
+    }
+  }
+
+  const telegramWidgetRef = (node: HTMLDivElement | null) => {
+    if (!node || !TELEGRAM_BOT_USERNAME) {
+      return
+    }
+
+    node.innerHTML = ''
+    ;(window as unknown as Record<string, unknown>).onTelegramWidgetAuth = (user: Record<string, unknown>) => {
+      void signInTelegramWidget(user)
+    }
+
+    const script = document.createElement('script')
+    script.src = 'https://telegram.org/js/telegram-widget.js?22'
+    script.setAttribute('data-telegram-login', TELEGRAM_BOT_USERNAME)
+    script.setAttribute('data-size', 'large')
+    script.setAttribute('data-onauth', 'onTelegramWidgetAuth(user)')
+    script.setAttribute('data-request-access', 'write')
+    script.async = true
+    node.appendChild(script)
+  }
+
   const signInEmail = async (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault()
 
@@ -892,6 +925,16 @@ function App() {
                 </div>
                 <ChevronRight size={18} />
               </button>
+
+              {TELEGRAM_BOT_USERNAME && !webApp?.initDataUnsafe?.user && (
+                <div className="auth-card telegram-widget-card">
+                  <div>
+                    <div className="auth-title">🔐 Telegram Login</div>
+                    <div className="auth-note">Вход через Telegram в обычном браузере</div>
+                  </div>
+                  <div ref={telegramWidgetRef} />
+                </div>
+              )}
 
               <form className="email-card" onSubmit={signInEmail}>
                 <div className="auth-title">✉️ Email</div>

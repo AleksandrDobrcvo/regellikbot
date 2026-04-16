@@ -1000,6 +1000,14 @@ select {
   box-shadow: 0 0 26px rgba(111, 230, 255, 0.08);
 }
 
+.telegram-widget-card {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  background: linear-gradient(135deg, rgba(42, 171, 238, 0.14), rgba(8, 24, 16, 0.92));
+  box-shadow: 0 0 26px rgba(42, 171, 238, 0.08);
+}
+
 .email-card {
   background: rgba(7, 20, 14, 0.92);
 }
