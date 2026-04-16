@@ -1,5 +1,5 @@
 import type { FormEvent } from 'react'
-import { useEffect, useMemo, useState } from 'react'
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import {
   AtSign,
   BadgeCheck,
@@ -617,7 +617,7 @@ function App() {
     }
   }
 
-  const signInTelegramWidget = async (telegramUser: Record<string, unknown>) => {
+  const signInTelegramWidget = useCallback(async (telegramUser: Record<string, unknown>) => {
     try {
       const data = await apiRequest<AuthResponse>('/api/auth/telegram-widget', {
         method: 'POST',
@@ -627,15 +627,25 @@ function App() {
     } catch (error) {
       showToast(error instanceof Error ? error.message : 'Вход не выполнен', 'error')
     }
-  }
+  }, [])
 
-  const telegramWidgetRef = (node: HTMLDivElement | null) => {
-    if (!node || !TELEGRAM_BOT_USERNAME) {
+  const widgetContainerRef = useRef<HTMLDivElement>(null)
+  const widgetLoadedRef = useRef(false)
+
+  useEffect(() => {
+    if (!authOpen || !TELEGRAM_BOT_USERNAME || webApp?.initDataUnsafe?.user) {
+      widgetLoadedRef.current = false
       return
     }
 
-    node.innerHTML = ''
-    ;(window as unknown as Record<string, unknown>).onTelegramWidgetAuth = (user: Record<string, unknown>) => {
+    const container = widgetContainerRef.current
+    if (!container || widgetLoadedRef.current) {
+      return
+    }
+
+    widgetLoadedRef.current = true
+    container.innerHTML = ''
+    ;(window as unknown as Record<string, (user: Record<string, unknown>) => void>).onTelegramWidgetAuth = (user) => {
       void signInTelegramWidget(user)
     }
 
@@ -643,11 +653,16 @@ function App() {
     script.src = 'https://telegram.org/js/telegram-widget.js?22'
     script.setAttribute('data-telegram-login', TELEGRAM_BOT_USERNAME)
     script.setAttribute('data-size', 'large')
+    script.setAttribute('data-radius', '14')
     script.setAttribute('data-onauth', 'onTelegramWidgetAuth(user)')
     script.setAttribute('data-request-access', 'write')
     script.async = true
-    node.appendChild(script)
-  }
+    container.appendChild(script)
+
+    return () => {
+      widgetLoadedRef.current = false
+    }
+  }, [authOpen, signInTelegramWidget, webApp])
 
   const signInEmail = async (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault()
@@ -910,7 +925,7 @@ function App() {
               <div>
                 <span className="eyebrow">🔐 Вход</span>
                 <h2>Выбери способ входа</h2>
-                <p>{webApp?.initDataUnsafe?.user ? 'Telegram WebApp найден, можно логиниться напрямую.' : 'Для telegram-авторизации открой mini app внутри Telegram.'}</p>
+                <p>{webApp?.initDataUnsafe?.user ? 'Telegram WebApp найден, можно логиниться напрямую.' : 'Telegram Login работает в любом браузере. Email — тоже.'}</p>
               </div>
               <button className="ghost-icon" onClick={() => setAuthOpen(false)}>
                 ×
@@ -932,7 +947,7 @@ function App() {
                     <div className="auth-title">🔐 Telegram Login</div>
                     <div className="auth-note">Вход через Telegram в обычном браузере</div>
                   </div>
-                  <div ref={telegramWidgetRef} />
+                  <div ref={widgetContainerRef} />
                 </div>
               )}
 
