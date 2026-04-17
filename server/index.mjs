@@ -36,6 +36,10 @@ const defaultSiteSettings = {
   inboxEnabled: true,
   devBadgeVisible: true,
   profileEditEnabled: true,
+  // Economy settings
+  messageCost: 0.1,          // ⚡ cost per sent message
+  messageEarn: 0.05,         // ⚡ earned when receiving a message
+  topUpOptions: [10, 50, 100, 250, 500, 1000], // predefined top-up amounts
 }
 
 const knownCoordinates = {
@@ -1188,6 +1192,70 @@ app.post('/api/admin/grant', (request, response) => {
   response.json(bootstrapPayload(state, viewer))
 })
 
+// Admin: search user by id/handle/email/numericId
+app.get('/api/admin/users/search', (request, response) => {
+  const state = readState()
+  const viewer = requireAdmin(request, response, state)
+  if (!viewer) return
+
+  const q = String(request.query.q || '').trim().toLowerCase()
+  if (!q) {
+    response.json({ users: [] })
+    return
+  }
+
+  const results = state.users.filter(u => {
+    return u.id === q ||
+      String(u.numericId) === q ||
+      u.handle.toLowerCase().includes(q) ||
+      (u.email && u.email.toLowerCase().includes(q)) ||
+      u.name.toLowerCase().includes(q)
+  }).slice(0, 20).map(u => ({
+    id: u.id,
+    numericId: u.numericId,
+    name: u.name,
+    handle: u.handle,
+    email: u.email || null,
+    role: u.role,
+    status: u.status,
+    powers: u.powers,
+    avatarUrl: u.avatarUrl,
+    createdAt: u.createdAt,
+    stats: u.stats,
+    badges: u.badges,
+  }))
+
+  response.json({ users: results })
+})
+
+// Admin: top-up powers for user
+app.post('/api/admin/topup', (request, response) => {
+  const state = readState()
+  const viewer = requireAdmin(request, response, state)
+  if (!viewer) return
+
+  const { userId, amount, reason } = request.body || {}
+  const target = state.users.find(u => u.id === userId)
+  if (!target) {
+    response.status(404).json({ error: 'Пользователь не найден' })
+    return
+  }
+
+  const numAmount = Number(amount)
+  if (!Number.isFinite(numAmount) || numAmount === 0) {
+    response.status(400).json({ error: 'Некорректная сумма' })
+    return
+  }
+
+  const oldPowers = target.powers
+  target.powers = Math.round((target.powers + numAmount) * 100) / 100
+  if (target.powers < 0) target.powers = 0
+
+  pushAudit(state, numAmount > 0 ? 'admin.topup' : 'admin.deduct', viewer.id, target.id, `${numAmount > 0 ? '+' : ''}${numAmount}⚡ пользователю ${target.handle} (было ${oldPowers}, стало ${target.powers}). ${reason ? 'Причина: ' + reason : ''}`)
+  saveState(state)
+  response.json(bootstrapPayload(state, viewer))
+})
+
 app.post('/api/session/logout', (request, response) => {
   const token = getBearerToken(request)
   const state = readState()
@@ -1283,6 +1351,13 @@ app.post('/api/conversations/:id/messages', (request, response) => {
     return
   }
 
+  // Economy: charge sender
+  const messageCost = Number(state.siteSettings.messageCost ?? 0.1)
+  if (messageCost > 0 && viewer.powers < messageCost) {
+    response.status(402).json({ error: `Недостаточно ⚡ (нужно ${messageCost})` })
+    return
+  }
+
   const msg = {
     id: createToken(),
     conversationId: convo.id,
@@ -1293,12 +1368,26 @@ app.post('/api/conversations/:id/messages', (request, response) => {
   state.chatMessages.push(msg)
   viewer.stats.sent += 1
 
+  // Economy: deduct from sender
+  if (messageCost > 0) {
+    viewer.powers = Math.round((viewer.powers - messageCost) * 100) / 100
+  }
+
   const recipientId = convo.participants.find(p => p !== viewer.id)
   const recipient = state.users.find(u => u.id === recipientId)
-  if (recipient) recipient.stats.received += 1
+  if (recipient) {
+    recipient.stats.received += 1
+    // Economy: reward recipient
+    const messageEarn = Number(state.siteSettings.messageEarn ?? 0.05)
+    if (messageEarn > 0) {
+      recipient.powers = Math.round((recipient.powers + messageEarn) * 100) / 100
+    }
+  }
 
   saveState(state)
-  response.json({ message: msg, conversations: getConversationsForUser(state, viewer.id) })
+  // Return updated viewer so client can refresh powers
+  const updatedViewer = state.users.find(u => u.id === viewer.id)
+  response.json({ message: msg, conversations: getConversationsForUser(state, viewer.id), viewerPowers: updatedViewer?.powers ?? viewer.powers })
 })
 
 // === RADAR API ===

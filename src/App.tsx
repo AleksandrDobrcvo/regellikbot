@@ -7,14 +7,17 @@ import {
   Bell,
   ChevronRight,
   Copy,
+  DollarSign,
   Eye,
   EyeOff,
+  Hash,
   LogOut,
   Mail,
   MapPin,
   Menu,
   MessageCircle,
   PenSquare,
+  Plus,
   Radar,
   Save,
   Search,
@@ -137,6 +140,9 @@ type SiteSettings = {
   inboxEnabled: boolean
   devBadgeVisible: boolean
   profileEditEnabled: boolean
+  messageCost: number
+  messageEarn: number
+  topUpOptions: number[]
 }
 
 type AdminManagedUser = SessionUser & {
@@ -255,6 +261,9 @@ const DEFAULT_SITE_SETTINGS: SiteSettings = {
   inboxEnabled: true,
   devBadgeVisible: true,
   profileEditEnabled: true,
+  messageCost: 0.1,
+  messageEarn: 0.05,
+  topUpOptions: [10, 50, 100, 250, 500, 1000],
 }
 
 function formatRelativeTime(value: string) {
@@ -379,6 +388,18 @@ function App() {
   // Radar state
   const [radarUsers, setRadarUsers] = useState<RadarUser[]>([])
   const [isRadarLoading, setIsRadarLoading] = useState(false)
+
+  // Top-up modal
+  const [topUpOpen, setTopUpOpen] = useState(false)
+
+  // Admin search
+  const [adminSearchQ, setAdminSearchQ] = useState('')
+  const [adminSearchResults, setAdminSearchResults] = useState<AdminManagedUser[]>([])
+  const [adminSearching, setAdminSearching] = useState(false)
+  const [adminTopUpUserId, setAdminTopUpUserId] = useState('')
+  const [adminTopUpAmount, setAdminTopUpAmount] = useState('')
+  const [adminTopUpReason, setAdminTopUpReason] = useState('')
+  const [adminConfirmAction, setAdminConfirmAction] = useState<{ label: string; action: () => void } | null>(null)
 
   // Header auto-hide
   const [headerHidden, setHeaderHidden] = useState(false)
@@ -845,13 +866,17 @@ function App() {
     const text = chatText.trim()
     setChatText('')
     try {
-      const data = await apiRequest<{ message: ChatMessage; conversations: ConversationPreview[] }>(
+      const data = await apiRequest<{ message: ChatMessage; conversations: ConversationPreview[]; viewerPowers: number }>(
         `/api/conversations/${openConvoId}/messages`,
         { method: 'POST', body: JSON.stringify({ text }) },
         sessionToken
       )
       setChatMessages(prev => [...prev, data.message])
       setConversations(data.conversations)
+      // Update viewer powers from economy
+      if (typeof data.viewerPowers === 'number') {
+        setViewer(prev => prev ? { ...prev, powers: data.viewerPowers } : prev)
+      }
     } catch (error) {
       showToast(error instanceof Error ? error.message : 'Не удалось отправить', 'error')
       setChatText(text)
@@ -888,6 +913,38 @@ function App() {
   const formatDistance = (meters: number) => {
     if (meters < 1000) return `${Math.round(meters)} м`
     return `${(meters / 1000).toFixed(1)} км`
+  }
+
+  // Admin search users
+  const adminSearchUsers = async () => {
+    if (!adminSearchQ.trim() || !sessionToken) return
+    setAdminSearching(true)
+    try {
+      const data = await apiRequest<{ users: AdminManagedUser[] }>(`/api/admin/users/search?q=${encodeURIComponent(adminSearchQ.trim())}`, undefined, sessionToken)
+      setAdminSearchResults(data.users)
+    } catch {
+      showToast('Ошибка поиска', 'error')
+    } finally {
+      setAdminSearching(false)
+    }
+  }
+
+  // Admin top-up user
+  const adminTopUp = async () => {
+    if (!adminTopUpUserId || !adminTopUpAmount || !sessionToken) return
+    try {
+      const data = await apiRequest<BootstrapResponse>('/api/admin/topup', {
+        method: 'POST',
+        body: JSON.stringify({ userId: adminTopUpUserId, amount: Number(adminTopUpAmount), reason: adminTopUpReason }),
+      }, sessionToken)
+      applyBootstrap(data)
+      showToast(`Баланс обновлён: ${adminTopUpAmount > '0' ? '+' : ''}${adminTopUpAmount}⚡`, 'success')
+      setAdminTopUpUserId('')
+      setAdminTopUpAmount('')
+      setAdminTopUpReason('')
+    } catch (error) {
+      showToast(error instanceof Error ? error.message : 'Ошибка', 'error')
+    }
   }
 
   const updateProfile = async (event: FormEvent<HTMLFormElement>) => {
@@ -1130,7 +1187,7 @@ function App() {
             </span>
           </div>
           <div className="header-right">
-            <div className="header-powers">
+            <div className="header-powers" onClick={() => { setActiveTab('transactions'); setMenuOpen(false); }} style={{cursor:'pointer'}}>
               <Zap size={14} />
               <span>{viewer?.powers ?? 0}</span>
             </div>
@@ -1505,7 +1562,7 @@ function App() {
                     </div>
                   </div>
                   <p className="hero-card-copy">
-                    Приглашай друзей — получай бонусы к лимитам. Каждый реферал = +5 отправок и +5 получений в сутки.
+                    Приглашай друзей по ссылке. Реферальная программа без денежных бонусов — только статистика.
                   </p>
                   {viewer.referralCode && (
                     <div className="referral-link-block">
@@ -1526,11 +1583,6 @@ function App() {
                       <Users size={20} />
                       <strong>{viewer.stats.referrals}</strong>
                       <span>приглашённых</span>
-                    </div>
-                    <div className="referral-stat">
-                      <Zap size={20} />
-                      <strong>+{viewer.stats.referrals * 5}</strong>
-                      <span>бонус лимитов</span>
                     </div>
                   </div>
                 </article>
@@ -1616,34 +1668,176 @@ function App() {
                 <article className="panel-card">
                   <div className="panel-head">
                     <div>
-                      <span className="eyebrow">💰 транзакции</span>
-                      <h2>Баланс и операции</h2>
+                      <span className="eyebrow">💰 баланс</span>
+                      <h2>Энергия ⚡</h2>
                     </div>
                   </div>
-                  <div className="landing-stats-row">
-                    <article className="hero-stat-card accent-green">
-                      <span>⚡ баланс</span>
-                      <strong>{viewer?.powers ?? 0}</strong>
-                      <small>powers</small>
-                    </article>
-                    <article className="hero-stat-card accent-orange">
-                      <span>🔗 рефералы</span>
-                      <strong>{viewer?.stats.referrals ?? 0}</strong>
-                      <small>приглашённых</small>
-                    </article>
+                  <div className="balance-hero">
+                    <div className="balance-hero-amount">
+                      <Zap size={28} />
+                      <span>{viewer?.powers ?? 0}</span>
+                    </div>
+                    <small>powers</small>
                   </div>
-                  <div className="limits-note" style={{ marginTop: '16px' }}>
-                    <span>💡 Regellik+ (premium) — увеличенные лимиты, приоритетная доставка анонимок, эксклюзивные бейджи. Скоро.</span>
+
+                  <div className="economy-info-grid">
+                    <div className="economy-info-item">
+                      <Send size={16} />
+                      <div>
+                        <strong>−{siteSettings.messageCost}⚡</strong>
+                        <span>за отправку сообщения</span>
+                      </div>
+                    </div>
+                    <div className="economy-info-item">
+                      <MessageCircle size={16} />
+                      <div>
+                        <strong>+{siteSettings.messageEarn}⚡</strong>
+                        <span>за полученное сообщение</span>
+                      </div>
+                    </div>
+                  </div>
+
+                  <button className="topup-cta-btn" onClick={() => setTopUpOpen(true)}>
+                    <Plus size={18} />
+                    Пополнить баланс
+                  </button>
+                </article>
+
+                <article className="panel-card">
+                  <div className="panel-head">
+                    <div>
+                      <span className="eyebrow">📊 статистика</span>
+                      <h2>Активность</h2>
+                    </div>
+                  </div>
+                  <div className="stats-mini-grid">
+                    <div className="stats-mini-item">
+                      <strong>{viewer?.stats.sent ?? 0}</strong>
+                      <span>отправлено</span>
+                    </div>
+                    <div className="stats-mini-item">
+                      <strong>{viewer?.stats.received ?? 0}</strong>
+                      <span>получено</span>
+                    </div>
+                    <div className="stats-mini-item">
+                      <strong>{viewer?.stats.referrals ?? 0}</strong>
+                      <span>рефералов</span>
+                    </div>
                   </div>
                 </article>
+
+                {/* Top-up modal */}
+                {topUpOpen && (
+                  <div className="compose-modal">
+                    <div className="compose-modal-backdrop" onClick={() => setTopUpOpen(false)} />
+                    <div className="compose-modal-sheet topup-sheet">
+                      <div className="compose-modal-head">
+                        <h3>Пополнить баланс</h3>
+                        <button className="ghost-icon" onClick={() => setTopUpOpen(false)}>×</button>
+                      </div>
+                      <p className="topup-desc">Выбери сумму пополнения ⚡</p>
+                      <div className="topup-options-grid">
+                        {(siteSettings.topUpOptions || [10, 50, 100, 250, 500, 1000]).map(amount => (
+                          <button key={amount} className="topup-option-btn" onClick={() => {
+                            showToast(`Пополнение на ${amount}⚡ — скоро будет доступно!`, 'info')
+                            setTopUpOpen(false)
+                          }}>
+                            <Zap size={16} />
+                            <span>{amount}</span>
+                          </button>
+                        ))}
+                      </div>
+                      <div className="topup-note">
+                        <span>💡 Оплата скоро станет доступна. Следи за обновлениями!</span>
+                      </div>
+                    </div>
+                  </div>
+                )}
               </section>
             )}
 
             {/* --- АДМИНКА --- */}
             {activeTab === 'admin' && isAdmin && (
               <section className="admin-screen page-transition">
+
+                {/* Admin header */}
+                <div className="admin-top-bar">
+                  <h2 className="admin-top-title"><ShieldCheck size={20} /> Панель администратора</h2>
+                </div>
+
+                {/* Quick search */}
+                <article className="panel-card admin-search-card">
+                  <div className="panel-head">
+                    <div>
+                      <span className="eyebrow">🔍 поиск</span>
+                      <h2>Найти пользователя</h2>
+                    </div>
+                  </div>
+                  <div className="admin-search-row">
+                    <div className="admin-search-input-wrap">
+                      <Hash size={15} />
+                      <input
+                        value={adminSearchQ}
+                        onChange={e => setAdminSearchQ(e.target.value)}
+                        placeholder="ID, handle, email, имя..."
+                        onKeyDown={e => { if (e.key === 'Enter') void adminSearchUsers() }}
+                      />
+                    </div>
+                    <button className="primary-btn" onClick={() => void adminSearchUsers()} disabled={adminSearching}>
+                      <Search size={16} />
+                      {adminSearching ? '...' : 'Найти'}
+                    </button>
+                  </div>
+                  {adminSearchResults.length > 0 && (
+                    <div className="admin-search-results">
+                      {adminSearchResults.map(u => (
+                        <button key={u.id} className={selectedAdminUserId === u.id ? 'admin-search-result-item active' : 'admin-search-result-item'} onClick={() => setSelectedAdminUserId(u.id)}>
+                          <div className="admin-sr-left">
+                            <strong>{u.name}</strong>
+                            <span>{u.handle}</span>
+                          </div>
+                          <div className="admin-sr-right">
+                            <span className={`admin-sr-badge ${u.role}`}>{u.role}</span>
+                            <span className="admin-sr-powers"><Zap size={12} /> {u.powers}</span>
+                          </div>
+                        </button>
+                      ))}
+                    </div>
+                  )}
+                </article>
+
                 <div className="admin-grid">
                   <div className="admin-left-column">
+
+                    {/* Economy settings */}
+                    <form className="panel-card admin-economy-card" onSubmit={saveSiteSettings}>
+                      <div className="panel-head">
+                        <div>
+                          <span className="eyebrow">💰 экономика</span>
+                          <h2>Настройки экономики</h2>
+                        </div>
+                        <button className="primary-btn" type="submit" disabled={isSavingSite}>
+                          <Save size={16} />
+                          {isSavingSite ? '...' : 'Сохранить'}
+                        </button>
+                      </div>
+                      <div className="field-grid-2">
+                        <label className="input-block">
+                          <span>Стоимость сообщения ⚡</span>
+                          <input type="number" step="0.01" min="0" value={siteSettings.messageCost} onChange={e => setSiteSettings(s => ({ ...s, messageCost: Number(e.target.value) || 0 }))} />
+                        </label>
+                        <label className="input-block">
+                          <span>Заработок за сообщение ⚡</span>
+                          <input type="number" step="0.01" min="0" value={siteSettings.messageEarn} onChange={e => setSiteSettings(s => ({ ...s, messageEarn: Number(e.target.value) || 0 }))} />
+                        </label>
+                      </div>
+                      <label className="input-block">
+                        <span>Суммы пополнения (через запятую)</span>
+                        <input value={(siteSettings.topUpOptions || []).join(', ')} onChange={e => setSiteSettings(s => ({ ...s, topUpOptions: e.target.value.split(',').map(v => Number(v.trim())).filter(v => v > 0) }))} />
+                      </label>
+                    </form>
+
+                    {/* Site settings */}
                     <form className="panel-card admin-settings-card" onSubmit={saveSiteSettings}>
                       <div className="panel-head">
                         <div>
@@ -1652,22 +1846,21 @@ function App() {
                         </div>
                         <button className="primary-btn" type="submit" disabled={isSavingSite}>
                           <Save size={16} />
-                          {isSavingSite ? 'Сохраняю...' : 'Сохранить'}
+                          {isSavingSite ? '...' : 'Сохранить'}
                         </button>
                       </div>
-
                       <div className="toggle-grid admin-toggle-grid">
                         <button className={siteSettings.telegramAuthEnabled ? 'toggle-card active' : 'toggle-card'} type="button" onClick={() => toggleSiteSetting('telegramAuthEnabled')}>
                           <ShieldCheck size={16} />
-                          <span>Telegram auth</span>
+                          <span>TG auth</span>
                         </button>
                         <button className={siteSettings.emailAuthEnabled ? 'toggle-card active' : 'toggle-card'} type="button" onClick={() => toggleSiteSetting('emailAuthEnabled')}>
                           <Mail size={16} />
-                          <span>Email auth</span>
+                          <span>Email</span>
                         </button>
                         <button className={siteSettings.geoRequiredForSend ? 'toggle-card active' : 'toggle-card'} type="button" onClick={() => toggleSiteSetting('geoRequiredForSend')}>
                           <MapPin size={16} />
-                          <span>Geo required</span>
+                          <span>Geo req</span>
                         </button>
                         <button className={siteSettings.registrationsOpen ? 'toggle-card active' : 'toggle-card'} type="button" onClick={() => toggleSiteSetting('registrationsOpen')}>
                           <Users size={16} />
@@ -1675,11 +1868,11 @@ function App() {
                         </button>
                         <button className={siteSettings.maintenanceMode ? 'toggle-card active danger' : 'toggle-card'} type="button" onClick={() => toggleSiteSetting('maintenanceMode')}>
                           <Settings2 size={16} />
-                          <span>Maintenance</span>
+                          <span>Тех. работы</span>
                         </button>
                         <button className={siteSettings.onlineCounterVisible ? 'toggle-card active' : 'toggle-card'} type="button" onClick={() => toggleSiteSetting('onlineCounterVisible')}>
                           <Zap size={16} />
-                          <span>Online counter</span>
+                          <span>Онлайн</span>
                         </button>
                         <button className={siteSettings.publicFeedVisible ? 'toggle-card active' : 'toggle-card'} type="button" onClick={() => toggleSiteSetting('publicFeedVisible')}>
                           <MessageCircle size={16} />
@@ -1700,23 +1893,58 @@ function App() {
                       </div>
                     </form>
 
+                    {/* Grant admin */}
                     <form className="panel-card admin-grant-card" onSubmit={grantAdmin}>
                       <div className="panel-head">
                         <div>
-                          <span className="eyebrow">🛡️ выдача админки</span>
+                          <span className="eyebrow">🛡️ выдача</span>
                           <h2>Роль admin</h2>
                         </div>
                       </div>
                       <label className="input-block">
-                        <span>id, handle или email</span>
-                        <input value={grantIdentifier} onChange={(event) => setGrantIdentifier(event.target.value)} placeholder="@user или email@example.com" />
+                        <span>ID, handle или email</span>
+                        <input value={grantIdentifier} onChange={(event) => setGrantIdentifier(event.target.value)} placeholder="@user или email" />
                       </label>
-                      <button className="primary-btn wide" type="submit" disabled={isGrantingAdmin}>
+                      <button className="primary-btn wide" type="submit" disabled={isGrantingAdmin} onClick={() => setAdminConfirmAction(null)}>
                         <ShieldCheck size={16} />
                         {isGrantingAdmin ? 'Выдаю...' : 'Выдать admin'}
                       </button>
                     </form>
 
+                    {/* Admin top-up */}
+                    <article className="panel-card admin-topup-card">
+                      <div className="panel-head">
+                        <div>
+                          <span className="eyebrow">⚡ начисление</span>
+                          <h2>Top-up пользователю</h2>
+                        </div>
+                      </div>
+                      <label className="input-block">
+                        <span>User ID</span>
+                        <input value={adminTopUpUserId} onChange={e => setAdminTopUpUserId(e.target.value)} placeholder="id пользователя" />
+                      </label>
+                      <div className="field-grid-2">
+                        <label className="input-block">
+                          <span>Сумма ⚡</span>
+                          <input type="number" step="0.01" value={adminTopUpAmount} onChange={e => setAdminTopUpAmount(e.target.value)} placeholder="+100 или -50" />
+                        </label>
+                        <label className="input-block">
+                          <span>Причина</span>
+                          <input value={adminTopUpReason} onChange={e => setAdminTopUpReason(e.target.value)} placeholder="опционально" />
+                        </label>
+                      </div>
+                      <button className="primary-btn wide" type="button" onClick={() => {
+                        setAdminConfirmAction({
+                          label: `${Number(adminTopUpAmount) > 0 ? '+' : ''}${adminTopUpAmount}⚡ пользователю ${adminTopUpUserId}`,
+                          action: () => { void adminTopUp(); setAdminConfirmAction(null) }
+                        })
+                      }} disabled={!adminTopUpUserId || !adminTopUpAmount}>
+                        <DollarSign size={16} />
+                        Начислить
+                      </button>
+                    </article>
+
+                    {/* Audit log */}
                     <article className="panel-card audit-card">
                       <div className="panel-head">
                         <div>
@@ -1725,22 +1953,24 @@ function App() {
                         </div>
                       </div>
                       <div className="audit-list">
-                        {auditLog.map((item) => (
+                        {auditLog.slice(0, 30).map((item) => (
                           <div key={item.id} className="audit-item">
                             <strong>{item.action}</strong>
                             <span>{item.details}</span>
                             <small>{formatRelativeTime(item.createdAt)}</small>
                           </div>
                         ))}
+                        {auditLog.length === 0 && <div className="chats-empty" style={{padding: '20px'}}><p>Лог пуст</p></div>}
                       </div>
                     </article>
                   </div>
 
                   <div className="admin-right-column">
+                    {/* Users list */}
                     <article className="panel-card admin-users-card">
                       <div className="panel-head">
                         <div>
-                          <span className="eyebrow">👥 пользователи</span>
+                          <span className="eyebrow">👥 пользователи ({adminUsers.length})</span>
                           <h2>Управление</h2>
                         </div>
                       </div>
@@ -1751,20 +1981,21 @@ function App() {
                             className={selectedAdminUserId === item.id ? 'admin-user-item active' : 'admin-user-item'}
                             onClick={() => setSelectedAdminUserId(item.id)}
                           >
-                            <div>
+                            <div className="admin-user-left">
                               <strong>{item.name}</strong>
-                              <span>{item.handle}</span>
+                              <span className="admin-user-handle">{item.handle}</span>
                             </div>
                             <div className="admin-user-meta">
-                              <span>{item.role}</span>
-                              <span>{item.status}</span>
-                              <span>{item.powers}</span>
+                              <span className={`admin-role-pill ${item.role}`}>{item.role}</span>
+                              <span className={`admin-status-pill ${item.status}`}>{item.status}</span>
+                              <span className="admin-powers-pill"><Zap size={11} /> {item.powers}</span>
                             </div>
                           </button>
                         ))}
                       </div>
                     </article>
 
+                    {/* User editor */}
                     {adminDraft && (
                       <form className="panel-card admin-editor-card" onSubmit={saveAdminUser}>
                         <div className="panel-head">
@@ -1772,10 +2003,27 @@ function App() {
                             <span className="eyebrow">🛠️ редактор</span>
                             <h2>{adminDraft.name}</h2>
                           </div>
-                          <button className="primary-btn" type="submit" disabled={isSavingAdminUser}>
+                          <button className="primary-btn" type="button" onClick={() => {
+                            setAdminConfirmAction({
+                              label: `Сохранить изменения для ${adminDraft.name}`,
+                              action: () => {
+                                const form = document.querySelector<HTMLFormElement>('.admin-editor-card')
+                                if (form) form.requestSubmit()
+                                setAdminConfirmAction(null)
+                              }
+                            })
+                          }} disabled={isSavingAdminUser}>
                             <Save size={16} />
-                            {isSavingAdminUser ? 'Сохраняю...' : 'Сохранить'}
+                            {isSavingAdminUser ? '...' : 'Сохранить'}
                           </button>
+                        </div>
+
+                        <div className="admin-editor-id-row">
+                          <span className="admin-editor-id">ID: {adminDraft.id}</span>
+                          <button type="button" className="ghost-icon" onClick={() => {
+                            void navigator.clipboard.writeText(adminDraft.id)
+                            showToast('ID скопирован', 'success')
+                          }}><Copy size={12} /></button>
                         </div>
 
                         <div className="field-grid-3">
@@ -1788,13 +2036,15 @@ function App() {
                             <input value={adminDraft.handle} onChange={(event) => setAdminDraft((current) => (current ? { ...current, handle: event.target.value } : current))} />
                           </label>
                           <label className="input-block">
-                            <span>Баланс</span>
+                            <span>Баланс ⚡</span>
                             <input type="number" value={adminDraft.powers} onChange={(event) => setAdminDraft((current) => (current ? { ...current, powers: Number(event.target.value) || 0 } : current))} />
                           </label>
                         </div>
 
                         <div className="quick-actions-row">
-                          <button className="secondary-btn" type="button" onClick={() => adjustAdminPowers(-100)}>-100</button>
+                          <button className="secondary-btn danger" type="button" onClick={() => adjustAdminPowers(-100)}>−100</button>
+                          <button className="secondary-btn danger" type="button" onClick={() => adjustAdminPowers(-10)}>−10</button>
+                          <button className="secondary-btn" type="button" onClick={() => adjustAdminPowers(10)}>+10</button>
                           <button className="secondary-btn" type="button" onClick={() => adjustAdminPowers(100)}>+100</button>
                           <button className="secondary-btn" type="button" onClick={() => adjustAdminPowers(500)}>+500</button>
                         </div>
@@ -1872,6 +2122,24 @@ function App() {
                     )}
                   </div>
                 </div>
+
+                {/* Confirmation modal */}
+                {adminConfirmAction && (
+                  <div className="compose-modal">
+                    <div className="compose-modal-backdrop" onClick={() => setAdminConfirmAction(null)} />
+                    <div className="compose-modal-sheet admin-confirm-sheet">
+                      <div className="admin-confirm-content">
+                        <div className="admin-confirm-icon">⚠️</div>
+                        <h3>Подтвердить действие?</h3>
+                        <p>{adminConfirmAction.label}</p>
+                        <div className="admin-confirm-btns">
+                          <button className="secondary-btn" onClick={() => setAdminConfirmAction(null)}>Отмена</button>
+                          <button className="primary-btn" onClick={adminConfirmAction.action}>Подтвердить</button>
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+                )}
               </section>
             )}
           </main>
