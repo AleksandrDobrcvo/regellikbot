@@ -15,6 +15,7 @@ const ADMIN_EMAILS = (process.env.ADMIN_EMAILS || '').split(',').map(e => e.trim
 const ADMIN_TELEGRAM_IDS = (process.env.ADMIN_TELEGRAM_IDS || '').split(',').map(e => e.trim()).filter(Boolean)
 const TELEGRAM_AUTH_STRICT = process.env.TELEGRAM_AUTH_STRICT !== 'false'
 const CORS_ORIGIN = process.env.CORS_ORIGIN || '*'
+const ALLOWED_EMAIL_DOMAINS = ['gmail.com','mail.ru','yandex.ru','yahoo.com','outlook.com','hotmail.com','icloud.com','protonmail.com','mail.com','inbox.ru','bk.ru','list.ru','ya.ru','rambler.ru','ukr.net','i.ua','wp.pl','o2.pl','onet.pl','interia.pl','tut.by','zoho.com','aol.com','live.com']
 
 const defaultPreferences = {
   showCity: true,
@@ -105,6 +106,8 @@ function createSeedUser(data) {
 
 const defaultState = {
   siteSettings: { ...defaultSiteSettings },
+  conversations: [],
+  chatMessages: [],
   users: [
     createSeedUser({
       id: 'seed-regellik',
@@ -270,6 +273,8 @@ function readState() {
   state.inboxMessages = Array.isArray(state.inboxMessages)
     ? state.inboxMessages.map((item) => applyCoordinates({ ...item }, 'senderCity', 'senderCountry', 'senderLatitude', 'senderLongitude'))
     : []
+  state.conversations = Array.isArray(state.conversations) ? state.conversations : []
+  state.chatMessages = Array.isArray(state.chatMessages) ? state.chatMessages : []
   return state
 }
 
@@ -279,6 +284,52 @@ function saveState(state) {
 
 function createToken() {
   return crypto.randomUUID()
+}
+
+function createWelcomeConversation(state, userId) {
+  const regellikId = 'seed-regellik'
+  const convoId = createToken()
+  state.conversations.push({
+    id: convoId,
+    participants: [regellikId, userId],
+    isSystem: true,
+    createdAt: new Date().toISOString(),
+  })
+  state.chatMessages.push({
+    id: createToken(),
+    conversationId: convoId,
+    senderId: regellikId,
+    text: 'Добро пожаловать в Regellik! 👋\n\nЗдесь ты можешь отправлять анонимные сообщения, общаться с людьми рядом и зарабатывать бонусы за рефералов.\n\nЕсли есть вопросы — пиши сюда, мы ответим.',
+    createdAt: new Date().toISOString(),
+  })
+  return convoId
+}
+
+function getConversationsForUser(state, userId) {
+  return state.conversations
+    .filter(c => c.participants.includes(userId))
+    .map(c => {
+      const messages = state.chatMessages
+        .filter(m => m.conversationId === c.id)
+        .sort((a, b) => b.createdAt.localeCompare(a.createdAt))
+      const lastMsg = messages[0] || null
+      const otherId = c.participants.find(p => p !== userId)
+      const otherUser = state.users.find(u => u.id === otherId)
+      const unread = messages.filter(m => m.senderId !== userId && !m.readAt).length
+      return {
+        id: c.id,
+        isSystem: c.isSystem || false,
+        createdAt: c.createdAt,
+        lastMessage: lastMsg ? { text: lastMsg.text, senderId: lastMsg.senderId, createdAt: lastMsg.createdAt } : null,
+        unreadCount: unread,
+        otherUser: otherUser ? { id: otherUser.id, name: otherUser.name, handle: otherUser.handle, avatarUrl: otherUser.avatarUrl } : null,
+      }
+    })
+    .sort((a, b) => {
+      const aTime = a.lastMessage?.createdAt || a.createdAt
+      const bTime = b.lastMessage?.createdAt || b.createdAt
+      return bTime.localeCompare(aTime)
+    })
 }
 
 function createPasswordHash(password, salt = crypto.randomBytes(16).toString('hex')) {
@@ -476,6 +527,7 @@ function bootstrapPayload(state, viewer) {
           .slice(0, 12)
       : [],
     directory: visibleUsers.map(directoryItem),
+    conversations: viewer ? getConversationsForUser(state, viewer.id) : [],
     adminData: viewer?.role === 'admin' ? adminData(state) : null,
   }
 }
@@ -592,6 +644,13 @@ app.post('/api/auth/email', (request, response) => {
     return
   }
 
+  // Domain validation
+  const emailDomain = emailNorm.split('@')[1]
+  if (!ALLOWED_EMAIL_DOMAINS.includes(emailDomain)) {
+    response.status(400).json({ error: `Домен @${emailDomain} не поддерживается. Используй Gmail, Mail.ru, Yandex, Outlook и т.д.` })
+    return
+  }
+
   let user = state.users.find((item) => item.email?.toLowerCase() === emailNorm)
 
   // === REGISTRATION ===
@@ -657,13 +716,14 @@ app.post('/api/auth/email', (request, response) => {
     }
 
     state.users.push(user)
+    createWelcomeConversation(state, user.id)
     pushAudit(state, 'auth.email.register', user.id, user.id, 'Регистрация по email.')
 
     const token = createToken()
     state.sessions = state.sessions.filter((item) => item.userId !== user.id)
     state.sessions.push({ token, userId: user.id, createdAt: new Date().toISOString() })
     saveState(state)
-    response.json({ token, viewer: publicUser(user), isNewUser: true })
+    response.json({ token, viewer: publicUser(user), isNewUser: true, conversations: getConversationsForUser(state, user.id) })
     return
   }
 
@@ -675,6 +735,20 @@ app.post('/api/auth/email', (request, response) => {
 
   if (!canSignIn(state, user)) {
     response.status(403).json({ error: 'Вход ограничен настройками сайта' })
+    return
+  }
+
+  // Handle users missing password (migrated/corrupted state)
+  if (!user.passwordHash || !user.passwordSalt) {
+    const passwordData = createPasswordHash(String(password))
+    user.passwordHash = passwordData.hash
+    user.passwordSalt = passwordData.salt
+    pushAudit(state, 'auth.email.password-set', user.id, user.id, 'Установлен пароль (отсутствовал).')
+    const token = createToken()
+    state.sessions = state.sessions.filter((item) => item.userId !== user.id)
+    state.sessions.push({ token, userId: user.id, createdAt: new Date().toISOString() })
+    saveState(state)
+    response.json({ token, viewer: publicUser(user), isNewUser: false })
     return
   }
 
@@ -761,6 +835,7 @@ app.post('/api/auth/telegram', (request, response) => {
     }
 
     state.users.push(user)
+    createWelcomeConversation(state, user.id)
     pushAudit(state, 'auth.telegram.register', user.id, user.id, 'Создан новый telegram-пользователь.')
   } else {
     user.name = [firstName, lastName].filter(Boolean).join(' ')
@@ -840,6 +915,7 @@ app.post('/api/auth/telegram-widget', (request, response) => {
       },
     })
     state.users.push(user)
+    createWelcomeConversation(state, user.id)
     pushAudit(state, 'auth.telegram-widget.register', user.id, user.id, 'Создан telegram-пользователь через Login Widget.')
   } else {
     user.name = [firstName, lastName].filter(Boolean).join(' ')
@@ -1118,6 +1194,150 @@ app.post('/api/session/logout', (request, response) => {
   state.sessions = state.sessions.filter((item) => item.token !== token)
   saveState(state)
   response.json({ ok: true })
+})
+
+// === CONVERSATIONS API ===
+
+app.post('/api/conversations', (request, response) => {
+  const state = readState()
+  const viewer = requireUser(request, response, state)
+  if (!viewer) return
+
+  const { recipientId } = request.body || {}
+  if (!recipientId) {
+    response.status(400).json({ error: 'Укажи получателя' })
+    return
+  }
+
+  const recipient = state.users.find(u => u.id === recipientId)
+  if (!recipient || recipient.status !== 'active') {
+    response.status(404).json({ error: 'Пользователь не найден' })
+    return
+  }
+
+  // Check if conversation already exists
+  const existing = state.conversations.find(c =>
+    c.participants.includes(viewer.id) && c.participants.includes(recipientId)
+  )
+  if (existing) {
+    response.json({ conversationId: existing.id })
+    return
+  }
+
+  const convoId = createToken()
+  state.conversations.push({
+    id: convoId,
+    participants: [viewer.id, recipientId],
+    isSystem: false,
+    createdAt: new Date().toISOString(),
+  })
+  saveState(state)
+  response.json({ conversationId: convoId })
+})
+
+app.get('/api/conversations/:id/messages', (request, response) => {
+  const state = readState()
+  const viewer = requireUser(request, response, state)
+  if (!viewer) return
+
+  const convo = state.conversations.find(c => c.id === request.params.id)
+  if (!convo || !convo.participants.includes(viewer.id)) {
+    response.status(404).json({ error: 'Чат не найден' })
+    return
+  }
+
+  // Mark messages as read
+  state.chatMessages
+    .filter(m => m.conversationId === convo.id && m.senderId !== viewer.id && !m.readAt)
+    .forEach(m => { m.readAt = new Date().toISOString() })
+  saveState(state)
+
+  const messages = state.chatMessages
+    .filter(m => m.conversationId === convo.id)
+    .sort((a, b) => a.createdAt.localeCompare(b.createdAt))
+
+  const otherId = convo.participants.find(p => p !== viewer.id)
+  const otherUser = state.users.find(u => u.id === otherId)
+
+  response.json({
+    messages,
+    otherUser: otherUser ? { id: otherUser.id, name: otherUser.name, handle: otherUser.handle, avatarUrl: otherUser.avatarUrl } : null,
+    isSystem: convo.isSystem || false,
+  })
+})
+
+app.post('/api/conversations/:id/messages', (request, response) => {
+  const state = readState()
+  const viewer = requireUser(request, response, state)
+  if (!viewer) return
+
+  const convo = state.conversations.find(c => c.id === request.params.id)
+  if (!convo || !convo.participants.includes(viewer.id)) {
+    response.status(404).json({ error: 'Чат не найден' })
+    return
+  }
+
+  const text = String(request.body?.text || '').trim()
+  if (!text) {
+    response.status(400).json({ error: 'Текст пустой' })
+    return
+  }
+
+  const msg = {
+    id: createToken(),
+    conversationId: convo.id,
+    senderId: viewer.id,
+    text: text.slice(0, 2000),
+    createdAt: new Date().toISOString(),
+  }
+  state.chatMessages.push(msg)
+  viewer.stats.sent += 1
+
+  const recipientId = convo.participants.find(p => p !== viewer.id)
+  const recipient = state.users.find(u => u.id === recipientId)
+  if (recipient) recipient.stats.received += 1
+
+  saveState(state)
+  response.json({ message: msg, conversations: getConversationsForUser(state, viewer.id) })
+})
+
+// === RADAR API ===
+
+app.get('/api/radar', (request, response) => {
+  const state = readState()
+  const viewer = requireUser(request, response, state)
+  if (!viewer) return
+
+  if (!Number.isFinite(viewer.latitude) || !Number.isFinite(viewer.longitude)) {
+    response.status(400).json({ error: 'Включи геолокацию для радара' })
+    return
+  }
+
+  const toRad = (deg) => (deg * Math.PI) / 180
+  const haversine = (lat1, lon1, lat2, lon2) => {
+    const R = 6371000
+    const dLat = toRad(lat2 - lat1)
+    const dLon = toRad(lon2 - lon1)
+    const a = Math.sin(dLat / 2) ** 2 + Math.cos(toRad(lat1)) * Math.cos(toRad(lat2)) * Math.sin(dLon / 2) ** 2
+    return R * 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a))
+  }
+
+  const nearby = state.users
+    .filter(u => u.id !== viewer.id && u.isVisible && u.status === 'active' && Number.isFinite(u.latitude) && Number.isFinite(u.longitude))
+    .map(u => ({
+      id: u.id,
+      name: u.name,
+      handle: u.handle,
+      avatarUrl: u.avatarUrl,
+      city: u.city,
+      tagline: u.tagline,
+      distance: haversine(viewer.latitude, viewer.longitude, u.latitude, u.longitude),
+    }))
+    .filter(u => u.distance <= 50000) // 50km
+    .sort((a, b) => a.distance - b.distance)
+    .slice(0, 30)
+
+  response.json({ users: nearby })
 })
 
 if (existsSync(indexHtmlPath)) {

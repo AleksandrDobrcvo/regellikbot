@@ -2,6 +2,7 @@ import type { FormEvent } from 'react'
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { createPortal } from 'react-dom'
 import {
+  ArrowLeft,
   BadgeCheck,
   Bell,
   ChevronRight,
@@ -13,7 +14,10 @@ import {
   MapPin,
   Menu,
   MessageCircle,
+  PenSquare,
+  Radar,
   Save,
+  Search,
   Send,
   Settings2,
   ShieldCheck,
@@ -154,11 +158,40 @@ type AdminData = {
   auditLog: AuditLogItem[]
 }
 
+type ConversationPreview = {
+  id: string
+  isSystem: boolean
+  createdAt: string
+  lastMessage: { text: string; senderId: string; createdAt: string } | null
+  unreadCount: number
+  otherUser: { id: string; name: string; handle: string; avatarUrl: string | null } | null
+}
+
+type ChatMessage = {
+  id: string
+  conversationId: string
+  senderId: string
+  text: string
+  createdAt: string
+  readAt?: string | null
+}
+
+type RadarUser = {
+  id: string
+  name: string
+  handle: string
+  avatarUrl: string | null
+  city: string | null
+  tagline: string
+  distance: number
+}
+
 type BootstrapResponse = {
   viewer: SessionUser | null
   publicFeed: FeedMessage[]
   inbox: InboxMessage[]
   directory: DirectoryProfile[]
+  conversations: ConversationPreview[]
   siteSettings: SiteSettings
   adminData: AdminData | null
 }
@@ -315,13 +348,10 @@ function App() {
   const [emailName, setEmailName] = useState('')
   const [emailValue, setEmailValue] = useState('')
   const [emailPassword, setEmailPassword] = useState('')
-  const [messageText, setMessageText] = useState('')
-  const [selectedRecipient, setSelectedRecipient] = useState('')
   const [locationState, setLocationState] = useState<LocationState>('idle')
   const [locationLabel, setLocationLabel] = useState('Гео не включено')
   const [resolvedLocation, setResolvedLocation] = useState<ResolvedLocation | null>(null)
   const [isLoading, setIsLoading] = useState(true)
-  const [isSending, setIsSending] = useState(false)
   const [isSavingProfile, setIsSavingProfile] = useState(false)
   const [isSavingSite, setIsSavingSite] = useState(false)
   const [isSavingAdminUser, setIsSavingAdminUser] = useState(false)
@@ -336,6 +366,25 @@ function App() {
   const [grantIdentifier, setGrantIdentifier] = useState('')
   const [telegramAuthTried, setTelegramAuthTried] = useState(false)
 
+  // Messenger state
+  const [conversations, setConversations] = useState<ConversationPreview[]>([])
+  const [openConvoId, setOpenConvoId] = useState<string | null>(null)
+  const [chatMessages, setChatMessages] = useState<ChatMessage[]>([])
+  const [chatText, setChatText] = useState('')
+  const [chatOtherUser, setChatOtherUser] = useState<ConversationPreview['otherUser']>(null)
+  const [isChatLoading, setIsChatLoading] = useState(false)
+  const [composeOpen, setComposeOpen] = useState(false)
+  const [composeSearch, setComposeSearch] = useState('')
+
+  // Radar state
+  const [radarUsers, setRadarUsers] = useState<RadarUser[]>([])
+  const [isRadarLoading, setIsRadarLoading] = useState(false)
+
+  // Header auto-hide
+  const [headerHidden, setHeaderHidden] = useState(false)
+  const lastScrollY = useRef(0)
+  const chatBottomRef = useRef<HTMLDivElement>(null)
+
   useEffect(() => {
     if (authOpen) {
       setMenuOpen(false)
@@ -345,10 +394,6 @@ function App() {
   const isSignedIn = Boolean(viewer)
   const isAdmin = viewer?.role === 'admin'
   const sortedDirectory = useMemo(() => [...directory].sort((left, right) => right.stats.received - left.stats.received), [directory])
-  const messages24h = useMemo(() => {
-    const oneDayAgo = Date.now() - 86400000
-    return publicFeed.filter((item) => new Date(item.createdAt).getTime() > oneDayAgo).length
-  }, [publicFeed])
   const viewerLocation = useMemo(() => {
     if (viewer?.city) {
       return `${viewer.city}${viewer.country ? `, ${viewer.country}` : ''}`
@@ -357,6 +402,8 @@ function App() {
     return locationState === 'granted' ? locationLabel : 'Гео не включено'
   }, [locationLabel, locationState, viewer?.city, viewer?.country])
   const selectedAdminUser = useMemo(() => adminUsers.find((item) => item.id === selectedAdminUserId) || null, [adminUsers, selectedAdminUserId])
+
+  const totalUnread = useMemo(() => conversations.reduce((sum, c) => sum + c.unreadCount, 0), [conversations])
 
   const showToast = (message: string, tone: ToastTone) => {
     setToast({ message, tone })
@@ -367,10 +414,26 @@ function App() {
     setPublicFeed(data.publicFeed)
     setInbox(data.inbox)
     setDirectory(data.directory)
+    setConversations(data.conversations || [])
     setSiteSettings(data.siteSettings)
     setAdminUsers(data.adminData?.users ?? [])
     setAuditLog(data.adminData?.auditLog ?? [])
   }
+
+  // Header auto-hide on scroll
+  useEffect(() => {
+    const handleScroll = () => {
+      const currentY = window.scrollY
+      if (currentY > lastScrollY.current && currentY > 60) {
+        setHeaderHidden(true)
+      } else {
+        setHeaderHidden(false)
+      }
+      lastScrollY.current = currentY
+    }
+    window.addEventListener('scroll', handleScroll, { passive: true })
+    return () => window.removeEventListener('scroll', handleScroll)
+  }, [])
 
   useEffect(() => {
     setSessionToken(getStoredSessionToken())
@@ -740,49 +803,91 @@ function App() {
     setSessionToken('')
     setViewer(null)
     setInbox([])
+    setConversations([])
+    setOpenConvoId(null)
+    setChatMessages([])
     setAdminUsers([])
     setAuditLog([])
     setActiveTab('feed')
     showToast('Сессия завершена', 'info')
   }
 
-  const sendMessage = async (event: FormEvent<HTMLFormElement>) => {
-    event.preventDefault()
+  // === MESSENGER FUNCTIONS ===
 
-    if (!sessionToken || !viewer) {
-      showToast('Сначала войди в аккаунт', 'info')
-      return
-    }
-
-    if (!selectedRecipient) {
-      showToast('Сначала выбери профиль', 'info')
-      return
-    }
-
-    if (!messageText.trim()) {
-      showToast('Напиши сообщение', 'info')
-      return
-    }
-
-    if (siteSettings.geoRequiredForSend && (!viewer.geoAllowed || !viewer.city)) {
-      showToast('Без гео отправка закрыта', 'error')
-      return
-    }
-
-    setIsSending(true)
+  const openConversation = async (convoId: string) => {
+    setOpenConvoId(convoId)
+    setIsChatLoading(true)
+    setChatMessages([])
     try {
-      const data = await apiRequest<BootstrapResponse>('/api/messages/send', {
-        method: 'POST',
-        body: JSON.stringify({ recipientId: selectedRecipient, text: messageText.trim() }),
-      }, sessionToken)
-      applyBootstrap(data)
-      setMessageText('')
-      showToast('Анонимка отправлена', 'success')
+      const data = await apiRequest<{ messages: ChatMessage[]; otherUser: ConversationPreview['otherUser']; isSystem: boolean }>(
+        `/api/conversations/${convoId}/messages`, undefined, sessionToken
+      )
+      setChatMessages(data.messages)
+      setChatOtherUser(data.otherUser)
+      // Update unread count locally
+      setConversations(prev => prev.map(c => c.id === convoId ? { ...c, unreadCount: 0 } : c))
+    } catch (error) {
+      showToast(error instanceof Error ? error.message : 'Не удалось загрузить чат', 'error')
+      setOpenConvoId(null)
+    } finally {
+      setIsChatLoading(false)
+    }
+  }
+
+  useEffect(() => {
+    if (chatBottomRef.current) {
+      chatBottomRef.current.scrollIntoView({ behavior: 'smooth' })
+    }
+  }, [chatMessages])
+
+  const sendChatMessage = async () => {
+    if (!chatText.trim() || !openConvoId || !sessionToken) return
+    const text = chatText.trim()
+    setChatText('')
+    try {
+      const data = await apiRequest<{ message: ChatMessage; conversations: ConversationPreview[] }>(
+        `/api/conversations/${openConvoId}/messages`,
+        { method: 'POST', body: JSON.stringify({ text }) },
+        sessionToken
+      )
+      setChatMessages(prev => [...prev, data.message])
+      setConversations(data.conversations)
     } catch (error) {
       showToast(error instanceof Error ? error.message : 'Не удалось отправить', 'error')
-    } finally {
-      setIsSending(false)
+      setChatText(text)
     }
+  }
+
+  const startConversation = async (recipientId: string) => {
+    try {
+      const data = await apiRequest<{ conversationId: string }>('/api/conversations', {
+        method: 'POST',
+        body: JSON.stringify({ recipientId }),
+      }, sessionToken)
+      setComposeOpen(false)
+      setComposeSearch('')
+      await openConversation(data.conversationId)
+    } catch (error) {
+      showToast(error instanceof Error ? error.message : 'Не удалось создать чат', 'error')
+    }
+  }
+
+  const loadRadar = async () => {
+    if (!sessionToken) return
+    setIsRadarLoading(true)
+    try {
+      const data = await apiRequest<{ users: RadarUser[] }>('/api/radar', undefined, sessionToken)
+      setRadarUsers(data.users)
+    } catch (error) {
+      showToast(error instanceof Error ? error.message : 'Радар недоступен', 'error')
+    } finally {
+      setIsRadarLoading(false)
+    }
+  }
+
+  const formatDistance = (meters: number) => {
+    if (meters < 1000) return `${Math.round(meters)} м`
+    return `${(meters / 1000).toFixed(1)} км`
   }
 
   const updateProfile = async (event: FormEvent<HTMLFormElement>) => {
@@ -1014,41 +1119,28 @@ function App() {
 
       {/* Верхняя панель — только для залогиненных */}
       {isSignedIn && (
-      <header className={authOpen ? 'top-header-bar hidden' : 'top-header-bar'}>
+      <header className={`top-header-bar${authOpen || headerHidden ? ' hidden' : ''}`}>
         <div className="header-row-main">
           <div className="header-left">
             <button className="header-hamburger" onClick={() => setMenuOpen(!menuOpen)}>
               {menuOpen ? <X size={20} /> : <Menu size={20} />}
             </button>
-            <span className="header-brand" onClick={() => { setActiveTab('chats'); setMenuOpen(false); }} style={{cursor:'pointer'}}>
+            <span className="header-brand" onClick={() => { setActiveTab('chats'); setOpenConvoId(null); setMenuOpen(false); }} style={{cursor:'pointer'}}>
               <span className="header-brand-icon">&gt;]</span>Regellik
             </span>
           </div>
           <div className="header-right">
-            {viewer?.referralCode && (
-              <button className="header-ref-btn" onClick={() => {
-                void navigator.clipboard.writeText(`${window.location.origin}?ref=${viewer.referralCode}`)
-                showToast('Реферальная ссылка скопирована!', 'success')
-              }} title="Скопировать реферальную ссылку">
-                <Users size={15} />
-              </button>
-            )}
+            <div className="header-powers">
+              <Zap size={14} />
+              <span>{viewer?.powers ?? 0}</span>
+            </div>
+            <button className="header-bell-btn" onClick={() => { setActiveTab('chats'); setOpenConvoId(null); setMenuOpen(false); }}>
+              <Bell size={17} />
+              {totalUnread > 0 && <span className="header-badge">{totalUnread}</span>}
+            </button>
             <button className="header-profile-btn" onClick={() => { setActiveTab('profile'); setMenuOpen(false); }}>
               <User size={16} />
-              <span>профиль</span>
             </button>
-          </div>
-        </div>
-        <div className="header-row-stats">
-          <div className="header-stat">
-            <Zap size={13} />
-            <span className="header-stat-val">{siteSettings.onlineCounterVisible ? onlineCount : '—'}</span>
-            <span className="header-stat-label">онлайн</span>
-          </div>
-          <div className="header-stat">
-            <MessageCircle size={13} />
-            <span className="header-stat-val">{messages24h}</span>
-            <span className="header-stat-label">анонимок / 24ч</span>
           </div>
         </div>
 
@@ -1060,7 +1152,7 @@ function App() {
                 <div className="brand-mark">&gt;]</div>
                 <div>
                   <div className="brand-name">Regellik</div>
-                  <div className="brand-sub">анонимки • профили • транзакции</div>
+                  <div className="brand-sub">{siteSettings.onlineCounterVisible ? `${onlineCount} онлайн` : 'анонимки • профили'} {publicFeed.length > 0 ? `• ${publicFeed.length} постов` : ''} {inbox.length > 0 ? `• ${inbox.length} входящих` : ''}</div>
                 </div>
               </div>
 
@@ -1145,107 +1237,181 @@ function App() {
       {isSignedIn && (
         <>
           <main className="main-layout">
-            {/* --- ЧАТЫ --- */}
-            {activeTab === 'chats' && (
+            {/* --- ЧАТЫ (мессенджер) --- */}
+            {activeTab === 'chats' && !openConvoId && (
               <section className="chats-screen page-transition">
-                {/* Горизонтальный список профилей */}
-                <div className="profiles-scroll-wrap">
-                  <div className="profiles-scroll-label">
-                    <Users size={14} />
-                    <span>Кому написать</span>
-                    <span className="profiles-count">{sortedDirectory.length}</span>
-                  </div>
-                  <div className="profiles-scroll">
-                    {sortedDirectory.map((item) => (
-                      <button
-                        key={item.id}
-                        className={selectedRecipient === item.id ? 'profile-chip selected' : 'profile-chip'}
-                        onClick={() => setSelectedRecipient(item.id)}
-                      >
-                        <div className="profile-chip-avatar">
-                          {item.avatarUrl ? <img src={item.avatarUrl} alt={item.name} /> : <span>{item.name[0]}</span>}
-                        </div>
-                        <div className="profile-chip-info">
-                          <strong>{item.name}</strong>
-                          <span>{item.handle}</span>
-                        </div>
-                      </button>
-                    ))}
+                <div className="chats-header-row">
+                  <h2 className="chats-title">Чаты</h2>
+                  <div className="chats-header-actions">
+                    <button className="chats-radar-btn" onClick={() => { setActiveTab('feed'); void loadRadar(); }} title="Радар">
+                      <Radar size={18} />
+                    </button>
                   </div>
                 </div>
 
-                {/* Форма отправки */}
-                <section className="panel-card compose-compact">
-                  <form className="compose-form" onSubmit={sendMessage}>
-                    <div className="compose-top-row">
-                      <span className="compose-label">
-                        <Send size={14} />
-                        {selectedRecipient ? `→ ${sortedDirectory.find(d => d.id === selectedRecipient)?.name || 'Выбранный'}` : 'Выбери профиль выше'}
-                      </span>
-                      <div className={viewer?.geoAllowed ? 'status-chip success mini' : 'status-chip danger mini'}>
-                        <MapPin size={12} />
-                        <span>{viewer?.geoAllowed ? 'гео' : 'нет гео'}</span>
+                {conversations.length === 0 && (
+                  <div className="chats-empty">
+                    <MessageCircle size={40} />
+                    <p>Пока нет чатов</p>
+                    <span>Нажми кнопку ✏️ чтобы начать разговор</span>
+                  </div>
+                )}
+
+                <div className="conversation-list">
+                  {conversations.map((convo) => (
+                    <button key={convo.id} className="conversation-item" onClick={() => openConversation(convo.id)}>
+                      <div className="convo-avatar">
+                        {convo.isSystem ? (
+                          <span className="convo-avatar-system">&gt;]</span>
+                        ) : convo.otherUser?.avatarUrl ? (
+                          <img src={convo.otherUser.avatarUrl} alt="" />
+                        ) : (
+                          <span>{convo.otherUser?.name?.[0] || '?'}</span>
+                        )}
                       </div>
-                    </div>
-                    <textarea value={messageText} onChange={(event) => setMessageText(event.target.value)} placeholder="Напиши анонимное сообщение..." rows={2} />
-                    <button className="primary-btn wide" type="submit" disabled={isSending || (siteSettings.geoRequiredForSend && !viewer?.geoAllowed)}>
-                      <Send size={16} />
-                      {isSending ? 'Отправка...' : 'Отправить'}
+                      <div className="convo-body">
+                        <div className="convo-top">
+                          <strong>{convo.isSystem ? '>]Regellik' : convo.otherUser?.name || 'Пользователь'}</strong>
+                          <small>{convo.lastMessage ? formatRelativeTime(convo.lastMessage.createdAt) : ''}</small>
+                        </div>
+                        <div className="convo-bottom">
+                          <span className="convo-preview">{convo.lastMessage?.text || 'Нет сообщений'}</span>
+                          {convo.unreadCount > 0 && <span className="convo-unread">{convo.unreadCount}</span>}
+                        </div>
+                      </div>
                     </button>
-                  </form>
-                </section>
+                  ))}
+                </div>
 
-                {/* Входящие */}
-                {inbox.length > 0 && (
-                  <section className="panel-card inbox-compact">
-                    <div className="panel-head compact-head">
-                      <div>
-                        <span className="eyebrow">📥 входящие</span>
-                        <h2>Личные ({inbox.length})</h2>
+                {/* Compose FAB */}
+                <button className="compose-fab" onClick={() => setComposeOpen(true)}>
+                  <PenSquare size={22} />
+                </button>
+
+                {/* Compose modal */}
+                {composeOpen && (
+                  <div className="compose-modal">
+                    <div className="compose-modal-backdrop" onClick={() => { setComposeOpen(false); setComposeSearch(''); }} />
+                    <div className="compose-modal-sheet">
+                      <div className="compose-modal-head">
+                        <h3>Новый чат</h3>
+                        <button className="ghost-icon" onClick={() => { setComposeOpen(false); setComposeSearch(''); }}>×</button>
+                      </div>
+                      <div className="compose-search-row">
+                        <Search size={16} />
+                        <input value={composeSearch} onChange={e => setComposeSearch(e.target.value)} placeholder="Поиск по имени или handle..." autoFocus />
+                      </div>
+                      <div className="compose-user-list">
+                        {sortedDirectory
+                          .filter(u => u.id !== viewer?.id && (
+                            u.name.toLowerCase().includes(composeSearch.toLowerCase()) ||
+                            u.handle.toLowerCase().includes(composeSearch.toLowerCase())
+                          ))
+                          .map(u => (
+                            <button key={u.id} className="compose-user-item" onClick={() => void startConversation(u.id)}>
+                              <div className="compose-user-avatar">
+                                {u.avatarUrl ? <img src={u.avatarUrl} alt="" /> : <span>{u.name[0]}</span>}
+                              </div>
+                              <div>
+                                <strong>{u.name}</strong>
+                                <span>{u.handle}</span>
+                              </div>
+                            </button>
+                          ))}
                       </div>
                     </div>
-                    <div className="inbox-list compact-list">
-                      {inbox.map((item) => (
-                        <article key={item.id} className="inbox-card compact-inbox-card">
-                          <div className="inbox-head">
-                            <div>
-                              <strong>{item.senderLabel}</strong>
-                              <span>{item.senderHandle}</span>
-                            </div>
-                            <small>{formatRelativeTime(item.createdAt)}</small>
-                          </div>
-                          <p>{item.text}</p>
-                        </article>
-                      ))}
+                  </div>
+                )}
+              </section>
+            )}
+
+            {/* --- ОТКРЫТЫЙ ЧАТ --- */}
+            {activeTab === 'chats' && openConvoId && (
+              <section className="chat-window page-transition">
+                <div className="chat-window-header">
+                  <button className="chat-back-btn" onClick={() => setOpenConvoId(null)}>
+                    <ArrowLeft size={20} />
+                  </button>
+                  <div className="chat-header-user">
+                    {chatOtherUser?.avatarUrl ? (
+                      <img className="chat-header-avatar" src={chatOtherUser.avatarUrl} alt="" />
+                    ) : (
+                      <div className="chat-header-avatar-placeholder">
+                        {conversations.find(c => c.id === openConvoId)?.isSystem ? '>]' : chatOtherUser?.name?.[0] || '?'}
+                      </div>
+                    )}
+                    <div>
+                      <strong>{conversations.find(c => c.id === openConvoId)?.isSystem ? '>]Regellik' : chatOtherUser?.name || 'Чат'}</strong>
+                      <small>{chatOtherUser?.handle || ''}</small>
                     </div>
-                  </section>
+                  </div>
+                </div>
+
+                <div className="chat-messages-area">
+                  {isChatLoading && <div className="chat-loading">Загрузка...</div>}
+                  {chatMessages.map(msg => (
+                    <div key={msg.id} className={msg.senderId === viewer?.id ? 'chat-bubble mine' : 'chat-bubble theirs'}>
+                      <p>{msg.text}</p>
+                      <small>{formatRelativeTime(msg.createdAt)}</small>
+                    </div>
+                  ))}
+                  <div ref={chatBottomRef} />
+                </div>
+
+                <div className="chat-input-bar">
+                  <input
+                    value={chatText}
+                    onChange={e => setChatText(e.target.value)}
+                    placeholder="Сообщение..."
+                    onKeyDown={e => { if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); void sendChatMessage(); } }}
+                  />
+                  <button className="chat-send-btn" onClick={() => void sendChatMessage()} disabled={!chatText.trim()}>
+                    <Send size={18} />
+                  </button>
+                </div>
+              </section>
+            )}
+
+            {/* --- РАДАР --- */}
+            {activeTab === 'feed' && (
+              <section className="radar-screen page-transition">
+                <div className="radar-header">
+                  <button className="chat-back-btn" onClick={() => setActiveTab('chats')}>
+                    <ArrowLeft size={20} />
+                  </button>
+                  <h2>Радар</h2>
+                  <button className="secondary-btn" onClick={() => void loadRadar()} disabled={isRadarLoading}>
+                    {isRadarLoading ? '...' : 'Обновить'}
+                  </button>
+                </div>
+                <p className="radar-desc">Люди рядом с тобой (до 50 км)</p>
+
+                {radarUsers.length === 0 && !isRadarLoading && (
+                  <div className="chats-empty">
+                    <Radar size={40} />
+                    <p>Никого не найдено рядом</p>
+                    <span>Убедись что геолокация включена</span>
+                  </div>
                 )}
 
-                {/* Публичная лента */}
-                {publicFeed.length > 0 && (
-                  <section className="panel-card feed-compact">
-                    <div className="panel-head compact-head">
-                      <div>
-                        <span className="eyebrow">🌐 лента</span>
-                        <h2>Публично</h2>
+                <div className="radar-list">
+                  {radarUsers.map(u => (
+                    <button key={u.id} className="radar-user-card" onClick={() => void startConversation(u.id)}>
+                      <div className="radar-user-avatar">
+                        {u.avatarUrl ? <img src={u.avatarUrl} alt="" /> : <span>{u.name[0]}</span>}
                       </div>
-                    </div>
-                    <div className="feed-list compact-list">
-                      {publicFeed.slice(0, 10).map((item) => (
-                        <article key={item.id} className="feed-card compact-feed-card">
-                          <div className="feed-card-head">
-                            <div>
-                              <strong>{item.authorName}</strong>
-                              <span>{item.authorHandle}</span>
-                            </div>
-                            <small>{formatRelativeTime(item.createdAt)}</small>
-                          </div>
-                          <p>{item.text}</p>
-                        </article>
-                      ))}
-                    </div>
-                  </section>
-                )}
+                      <div className="radar-user-info">
+                        <strong>{u.name}</strong>
+                        <span>{u.handle}</span>
+                        {u.tagline && <span className="radar-tagline">{u.tagline}</span>}
+                      </div>
+                      <div className="radar-distance">
+                        <MapPin size={14} />
+                        <span>{formatDistance(u.distance)}</span>
+                      </div>
+                    </button>
+                  ))}
+                </div>
               </section>
             )}
 
