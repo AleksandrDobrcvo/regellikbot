@@ -728,6 +728,7 @@ function App() {
 
   const widgetContainerRef = useRef<HTMLDivElement>(null)
   const widgetLoadedRef = useRef(false)
+  const [widgetFailed, setWidgetFailed] = useState(false)
 
   const signInTelegramWidget = useCallback(async (widgetData: Record<string, unknown>) => {
     try {
@@ -750,6 +751,7 @@ function App() {
     if (widgetLoadedRef.current) return
 
     widgetLoadedRef.current = true
+    setWidgetFailed(false)
     const container = widgetContainerRef.current
 
     // Global callback for the widget
@@ -768,7 +770,16 @@ function App() {
     container.innerHTML = ''
     container.appendChild(script)
 
+    // Timeout: if widget iframe doesn't render properly in 4s, show fallback
+    const timeout = window.setTimeout(() => {
+      const iframe = container.querySelector('iframe')
+      if (!iframe || iframe.offsetHeight < 20) {
+        setWidgetFailed(true)
+      }
+    }, 4000)
+
     return () => {
+      window.clearTimeout(timeout)
       widgetLoadedRef.current = false
       delete (window as any).onTelegramWidgetAuth
     }
@@ -1212,8 +1223,19 @@ function App() {
               {!webApp?.initDataUnsafe?.user && siteSettings.telegramAuthEnabled && (
                 <div className="auth-card telegram-widget-card">
                   <div className="auth-title">Войти через Telegram</div>
-                  <div className="auth-note">Нажми кнопку ниже — откроется Telegram для подтверждения</div>
-                  <div className="telegram-widget-mount" ref={widgetContainerRef} />
+                  {widgetFailed ? (
+                    <>
+                      <div className="auth-note">Виджет Telegram недоступен в этом браузере</div>
+                      <a className="primary-btn wide telegram-direct-btn" href={`https://t.me/${TELEGRAM_BOT_USERNAME}?start=auth`} target="_blank" rel="noreferrer">
+                        Открыть @{TELEGRAM_BOT_USERNAME} в Telegram
+                      </a>
+                    </>
+                  ) : (
+                    <>
+                      <div className="auth-note">Нажми кнопку ниже — откроется Telegram для подтверждения</div>
+                      <div className="telegram-widget-mount" ref={widgetContainerRef} />
+                    </>
+                  )}
                   <a className="telegram-fallback-link" href={`https://t.me/${TELEGRAM_BOT_USERNAME}?start=auth`} target="_blank" rel="noreferrer">
                     Или открой бота @{TELEGRAM_BOT_USERNAME} напрямую
                   </a>
