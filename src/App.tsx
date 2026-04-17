@@ -35,7 +35,7 @@ import {
 import { TelegramWebApp } from './types/telegram'
 import './App.css'
 
-type TabId = 'feed' | 'chats' | 'profile' | 'transactions' | 'admin' | 'radar'
+type TabId = 'feed' | 'chats' | 'profile' | 'transactions' | 'admin' | 'radar' | 'settings'
 type AuthProvider = 'telegram' | 'email'
 type LocationState = 'idle' | 'loading' | 'granted' | 'denied'
 type ToastTone = 'success' | 'error' | 'info'
@@ -983,6 +983,20 @@ function App() {
     }
   }
 
+  const updatePreference = async (key: keyof UserPreferences, value: boolean) => {
+    if (!viewer || !sessionToken) return
+    try {
+      const data = await apiRequest<BootstrapResponse>('/api/profile/update', {
+        method: 'POST',
+        body: JSON.stringify({ preferences: { ...viewer.preferences, [key]: value } }),
+      }, sessionToken)
+      applyBootstrap(data)
+      showToast('Настройка обновлена', 'success')
+    } catch (error) {
+      showToast(error instanceof Error ? error.message : 'Ошибка', 'error')
+    }
+  }
+
   const saveSiteSettings = async (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault()
 
@@ -1146,6 +1160,9 @@ function App() {
                   <div className="auth-title">Войти через Telegram</div>
                   <div className="auth-note">Нажми кнопку ниже — откроется Telegram для подтверждения</div>
                   <div className="telegram-widget-mount" ref={widgetContainerRef} />
+                  <a className="telegram-fallback-link" href={`https://t.me/${TELEGRAM_BOT_USERNAME}?start=auth`} target="_blank" rel="noreferrer">
+                    Или открой бота @{TELEGRAM_BOT_USERNAME} напрямую
+                  </a>
                 </div>
               )}
 
@@ -1195,6 +1212,12 @@ function App() {
             </span>
           </div>
           <div className="header-right">
+            {siteSettings.onlineCounterVisible && (
+              <div className="header-online-badge">
+                <span className="online-dot" />
+                <span>{onlineCount}</span>
+              </div>
+            )}
             <div className="header-powers" onClick={() => { setActiveTab('transactions'); setMenuOpen(false); }} style={{cursor:'pointer'}}>
               <Zap size={14} />
               <span>{viewer?.powers ?? 0}</span>
@@ -1240,6 +1263,9 @@ function App() {
                   </button>
                   <button className={activeTab === 'transactions' ? 'corner-menu-item active' : 'corner-menu-item'} onClick={() => { setActiveTab('transactions'); setMenuOpen(false) }}>
                     <Wallet size={16} /> Транзакции
+                  </button>
+                  <button className={activeTab === 'settings' ? 'corner-menu-item active' : 'corner-menu-item'} onClick={() => { setActiveTab('settings'); setMenuOpen(false) }}>
+                    <Settings2 size={16} /> Настройки
                   </button>
                   {isAdmin && (
                     <button className={activeTab === 'admin' ? 'corner-menu-item active' : 'corner-menu-item'} onClick={() => { setActiveTab('admin'); setMenuOpen(false) }}>
@@ -1487,154 +1513,133 @@ function App() {
             {/* --- ПРОФИЛЬ --- */}
             {activeTab === 'profile' && viewer && (
               <section className="profile-screen deep-profile-screen page-transition">
-                <article className="panel-card profile-hero">
+                {/* Компактная карточка профиля */}
+                <article className="panel-card profile-hero compact-hero">
                   <div className="profile-hero-main">
                     <div className="profile-avatar-large">
                       {viewer.avatarUrl ? <img src={viewer.avatarUrl} alt={viewer.name} /> : <span>{viewer.name[0]}</span>}
                     </div>
-                    <div>
-                      <span className="eyebrow">👤 аккаунт</span>
+                    <div className="profile-hero-info">
                       <h2>{viewer.name}</h2>
                       <div className="profile-subline">
                         <span>{viewer.handle}</span>
                         <span className="dot-separator" />
                         <span>{viewer.provider === 'telegram' ? 'Telegram' : 'Email'}</span>
-                        <span className="dot-separator" />
-                        <span>{viewer.role === 'admin' ? 'admin' : 'user'}</span>
                       </div>
-                      <div className="geo-row strong-row">
-                        <MapPin size={14} />
-                        <span>{viewerLocation}</span>
+                      <div className="profile-badges-row">
+                        {viewer.badges.length > 0 ? viewer.badges.map((b, i) => (
+                          <span key={i} className="profile-badge-chip">{b}</span>
+                        )) : <span className="profile-badge-chip muted">нет бейджей</span>}
                       </div>
                     </div>
+                  </div>
+                  <div className="profile-quick-stats">
+                    <div><strong>{viewer.stats.sent}</strong><span>отправлено</span></div>
+                    <div><strong>{viewer.stats.received}</strong><span>получено</span></div>
+                    <div><strong>{viewer.stats.referrals}</strong><span>рефералы</span></div>
+                    <div><strong>{viewer.powers}</strong><span>энергия</span></div>
                   </div>
                 </article>
 
-                {/* Суточные лимиты */}
-                <article className="panel-card limits-card">
-                  <div className="panel-head">
-                    <div>
-                      <span className="eyebrow">📊 суточные лимиты</span>
-                      <h2>Regellik+ <span className="premium-badge">premium</span></h2>
-                    </div>
-                  </div>
-                  <div className="limits-grid">
-                    <div className="limit-row">
-                      <div className="limit-label">
-                        <Send size={16} />
-                        <span>Отправка</span>
+                {/* Геолокация */}
+                <article className="panel-card geo-settings-card">
+                  <div className="geo-settings-row">
+                    <div className="geo-settings-left">
+                      <MapPin size={18} />
+                      <div>
+                        <strong>Геолокация</strong>
+                        <span className="geo-settings-label">{viewerLocation}</span>
                       </div>
-                      <div className="limit-bar">
-                        <div className="limit-fill" style={{ width: `${Math.min(100, (viewer.stats.sent / 50) * 100)}%` }} />
-                      </div>
-                      <strong>{viewer.stats.sent}/50</strong>
                     </div>
-                    <div className="limit-row">
-                      <div className="limit-label">
-                        <Mail size={16} />
-                        <span>Получение</span>
-                      </div>
-                      <div className="limit-bar">
-                        <div className="limit-fill blue-fill" style={{ width: `${Math.min(100, (viewer.stats.received / 50) * 100)}%` }} />
-                      </div>
-                      <strong>{viewer.stats.received}/50</strong>
-                    </div>
-                  </div>
-                  <div className="limits-note">
-                    <span>💡 Бесплатная версия: 1 отправка и 1 получение в сутки. Если получатель не оплатил вовремя — анонимка не доставляется.</span>
-                  </div>
-                </article>
-
-                {/* Статистика */}
-                <div className="profile-stats-grid">
-                  <article className="profile-stat-box green-box">
-                    <span>отправлено</span>
-                    <strong>{viewer.stats.sent}</strong>
-                  </article>
-                  <article className="profile-stat-box blue-box">
-                    <span>получено</span>
-                    <strong>{viewer.stats.received}</strong>
-                  </article>
-                  <article className="profile-stat-box orange-box">
-                    <span>открыто</span>
-                    <strong>{viewer.stats.opened}</strong>
-                  </article>
-                  <article className="profile-stat-box lime-box">
-                    <span>рефералы</span>
-                    <strong>{viewer.stats.referrals}</strong>
-                  </article>
-                </div>
-
-                {/* Рефералы */}
-                <article className="panel-card referral-card">
-                  <div className="panel-head">
-                    <div>
-                      <span className="eyebrow">🔗 рефералы</span>
-                      <h2>Пригласи друзей</h2>
-                    </div>
-                  </div>
-                  <p className="hero-card-copy">
-                    Приглашай друзей по ссылке. Реферальная программа без денежных бонусов — только статистика.
-                  </p>
-                  {viewer.referralCode && (
-                    <div className="referral-link-block">
-                      <span className="referral-link-label">Твоя реферальная ссылка:</span>
-                      <div className="referral-link-row">
-                        <code className="referral-link-code">{`${window.location.origin}?ref=${viewer.referralCode}`}</code>
-                        <button className="referral-copy-btn" type="button" onClick={() => {
-                          void navigator.clipboard.writeText(`${window.location.origin}?ref=${viewer.referralCode}`)
-                          showToast('Ссылка скопирована!', 'success')
-                        }}>
-                          <Copy size={14} />
+                    <div className="geo-settings-actions">
+                      {locationState !== 'granted' ? (
+                        <button className="secondary-btn compact-btn" onClick={requestLocation}>
+                          Включить
                         </button>
-                      </div>
-                    </div>
-                  )}
-                  <div className="referral-stats">
-                    <div className="referral-stat">
-                      <Users size={20} />
-                      <strong>{viewer.stats.referrals}</strong>
-                      <span>приглашённых</span>
+                      ) : (
+                        <span className="geo-granted-badge">Включено</span>
+                      )}
+                      <button
+                        className={viewer.geoAllowed ? 'toggle-mini active' : 'toggle-mini'}
+                        onClick={async () => {
+                          try {
+                            await apiRequest<{ viewer: SessionUser }>('/api/profile/update', {
+                              method: 'POST',
+                              body: JSON.stringify({ preferences: { ...viewer.preferences, showCity: !viewer.geoAllowed } }),
+                            }, sessionToken)
+                            // Also toggle geoAllowed on server
+                            await apiRequest('/api/location', {
+                              method: 'POST',
+                              body: JSON.stringify({
+                                city: viewer.geoAllowed ? null : viewer.city,
+                                country: viewer.geoAllowed ? null : viewer.country,
+                                latitude: viewer.geoAllowed ? null : viewer.latitude,
+                                longitude: viewer.geoAllowed ? null : viewer.longitude,
+                              }),
+                            }, sessionToken)
+                            setViewer(prev => prev ? { ...prev, geoAllowed: !prev.geoAllowed } : prev)
+                            showToast(viewer.geoAllowed ? 'Геолокация скрыта' : 'Геолокация показана', 'success')
+                          } catch {
+                            showToast('Не удалось изменить настройку', 'error')
+                          }
+                        }}
+                      >
+                        {viewer.geoAllowed ? <Eye size={14} /> : <EyeOff size={14} />}
+                        <span>{viewer.geoAllowed ? 'Видно' : 'Скрыто'}</span>
+                      </button>
                     </div>
                   </div>
                 </article>
 
                 {/* Редактирование профиля */}
-                <form className="panel-card profile-editor-card" onSubmit={updateProfile}>
-                  <div className="panel-head">
-                    <div>
-                      <span className="eyebrow">📝 редактирование</span>
-                      <h2>Профиль</h2>
-                    </div>
-                    <button className="primary-btn" type="submit" disabled={isSavingProfile || !siteSettings.profileEditEnabled}>
-                      <Save size={16} />
-                      {isSavingProfile ? 'Сохранение...' : 'Сохранить'}
+                <form className="panel-card profile-editor-card compact-editor" onSubmit={updateProfile}>
+                  <div className="panel-head compact-head">
+                    <span className="eyebrow">✏️ редактирование</span>
+                    <button className="primary-btn compact-btn" type="submit" disabled={isSavingProfile || !siteSettings.profileEditEnabled}>
+                      <Save size={14} />
+                      {isSavingProfile ? '...' : 'Сохранить'}
                     </button>
                   </div>
-
                   <div className="field-grid-2">
                     <label className="input-block">
                       <span>Имя</span>
                       <input value={profileName} onChange={(event) => setProfileName(event.target.value)} />
                     </label>
                     <label className="input-block">
-                      <span>Handle</span>
+                      <span>Хэндл</span>
                       <input value={profileHandle} onChange={(event) => setProfileHandle(normalizeHandle(event.target.value))} />
                     </label>
                   </div>
-
                   <label className="input-block">
-                    <span>Короткая строка</span>
+                    <span>Подпись</span>
                     <input value={profileTagline} onChange={(event) => setProfileTagline(event.target.value)} />
                   </label>
-
                   <label className="input-block">
                     <span>О себе</span>
-                    <textarea value={profileBio} onChange={(event) => setProfileBio(event.target.value)} />
+                    <textarea value={profileBio} onChange={(event) => setProfileBio(event.target.value)} rows={2} />
                   </label>
                 </form>
 
-                {/* Инфо */}
+                {/* Рефералы */}
+                <article className="panel-card referral-card compact-referral">
+                  <div className="panel-head compact-head">
+                    <span className="eyebrow">🔗 рефералы</span>
+                  </div>
+                  <p className="referral-desc">Приглашай друзей — статистика обновляется автоматически.</p>
+                  {viewer.referralCode && (
+                    <div className="referral-link-row">
+                      <code className="referral-link-code">{`${window.location.origin}?ref=${viewer.referralCode}`}</code>
+                      <button className="referral-copy-btn" type="button" onClick={() => {
+                        void navigator.clipboard.writeText(`${window.location.origin}?ref=${viewer.referralCode}`)
+                        showToast('Ссылка скопирована!', 'success')
+                      }}>
+                        <Copy size={14} />
+                      </button>
+                    </div>
+                  )}
+                </article>
+
+                {/* Инфо — на русском */}
                 <article className="panel-card profile-meta-card">
                   <div className="meta-row">
                     <span>ID профиля</span>
@@ -1647,30 +1652,26 @@ function App() {
                     </div>
                   )}
                   <div className="meta-row">
-                    <span>статус</span>
-                    <strong>{viewer.status}</strong>
+                    <span>Статус</span>
+                    <strong>{viewer.status === 'active' ? 'Активен' : 'Заблокирован'}</strong>
                   </div>
                   <div className="meta-row">
-                    <span>контакт</span>
+                    <span>Роль</span>
+                    <strong>{viewer.role === 'admin' ? 'Администратор' : 'Пользователь'}</strong>
+                  </div>
+                  <div className="meta-row">
+                    <span>Контакт</span>
                     <strong>{viewer.email || 'Telegram'}</strong>
                   </div>
                   <div className="meta-row">
-                    <span>дата регистрации</span>
+                    <span>Дата регистрации</span>
                     <strong>{formatDate(viewer.joinedAt)}</strong>
                   </div>
                   <div className="meta-row">
-                    <span>бейджи</span>
+                    <span>Бейджи</span>
                     <strong>{viewer.badges.length ? viewer.badges.join(', ') : 'пока нет'}</strong>
                   </div>
                 </article>
-
-                <footer className="app-footer">
-                  <span>Нормы и Согласие</span>
-                  <span>•</span>
-                  <span>Обратная связь</span>
-                  <span>•</span>
-                  <span>О Нас</span>
-                </footer>
               </section>
             )}
 
@@ -1768,6 +1769,133 @@ function App() {
               </section>
             )}
 
+            {/* --- НАСТРОЙКИ --- */}
+            {activeTab === 'settings' && viewer && (
+              <section className="settings-screen page-transition">
+                <div className="settings-header">
+                  <Settings2 size={20} />
+                  <h2>Настройки</h2>
+                </div>
+
+                {/* Сеанс */}
+                <article className="panel-card settings-card">
+                  <div className="panel-head compact-head">
+                    <span className="eyebrow">🔐 сеанс</span>
+                  </div>
+                  <div className="settings-info-rows">
+                    <div className="meta-row">
+                      <span>Вход через</span>
+                      <strong>{viewer.provider === 'telegram' ? 'Telegram' : 'Email'}</strong>
+                    </div>
+                    <div className="meta-row">
+                      <span>Telegram привязан</span>
+                      <strong>{viewer.telegramLinked ? 'Да' : 'Нет'}</strong>
+                    </div>
+                    <div className="meta-row">
+                      <span>Статус</span>
+                      <strong>{viewer.status === 'active' ? '🟢 Активен' : '🔴 Заблокирован'}</strong>
+                    </div>
+                  </div>
+                  <button className="secondary-btn danger wide settings-logout-btn" onClick={() => void signOut()}>
+                    <LogOut size={16} />
+                    Выйти из аккаунта
+                  </button>
+                </article>
+
+                {/* Геолокация */}
+                <article className="panel-card settings-card">
+                  <div className="panel-head compact-head">
+                    <span className="eyebrow">📍 геолокация</span>
+                  </div>
+                  <div className="settings-info-rows">
+                    <div className="meta-row">
+                      <span>Текущее гео</span>
+                      <strong>{viewerLocation}</strong>
+                    </div>
+                    <div className="meta-row">
+                      <span>Разрешение</span>
+                      <strong>{locationState === 'granted' ? '✅ Включено' : locationState === 'denied' ? '❌ Отклонено' : '⏳ Не запрашивалось'}</strong>
+                    </div>
+                    <div className="meta-row">
+                      <span>Видимость в профиле</span>
+                      <strong>{viewer.geoAllowed ? '👁 Видно' : '🔒 Скрыто'}</strong>
+                    </div>
+                  </div>
+                  <div className="settings-actions-row">
+                    {locationState !== 'granted' && (
+                      <button className="secondary-btn" onClick={requestLocation}>
+                        <MapPin size={14} /> Включить гео
+                      </button>
+                    )}
+                    <button className={viewer.geoAllowed ? 'secondary-btn' : 'secondary-btn danger'} onClick={async () => {
+                      try {
+                        await apiRequest('/api/location', {
+                          method: 'POST',
+                          body: JSON.stringify({
+                            city: viewer.geoAllowed ? null : viewer.city,
+                            country: viewer.geoAllowed ? null : viewer.country,
+                            latitude: viewer.geoAllowed ? null : viewer.latitude,
+                            longitude: viewer.geoAllowed ? null : viewer.longitude,
+                          }),
+                        }, sessionToken)
+                        setViewer(prev => prev ? { ...prev, geoAllowed: !prev.geoAllowed } : prev)
+                        showToast(viewer.geoAllowed ? 'Гео скрыто из профиля' : 'Гео показывается в профиле', 'success')
+                      } catch {
+                        showToast('Не удалось изменить настройку', 'error')
+                      }
+                    }}>
+                      {viewer.geoAllowed ? <><EyeOff size={14} /> Скрыть гео</> : <><Eye size={14} /> Показать гео</>}
+                    </button>
+                  </div>
+                </article>
+
+                {/* Уведомления / Приватность */}
+                <article className="panel-card settings-card">
+                  <div className="panel-head compact-head">
+                    <span className="eyebrow">🔔 приватность</span>
+                  </div>
+                  <div className="settings-toggle-list">
+                    <button className={viewer.preferences.allowInbox ? 'settings-toggle-item active' : 'settings-toggle-item'} onClick={() => void updatePreference('allowInbox', !viewer.preferences.allowInbox)}>
+                      <MessageCircle size={16} />
+                      <div><strong>Личные сообщения</strong><span>Разрешить другим писать тебе</span></div>
+                      <div className={viewer.preferences.allowInbox ? 'toggle-pill on' : 'toggle-pill'} />
+                    </button>
+                    <button className={viewer.preferences.showCity ? 'settings-toggle-item active' : 'settings-toggle-item'} onClick={() => void updatePreference('showCity', !viewer.preferences.showCity)}>
+                      <MapPin size={16} />
+                      <div><strong>Показывать город</strong><span>В профиле и ленте</span></div>
+                      <div className={viewer.preferences.showCity ? 'toggle-pill on' : 'toggle-pill'} />
+                    </button>
+                    <button className={viewer.preferences.neonProfile ? 'settings-toggle-item active' : 'settings-toggle-item'} onClick={() => void updatePreference('neonProfile', !viewer.preferences.neonProfile)}>
+                      <Sparkles size={16} />
+                      <div><strong>Неоновый профиль</strong><span>Яркая подсветка аватара</span></div>
+                      <div className={viewer.preferences.neonProfile ? 'toggle-pill on' : 'toggle-pill'} />
+                    </button>
+                  </div>
+                </article>
+
+                {/* Информация */}
+                <article className="panel-card settings-card">
+                  <div className="panel-head compact-head">
+                    <span className="eyebrow">ℹ️ информация</span>
+                  </div>
+                  <div className="settings-info-rows">
+                    <div className="meta-row">
+                      <span>Версия</span>
+                      <strong>Regellik 1.0</strong>
+                    </div>
+                    <div className="meta-row">
+                      <span>Онлайн сейчас</span>
+                      <strong>{onlineCount}</strong>
+                    </div>
+                    <div className="meta-row">
+                      <span>Пользователей</span>
+                      <strong>{directory.length}</strong>
+                    </div>
+                  </div>
+                </article>
+              </section>
+            )}
+
             {/* --- АДМИНКА --- */}
             {activeTab === 'admin' && isAdmin && (
               <section className="admin-screen page-transition">
@@ -1776,6 +1904,45 @@ function App() {
                 <div className="admin-top-bar">
                   <h2 className="admin-top-title"><ShieldCheck size={20} /> Панель администратора</h2>
                 </div>
+
+                {/* Статистика сайта */}
+                <article className="panel-card admin-stats-card">
+                  <div className="panel-head compact-head">
+                    <span className="eyebrow">📊 статистика сайта</span>
+                  </div>
+                  <div className="admin-stats-grid">
+                    <div className="admin-stat-box">
+                      <Users size={18} />
+                      <strong>{adminUsers.length}</strong>
+                      <span>пользователей</span>
+                    </div>
+                    <div className="admin-stat-box online">
+                      <span className="online-dot" />
+                      <strong>{onlineCount}</strong>
+                      <span>онлайн</span>
+                    </div>
+                    <div className="admin-stat-box">
+                      <MessageCircle size={18} />
+                      <strong>{publicFeed.length}</strong>
+                      <span>в ленте</span>
+                    </div>
+                    <div className="admin-stat-box">
+                      <Zap size={18} />
+                      <strong>{adminUsers.reduce((sum, u) => sum + u.powers, 0).toFixed(0)}</strong>
+                      <span>⚡ всего</span>
+                    </div>
+                    <div className="admin-stat-box">
+                      <ShieldCheck size={18} />
+                      <strong>{adminUsers.filter(u => u.role === 'admin').length}</strong>
+                      <span>админов</span>
+                    </div>
+                    <div className="admin-stat-box">
+                      <User size={18} />
+                      <strong>{adminUsers.filter(u => u.status === 'active').length}</strong>
+                      <span>активных</span>
+                    </div>
+                  </div>
+                </article>
 
                 {/* Quick search */}
                 <article className="panel-card admin-search-card">

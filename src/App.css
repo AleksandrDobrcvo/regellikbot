@@ -4709,3 +4709,407 @@ select {
 .admin-topup-card {
   border-top: 2px solid rgba(255, 179, 71, 0.2);
 }
+
+/* ===== ROUND 3: NEW STYLES ===== */
+
+/* --- Header online badge --- */
+.header-online-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  background: rgba(56, 239, 125, 0.12);
+  padding: 3px 9px;
+  border-radius: 20px;
+  font-size: 11px;
+  font-weight: 600;
+  color: #38ef7d;
+  white-space: nowrap;
+}
+
+.online-dot {
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  background: #38ef7d;
+  display: inline-block;
+  animation: pulseDot 1.5s ease-in-out infinite;
+}
+
+@keyframes pulseDot {
+  0%, 100% { opacity: 1; transform: scale(1); }
+  50% { opacity: 0.5; transform: scale(0.7); }
+}
+
+/* --- Telegram auth fallback link --- */
+.telegram-fallback-link {
+  display: block;
+  text-align: center;
+  margin-top: 10px;
+  font-size: 12px;
+  color: rgba(255, 255, 255, 0.45);
+}
+
+.telegram-fallback-link a {
+  color: #b9ff3b;
+  text-decoration: underline;
+  text-underline-offset: 2px;
+}
+
+/* --- Compact profile hero --- */
+.compact-hero {
+  padding: 16px !important;
+}
+
+.compact-hero .profile-hero-main {
+  gap: 14px;
+}
+
+.profile-hero-info {
+  flex: 1;
+  min-width: 0;
+}
+
+.profile-hero-info h2 {
+  font-size: 18px;
+  margin: 0 0 2px;
+}
+
+.profile-badges-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 5px;
+  margin-top: 6px;
+}
+
+.profile-badge-chip {
+  display: inline-block;
+  padding: 2px 8px;
+  border-radius: 10px;
+  background: rgba(185, 255, 59, 0.12);
+  color: #b9ff3b;
+  font-size: 10px;
+  font-weight: 600;
+  letter-spacing: 0.03em;
+}
+
+.profile-badge-chip.muted {
+  background: rgba(255, 255, 255, 0.06);
+  color: rgba(255, 255, 255, 0.35);
+}
+
+/* Profile quick stats row */
+.profile-quick-stats {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 8px;
+  margin-top: 14px;
+  padding-top: 14px;
+  border-top: 1px solid rgba(255, 255, 255, 0.06);
+}
+
+.profile-quick-stats div {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 2px;
+}
+
+.profile-quick-stats strong {
+  font-size: 16px;
+  color: #fff;
+}
+
+.profile-quick-stats span {
+  font-size: 10px;
+  color: rgba(255, 255, 255, 0.4);
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+}
+
+/* --- Geo settings card --- */
+.geo-settings-card {
+  padding: 14px 16px !important;
+}
+
+.geo-settings-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.geo-settings-left {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  color: rgba(255, 255, 255, 0.7);
+}
+
+.geo-settings-left strong {
+  font-size: 13px;
+  color: #fff;
+  display: block;
+}
+
+.geo-settings-label {
+  font-size: 11px;
+  color: rgba(255, 255, 255, 0.4);
+}
+
+.geo-settings-actions {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.geo-granted-badge {
+  font-size: 11px;
+  color: #38ef7d;
+  font-weight: 600;
+  padding: 3px 10px;
+  border-radius: 12px;
+  background: rgba(56, 239, 125, 0.1);
+}
+
+/* Mini toggle */
+.toggle-mini {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  padding: 4px 10px;
+  border-radius: 14px;
+  font-size: 11px;
+  font-weight: 600;
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  background: rgba(255, 255, 255, 0.04);
+  color: rgba(255, 255, 255, 0.5);
+  cursor: pointer;
+  transition: all 0.2s;
+}
+
+.toggle-mini:hover {
+  border-color: rgba(255, 255, 255, 0.2);
+}
+
+.toggle-mini.active {
+  border-color: rgba(185, 255, 59, 0.3);
+  background: rgba(185, 255, 59, 0.08);
+  color: #b9ff3b;
+}
+
+/* --- Compact editor form --- */
+.compact-editor {
+  padding: 14px 16px !important;
+}
+
+.compact-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding-bottom: 10px !important;
+  margin-bottom: 10px;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.05);
+}
+
+.compact-head h2 {
+  display: none;
+}
+
+.compact-btn {
+  padding: 6px 14px !important;
+  font-size: 12px !important;
+  gap: 4px;
+  min-height: unset !important;
+  height: auto !important;
+}
+
+/* --- Compact referral --- */
+.compact-referral {
+  padding: 14px 16px !important;
+}
+
+.referral-desc {
+  font-size: 12px;
+  color: rgba(255, 255, 255, 0.4);
+  margin: 0 0 10px;
+  line-height: 1.4;
+}
+
+/* ===== SETTINGS TAB ===== */
+.settings-screen {
+  padding: 10px 0 80px;
+}
+
+.settings-header {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 0 16px 12px;
+  color: #fff;
+}
+
+.settings-header h2 {
+  font-size: 18px;
+  margin: 0;
+}
+
+.settings-card {
+  margin-bottom: 10px;
+}
+
+.settings-info-rows {
+  display: flex;
+  flex-direction: column;
+}
+
+.settings-info-rows .meta-row {
+  padding: 8px 0;
+}
+
+.settings-logout-btn {
+  margin-top: 10px;
+  width: 100%;
+  justify-content: center;
+}
+
+.settings-actions-row {
+  display: flex;
+  gap: 8px;
+  margin-top: 10px;
+  flex-wrap: wrap;
+}
+
+/* Settings toggle list */
+.settings-toggle-list {
+  display: flex;
+  flex-direction: column;
+}
+
+.settings-toggle-item {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 12px 4px;
+  border: none;
+  background: none;
+  cursor: pointer;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.04);
+  text-align: left;
+  color: rgba(255, 255, 255, 0.7);
+  transition: background 0.15s;
+  width: 100%;
+}
+
+.settings-toggle-item:last-child {
+  border-bottom: none;
+}
+
+.settings-toggle-item:hover {
+  background: rgba(255, 255, 255, 0.03);
+}
+
+.settings-toggle-item div:nth-child(2) {
+  flex: 1;
+  min-width: 0;
+}
+
+.settings-toggle-item strong {
+  display: block;
+  font-size: 13px;
+  color: #fff;
+}
+
+.settings-toggle-item span {
+  font-size: 11px;
+  color: rgba(255, 255, 255, 0.35);
+}
+
+/* Toggle pill */
+.toggle-pill {
+  width: 38px;
+  height: 20px;
+  border-radius: 12px;
+  background: rgba(255, 255, 255, 0.1);
+  position: relative;
+  flex-shrink: 0;
+  transition: background 0.2s;
+}
+
+.toggle-pill::after {
+  content: '';
+  position: absolute;
+  top: 3px;
+  left: 3px;
+  width: 14px;
+  height: 14px;
+  border-radius: 50%;
+  background: rgba(255, 255, 255, 0.4);
+  transition: all 0.2s;
+}
+
+.toggle-pill.on {
+  background: rgba(185, 255, 59, 0.25);
+}
+
+.toggle-pill.on::after {
+  left: 21px;
+  background: #b9ff3b;
+}
+
+/* ===== ADMIN STATS DASHBOARD ===== */
+.admin-stats-card {
+  border-top: 2px solid rgba(185, 255, 59, 0.15);
+}
+
+.admin-stats-grid {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 8px;
+}
+
+.admin-stat-box {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 4px;
+  padding: 14px 8px;
+  border-radius: 12px;
+  background: rgba(255, 255, 255, 0.03);
+  border: 1px solid rgba(255, 255, 255, 0.05);
+}
+
+.admin-stat-box strong {
+  font-size: 20px;
+  color: #fff;
+}
+
+.admin-stat-box span {
+  font-size: 10px;
+  color: rgba(255, 255, 255, 0.4);
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+}
+
+.admin-stat-box.online {
+  background: rgba(56, 239, 125, 0.06);
+  border-color: rgba(56, 239, 125, 0.15);
+}
+
+.admin-stat-box.online strong {
+  color: #38ef7d;
+}
+
+/* Danger button */
+.secondary-btn.danger {
+  border-color: rgba(255, 80, 80, 0.3);
+  color: #ff5050;
+}
+
+.secondary-btn.danger:hover {
+  background: rgba(255, 80, 80, 0.1);
+}
+
+.secondary-btn.wide {
+  width: 100%;
+  justify-content: center;
+}
