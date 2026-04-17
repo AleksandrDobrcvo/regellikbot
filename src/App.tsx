@@ -57,6 +57,8 @@ type SessionUser = {
   email: string | null
   city: string | null
   country: string | null
+  latitude: number | null
+  longitude: number | null
   geoAllowed: boolean
   powers: number
   role: UserRole
@@ -77,6 +79,8 @@ type DirectoryProfile = {
   avatarUrl: string | null
   city: string
   country: string
+  latitude: number | null
+  longitude: number | null
   tagline: string
   badges: string[]
   role: UserRole
@@ -94,6 +98,8 @@ type FeedMessage = {
   authorHandle: string
   city: string
   country: string
+  latitude: number | null
+  longitude: number | null
   text: string
   createdAt: string
 }
@@ -104,6 +110,8 @@ type InboxMessage = {
   senderHandle: string
   senderCity: string
   senderCountry: string
+  senderLatitude: number | null
+  senderLongitude: number | null
   text: string
   createdAt: string
 }
@@ -238,6 +246,52 @@ function formatDate(value: string) {
   })
 }
 
+function trimTickerText(value: string, maxLength = 88) {
+  if (value.length <= maxLength) {
+    return value
+  }
+
+  return `${value.slice(0, maxLength).trimEnd()}…`
+}
+
+function isFiniteCoordinate(value: number | null | undefined): value is number {
+  return typeof value === 'number' && Number.isFinite(value)
+}
+
+function calculateDistanceKm(
+  from: { latitude: number; longitude: number } | null,
+  to: { latitude: number | null; longitude: number | null },
+) {
+  if (!from || !isFiniteCoordinate(to.latitude) || !isFiniteCoordinate(to.longitude)) {
+    return null
+  }
+
+  const earthRadiusKm = 6371
+  const dLat = ((to.latitude - from.latitude) * Math.PI) / 180
+  const dLon = ((to.longitude - from.longitude) * Math.PI) / 180
+  const fromLat = (from.latitude * Math.PI) / 180
+  const toLat = (to.latitude * Math.PI) / 180
+
+  const a =
+    Math.sin(dLat / 2) * Math.sin(dLat / 2) +
+    Math.cos(fromLat) * Math.cos(toLat) * Math.sin(dLon / 2) * Math.sin(dLon / 2)
+
+  const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a))
+  return earthRadiusKm * c
+}
+
+function formatDistanceKm(distanceKm: number | null) {
+  if (distanceKm === null) {
+    return 'нет гео'
+  }
+
+  if (distanceKm < 1) {
+    return '<1 км'
+  }
+
+  return `${Math.round(distanceKm).toLocaleString('ru-RU')} км`
+}
+
 function getStoredSessionToken() {
   if (typeof window === 'undefined') {
     return ''
@@ -334,6 +388,19 @@ function App() {
     const oneDayAgo = Date.now() - 86400000
     return publicFeed.filter((item) => new Date(item.createdAt).getTime() > oneDayAgo).length
   }, [publicFeed])
+  const tickerFeed = useMemo(() => publicFeed.slice(0, 8), [publicFeed])
+  const marqueeFeed = useMemo(() => (tickerFeed.length > 0 ? [...tickerFeed, ...tickerFeed] : []), [tickerFeed])
+  const referenceLocation = useMemo(() => {
+    if (viewer && isFiniteCoordinate(viewer.latitude) && isFiniteCoordinate(viewer.longitude)) {
+      return { latitude: viewer.latitude, longitude: viewer.longitude }
+    }
+
+    if (resolvedLocation) {
+      return { latitude: resolvedLocation.latitude, longitude: resolvedLocation.longitude }
+    }
+
+    return null
+  }, [resolvedLocation, viewer])
   const viewerLocation = useMemo(() => {
     if (viewer?.city) {
       return `${viewer.city}${viewer.country ? `, ${viewer.country}` : ''}`
@@ -342,6 +409,10 @@ function App() {
     return locationState === 'granted' ? locationLabel : 'Гео не включено'
   }, [locationLabel, locationState, viewer?.city, viewer?.country])
   const selectedAdminUser = useMemo(() => adminUsers.find((item) => item.id === selectedAdminUserId) || null, [adminUsers, selectedAdminUserId])
+
+  const getDistanceLabel = useCallback((latitude: number | null, longitude: number | null) => {
+    return formatDistanceKm(calculateDistanceKm(referenceLocation, { latitude, longitude }))
+  }, [referenceLocation])
 
   const showToast = (message: string, tone: ToastTone) => {
     setToast({ message, tone })
@@ -1031,6 +1102,38 @@ function App() {
         )}
       </div>
 
+      {tickerFeed.length > 0 && (
+        <section className="anon-ticker-shell" aria-label="Последние анонимки">
+          <div className="anon-ticker-head">
+            <div className="anon-ticker-kicker">
+              <Sparkles size={16} />
+              <span>live tape</span>
+            </div>
+            <strong>Последние анонимки</strong>
+          </div>
+
+          <div className="anon-ticker-track">
+            <div className="anon-ticker-runner">
+              {marqueeFeed.map((item, index) => (
+                <article key={`${item.id}-${index}`} className="anon-ticker-card">
+                  <div className="anon-ticker-meta">
+                    <span className="anon-ticker-author">{item.authorHandle}</span>
+                    <span className="anon-ticker-dot" aria-hidden="true" />
+                    <span className="anon-ticker-city">
+                      <MapPin size={12} />
+                      {getDistanceLabel(item.latitude, item.longitude)}
+                    </span>
+                    <span className="anon-ticker-dot" aria-hidden="true" />
+                    <span>{formatRelativeTime(item.createdAt)}</span>
+                  </div>
+                  <p>{trimTickerText(item.text)}</p>
+                </article>
+              ))}
+            </div>
+          </div>
+        </section>
+      )}
+
       {/* --- ГЛАВНАЯ (для всех, без табов пока не залогинен) --- */}
       {!isSignedIn && activeTab === 'feed' && (
         <main className="main-layout">
@@ -1076,7 +1179,7 @@ function App() {
                       </div>
                       <div className="city-pill">
                         <MapPin size={14} />
-                        <span>{item.city}</span>
+                        <span>{getDistanceLabel(item.latitude, item.longitude)}</span>
                       </div>
                     </div>
                     <p>{item.text}</p>
@@ -1145,7 +1248,7 @@ function App() {
                           <div className="directory-copy">
                             <strong>{item.name}</strong>
                             <span>{item.handle}</span>
-                            <small>{item.city}, {item.country}</small>
+                            <small>{getDistanceLabel(item.latitude, item.longitude)} от тебя</small>
                             <small>{item.tagline}</small>
                             <div className="badge-row">
                               {item.badges.slice(0, 3).map((badge) => (
@@ -1196,7 +1299,7 @@ function App() {
                             </div>
                             <div className="city-pill">
                               <MapPin size={14} />
-                              <span>{item.city}</span>
+                              <span>{getDistanceLabel(item.latitude, item.longitude)}</span>
                             </div>
                           </div>
                           <p>{item.text}</p>
@@ -1225,11 +1328,11 @@ function App() {
                             </div>
                             <div className="geo-mini">
                               <MapPin size={13} />
-                              <span>{item.senderCity}</span>
+                              <span>{getDistanceLabel(item.senderLatitude, item.senderLongitude)}</span>
                             </div>
                           </div>
                           <p>{item.text}</p>
-                          <small>{item.senderCity}, {item.senderCountry} • {formatRelativeTime(item.createdAt)}</small>
+                          <small>{getDistanceLabel(item.senderLatitude, item.senderLongitude)} • {formatRelativeTime(item.createdAt)}</small>
                         </article>
                       ))}
                     </div>

@@ -36,8 +36,37 @@ const defaultSiteSettings = {
   profileEditEnabled: true,
 }
 
+const knownCoordinates = {
+  'Алматы|Казахстан': { latitude: 43.238949, longitude: 76.889709 },
+  'Ташкент|Узбекистан': { latitude: 41.299496, longitude: 69.240074 },
+  'Казань|Россия': { latitude: 55.796127, longitude: 49.106414 },
+  'Самарканд|Узбекистан': { latitude: 39.654167, longitude: 66.959724 },
+  'Бельско-Бяла|Польша': { latitude: 49.822376, longitude: 19.058384 },
+}
+
+function getKnownCoordinates(city, country) {
+  const key = `${String(city || '').trim()}|${String(country || '').trim()}`
+  return knownCoordinates[key] || null
+}
+
+function applyCoordinates(target, cityKey = 'city', countryKey = 'country', latitudeKey = 'latitude', longitudeKey = 'longitude') {
+  const latitude = Number(target[latitudeKey])
+  const longitude = Number(target[longitudeKey])
+
+  if (Number.isFinite(latitude) && Number.isFinite(longitude)) {
+    target[latitudeKey] = latitude
+    target[longitudeKey] = longitude
+    return target
+  }
+
+  const fallback = getKnownCoordinates(target[cityKey], target[countryKey])
+  target[latitudeKey] = fallback?.latitude ?? null
+  target[longitudeKey] = fallback?.longitude ?? null
+  return target
+}
+
 function createSeedUser(data) {
-  return {
+  return applyCoordinates({
     role: 'user',
     status: 'active',
     isVisible: true,
@@ -51,8 +80,10 @@ function createSeedUser(data) {
     telegramMeta: null,
     passwordHash: null,
     passwordSalt: null,
+    latitude: null,
+    longitude: null,
     ...data,
-  }
+  })
 }
 
 const defaultState = {
@@ -188,8 +219,14 @@ function readState() {
           nextUser.tagline = user.tagline || 'owner mode'
         }
 
-        return nextUser
+        return applyCoordinates(nextUser)
       })
+    : []
+  state.publicMessages = Array.isArray(state.publicMessages)
+    ? state.publicMessages.map((item) => applyCoordinates({ ...item }))
+    : []
+  state.inboxMessages = Array.isArray(state.inboxMessages)
+    ? state.inboxMessages.map((item) => applyCoordinates({ ...item }, 'senderCity', 'senderCountry', 'senderLatitude', 'senderLongitude'))
     : []
   return state
 }
@@ -311,6 +348,8 @@ function publicUser(user) {
     email: user.email,
     city: user.city,
     country: user.country,
+    latitude: user.latitude,
+    longitude: user.longitude,
     geoAllowed: user.geoAllowed,
     powers: user.powers,
     role: user.role,
@@ -341,6 +380,8 @@ function directoryItem(user) {
     avatarUrl: user.avatarUrl,
     city: user.city || 'Город',
     country: user.country || 'Локация',
+    latitude: user.latitude,
+    longitude: user.longitude,
     tagline: user.tagline,
     badges: user.badges,
     role: user.role,
@@ -525,6 +566,8 @@ app.post('/api/auth/email', (request, response) => {
       email: String(email).trim().toLowerCase(),
       city: location?.city || null,
       country: location?.country || null,
+      latitude: Number.isFinite(location?.latitude) ? Number(location.latitude) : null,
+      longitude: Number.isFinite(location?.longitude) ? Number(location.longitude) : null,
       geoAllowed: Boolean(location?.city),
       bio: 'Новый email-профиль.',
       tagline: 'fresh profile',
@@ -594,6 +637,8 @@ app.post('/api/auth/telegram', (request, response) => {
       email: null,
       city: location?.city || null,
       country: location?.country || null,
+      latitude: Number.isFinite(location?.latitude) ? Number(location.latitude) : null,
+      longitude: Number.isFinite(location?.longitude) ? Number(location.longitude) : null,
       geoAllowed: Boolean(location?.city),
       bio: 'Telegram-профиль подключён через WebApp.',
       tagline: 'webapp connected',
@@ -672,6 +717,8 @@ app.post('/api/auth/telegram-widget', (request, response) => {
       email: null,
       city: location?.city || null,
       country: location?.country || null,
+      latitude: Number.isFinite(location?.latitude) ? Number(location.latitude) : null,
+      longitude: Number.isFinite(location?.longitude) ? Number(location.longitude) : null,
       geoAllowed: Boolean(location),
       bio: 'Telegram-профиль через Login Widget.',
       tagline: 'webapp connected',
@@ -782,6 +829,9 @@ app.post('/api/location', (request, response) => {
 
   viewer.city = request.body?.city || viewer.city
   viewer.country = request.body?.country || viewer.country
+  viewer.latitude = Number.isFinite(request.body?.latitude) ? Number(request.body.latitude) : viewer.latitude
+  viewer.longitude = Number.isFinite(request.body?.longitude) ? Number(request.body.longitude) : viewer.longitude
+  applyCoordinates(viewer)
   viewer.geoAllowed = Boolean(viewer.city)
   pushAudit(state, 'profile.location', viewer.id, viewer.id, 'Обновлена геолокация профиля.')
   saveState(state)
@@ -830,6 +880,8 @@ app.post('/api/messages/send', (request, response) => {
     authorHandle: viewer.handle,
     city: viewer.city || 'Город',
     country: viewer.country || 'Локация',
+    latitude: viewer.latitude,
+    longitude: viewer.longitude,
     text,
     createdAt: now,
   })
@@ -840,6 +892,8 @@ app.post('/api/messages/send', (request, response) => {
     senderHandle: '@regellik',
     senderCity: viewer.city || 'Город',
     senderCountry: viewer.country || 'Локация',
+    senderLatitude: viewer.latitude,
+    senderLongitude: viewer.longitude,
     text,
     createdAt: now,
   })
@@ -896,9 +950,16 @@ app.post('/api/admin/users/update', (request, response) => {
   if (payload.country !== undefined) {
     target.country = payload.country ? String(payload.country).trim() : null
   }
+  if ('latitude' in payload) {
+    target.latitude = Number.isFinite(payload.latitude) ? Number(payload.latitude) : null
+  }
+  if ('longitude' in payload) {
+    target.longitude = Number.isFinite(payload.longitude) ? Number(payload.longitude) : null
+  }
   if ('geoAllowed' in payload) {
     target.geoAllowed = Boolean(payload.geoAllowed)
   }
+  applyCoordinates(target)
   if (payload.role === 'admin' || payload.role === 'user') {
     target.role = payload.role
   }
