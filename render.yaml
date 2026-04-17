@@ -9,4 +9,6 @@ services:
       - key: NODE_VERSION
         value: 20
       - key: TELEGRAM_AUTH_STRICT
-        value: true
+        value: false
+      - key: MONGODB_URI
+        value: mongodb+srv://malinovskij280584_db_user:6fOXnVQpC6mBCEen@cluster0.gltmfhe.mongodb.net/regellik?retryWrites=true&w=majority&appName=Cluster0
