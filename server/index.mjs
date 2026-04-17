@@ -13,9 +13,35 @@ const indexHtmlPath = join(distPath, 'index.html')
 const TELEGRAM_BOT_TOKEN = process.env.TELEGRAM_BOT_TOKEN || ''
 const ADMIN_EMAILS = (process.env.ADMIN_EMAILS || '').split(',').map(e => e.trim().toLowerCase()).filter(Boolean)
 const ADMIN_TELEGRAM_IDS = (process.env.ADMIN_TELEGRAM_IDS || '').split(',').map(e => e.trim()).filter(Boolean)
-const TELEGRAM_AUTH_STRICT = process.env.TELEGRAM_AUTH_STRICT !== 'false'
+const TELEGRAM_AUTH_STRICT = process.env.TELEGRAM_AUTH_STRICT === 'true'
 const CORS_ORIGIN = process.env.CORS_ORIGIN || '*'
+const SESSION_TTL_MS = 30 * 24 * 60 * 60 * 1000 // 30 days
+const MAX_SESSIONS_PER_USER = 5
 const ALLOWED_EMAIL_DOMAINS = ['gmail.com','mail.ru','yandex.ru','yahoo.com','outlook.com','hotmail.com','icloud.com','protonmail.com','mail.com','inbox.ru','bk.ru','list.ru','ya.ru','rambler.ru','ukr.net','i.ua','wp.pl','o2.pl','onet.pl','interia.pl','tut.by','zoho.com','aol.com','live.com']
+
+// --- Simple in-memory rate limiter ---
+const rateLimitStore = new Map()
+function rateLimit(key, maxAttempts = 8, windowMs = 60000) {
+  const now = Date.now()
+  let entry = rateLimitStore.get(key)
+  if (!entry || now - entry.start > windowMs) {
+    entry = { count: 1, start: now }
+    rateLimitStore.set(key, entry)
+    return true
+  }
+  entry.count += 1
+  if (entry.count > maxAttempts) {
+    return false
+  }
+  return true
+}
+// Cleanup old entries periodically
+setInterval(() => {
+  const now = Date.now()
+  for (const [key, entry] of rateLimitStore) {
+    if (now - entry.start > 120000) rateLimitStore.delete(key)
+  }
+}, 120000)
 
 const defaultPreferences = {
   showCity: true,
@@ -505,7 +531,31 @@ function resolveSession(state, token) {
     return null
   }
 
+  // Check session TTL
+  if (session.createdAt) {
+    const age = Date.now() - new Date(session.createdAt).getTime()
+    if (age > SESSION_TTL_MS) {
+      state.sessions = state.sessions.filter((item) => item.token !== token)
+      return null
+    }
+  }
+
   return state.users.find((item) => item.id === session.userId) || null
+}
+
+function createSessionForUser(state, userId) {
+  const token = createToken()
+  // Remove expired sessions for this user, keep up to MAX_SESSIONS_PER_USER - 1
+  const now = Date.now()
+  const userSessions = state.sessions
+    .filter(s => s.userId === userId)
+    .filter(s => !s.createdAt || (now - new Date(s.createdAt).getTime()) < SESSION_TTL_MS)
+    .sort((a, b) => (b.createdAt || '').localeCompare(a.createdAt || ''))
+
+  const keepTokens = new Set(userSessions.slice(0, MAX_SESSIONS_PER_USER - 1).map(s => s.token))
+  state.sessions = state.sessions.filter(s => s.userId !== userId || keepTokens.has(s.token))
+  state.sessions.push({ token, userId, createdAt: new Date().toISOString() })
+  return token
 }
 
 function adminData(state) {
@@ -627,6 +677,12 @@ app.get('/api/bootstrap', (request, response) => {
 })
 
 app.post('/api/auth/email', (request, response) => {
+  const clientIp = request.headers['x-forwarded-for']?.split(',')[0]?.trim() || request.socket.remoteAddress || 'unknown'
+  if (!rateLimit(`auth:${clientIp}`, 10, 60000)) {
+    response.status(429).json({ error: 'Слишком много попыток. Подожди минуту.' })
+    return
+  }
+
   const state = readState()
   const { name, email, password, location, mode, referralCode: refCode } = request.body || {}
 
@@ -723,9 +779,7 @@ app.post('/api/auth/email', (request, response) => {
     createWelcomeConversation(state, user.id)
     pushAudit(state, 'auth.email.register', user.id, user.id, 'Регистрация по email.')
 
-    const token = createToken()
-    state.sessions = state.sessions.filter((item) => item.userId !== user.id)
-    state.sessions.push({ token, userId: user.id, createdAt: new Date().toISOString() })
+    const token = createSessionForUser(state, user.id)
     saveState(state)
     response.json({ token, viewer: publicUser(user), isNewUser: true, conversations: getConversationsForUser(state, user.id) })
     return
@@ -748,9 +802,7 @@ app.post('/api/auth/email', (request, response) => {
     user.passwordHash = passwordData.hash
     user.passwordSalt = passwordData.salt
     pushAudit(state, 'auth.email.password-set', user.id, user.id, 'Установлен пароль (отсутствовал).')
-    const token = createToken()
-    state.sessions = state.sessions.filter((item) => item.userId !== user.id)
-    state.sessions.push({ token, userId: user.id, createdAt: new Date().toISOString() })
+    const token = createSessionForUser(state, user.id)
     saveState(state)
     response.json({ token, viewer: publicUser(user), isNewUser: false })
     return
@@ -761,14 +813,18 @@ app.post('/api/auth/email', (request, response) => {
     return
   }
 
-  const token = createToken()
-  state.sessions = state.sessions.filter((item) => item.userId !== user.id)
-  state.sessions.push({ token, userId: user.id, createdAt: new Date().toISOString() })
+  const token = createSessionForUser(state, user.id)
   saveState(state)
   response.json({ token, viewer: publicUser(user), isNewUser: false })
 })
 
 app.post('/api/auth/telegram', (request, response) => {
+  const clientIp = request.headers['x-forwarded-for']?.split(',')[0]?.trim() || request.socket.remoteAddress || 'unknown'
+  if (!rateLimit(`auth:${clientIp}`, 10, 60000)) {
+    response.status(429).json({ error: 'Слишком много попыток. Подожди минуту.' })
+    return
+  }
+
   const state = readState()
   const payload = request.body || {}
   const telegramPayload = payload.initDataUnsafe?.user || {}
@@ -852,14 +908,18 @@ app.post('/api/auth/telegram', (request, response) => {
     }
   }
 
-  const token = createToken()
-  state.sessions = state.sessions.filter((item) => item.userId !== user.id)
-  state.sessions.push({ token, userId: user.id, createdAt: new Date().toISOString() })
+  const token = createSessionForUser(state, user.id)
   saveState(state)
   response.json({ token, viewer: publicUser(user) })
 })
 
 app.post('/api/auth/telegram-widget', (request, response) => {
+  const clientIp = request.headers['x-forwarded-for']?.split(',')[0]?.trim() || request.socket.remoteAddress || 'unknown'
+  if (!rateLimit(`auth:${clientIp}`, 10, 60000)) {
+    response.status(429).json({ error: 'Слишком много попыток. Подожди минуту.' })
+    return
+  }
+
   const state = readState()
   const payload = request.body || {}
 
@@ -931,9 +991,7 @@ app.post('/api/auth/telegram-widget', (request, response) => {
     }
   }
 
-  const token = createToken()
-  state.sessions = state.sessions.filter((item) => item.userId !== user.id)
-  state.sessions.push({ token, userId: user.id, createdAt: new Date().toISOString() })
+  const token = createSessionForUser(state, user.id)
   saveState(state)
   response.json({ token, viewer: publicUser(user) })
 })

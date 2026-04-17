@@ -520,6 +520,7 @@ function App() {
         if (!data.viewer && sessionToken) {
           window.localStorage.removeItem(SESSION_KEY)
           setSessionToken('')
+          showToast('Сессия истекла — войди заново', 'error')
         }
       } catch (error) {
         if (!cancelled) {

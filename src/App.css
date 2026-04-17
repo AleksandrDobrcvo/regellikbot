@@ -3719,12 +3719,16 @@ select {
 /* ========== CHAT WINDOW ========== */
 
 .chat-window {
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
   display: flex;
   flex-direction: column;
-  height: calc(100dvh - 60px);
-  margin: -20px;
-  margin-top: -10px;
-  background: linear-gradient(180deg, rgba(4, 17, 10, 0.4), transparent 30%);
+  padding-top: calc(96px + env(safe-area-inset-top, 0px));
+  background: linear-gradient(180deg, rgba(4, 17, 10, 0.97), rgba(4, 17, 10, 0.92) 30%);
+  z-index: 900;
 }
 
 .chat-window-header {
