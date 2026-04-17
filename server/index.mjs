@@ -619,6 +619,10 @@ function resolveSession(state, token) {
       state.sessions = state.sessions.filter((item) => item.token !== token)
       return null
     }
+    // Auto-extend session on each use (rolling window)
+    if (age > 24 * 60 * 60 * 1000) {
+      session.createdAt = new Date().toISOString()
+    }
   }
 
   return state.users.find((item) => item.id === session.userId) || null
@@ -1395,12 +1399,122 @@ app.post('/api/admin/topup', (request, response) => {
   response.json(bootstrapPayload(state, viewer))
 })
 
+// Admin broadcast system message to all users
+app.post('/api/admin/broadcast', (request, response) => {
+  const state = readState()
+  const viewer = requireAdmin(request, response, state)
+  if (!viewer) return
+
+  const { text } = request.body || {}
+  if (!text || !String(text).trim()) {
+    response.status(400).json({ error: 'Текст сообщения обязателен' })
+    return
+  }
+
+  const regellikId = 'seed-regellik'
+  const messageText = String(text).trim().slice(0, 2000)
+  let sent = 0
+
+  for (const user of state.users) {
+    if (user.id === regellikId) continue
+    // Find or create system conversation
+    let convo = state.conversations.find(c =>
+      c.isSystem && c.participants.includes(regellikId) && c.participants.includes(user.id)
+    )
+    if (!convo) {
+      convo = {
+        id: createToken(),
+        participants: [regellikId, user.id],
+        isSystem: true,
+        createdAt: new Date().toISOString(),
+      }
+      state.conversations.push(convo)
+    }
+    state.chatMessages.push({
+      id: createToken(),
+      conversationId: convo.id,
+      senderId: regellikId,
+      text: messageText,
+      createdAt: new Date().toISOString(),
+    })
+    sent++
+  }
+
+  pushAudit(state, 'admin.broadcast', viewer.id, null, `Рассылка "${messageText.slice(0, 60)}..." — ${sent} пользователей.`)
+  saveState(state)
+  response.json({ ok: true, sent })
+})
+
 app.post('/api/session/logout', (request, response) => {
   const token = getBearerToken(request)
   const state = readState()
   state.sessions = state.sessions.filter((item) => item.token !== token)
   saveState(state)
   response.json({ ok: true })
+})
+
+// Notifications for user
+app.get('/api/notifications', (request, response) => {
+  const state = readState()
+  const viewer = requireUser(request, response, state)
+  if (!viewer) return
+
+  const notifications = []
+
+  // System chat messages as notifications
+  const regellikId = 'seed-regellik'
+  const systemConvos = state.conversations.filter(c =>
+    c.isSystem && c.participants.includes(viewer.id)
+  )
+  for (const convo of systemConvos) {
+    const msgs = state.chatMessages.filter(m =>
+      m.conversationId === convo.id && m.senderId !== viewer.id
+    )
+    for (const m of msgs) {
+      notifications.push({
+        id: m.id,
+        type: 'system',
+        title: '>]Regellik',
+        text: m.text,
+        createdAt: m.createdAt,
+      })
+    }
+  }
+
+  // Inbox messages
+  const inboxMsgs = state.inboxMessages.filter(m => m.recipientId === viewer.id)
+  for (const m of inboxMsgs) {
+    notifications.push({
+      id: m.id,
+      type: 'inbox',
+      title: m.senderLabel || 'Аноним',
+      text: m.text,
+      createdAt: m.createdAt,
+    })
+  }
+
+  // Chat messages from other users (recent, last 20)
+  const userConvos = state.conversations.filter(c => c.participants.includes(viewer.id) && !c.isSystem)
+  for (const convo of userConvos) {
+    const otherUserId = convo.participants.find(p => p !== viewer.id)
+    const otherUser = state.users.find(u => u.id === otherUserId)
+    const msgs = state.chatMessages
+      .filter(m => m.conversationId === convo.id && m.senderId !== viewer.id)
+      .slice(-5)
+    for (const m of msgs) {
+      notifications.push({
+        id: m.id,
+        type: 'message',
+        title: otherUser?.name || 'Пользователь',
+        text: m.text,
+        createdAt: m.createdAt,
+      })
+    }
+  }
+
+  // Sort by date desc, limit 50
+  notifications.sort((a, b) => b.createdAt.localeCompare(a.createdAt))
+  response.json({ notifications: notifications.slice(0, 50) })
 })
 
 // === CONVERSATIONS API ===

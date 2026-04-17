@@ -192,6 +192,14 @@ type RadarUser = {
   distance: number
 }
 
+type NotificationItem = {
+  id: string
+  type: 'system' | 'inbox' | 'message'
+  title: string
+  text: string
+  createdAt: string
+}
+
 type BootstrapResponse = {
   viewer: SessionUser | null
   publicFeed: FeedMessage[]
@@ -315,6 +323,12 @@ function getToastEmoji(tone: ToastTone) {
   return '💡'
 }
 
+function getNotifIcon(type: NotificationItem['type']) {
+  if (type === 'system') return '🤖'
+  if (type === 'inbox') return '📩'
+  return '💬'
+}
+
 function normalizeHandle(value: string) {
   const cleaned = value.toLowerCase().replace(/[^a-zа-яё0-9_]+/gi, '').slice(0, 18)
   return `@${cleaned || 'regellik'}`
@@ -391,6 +405,15 @@ function App() {
 
   // Top-up modal
   const [topUpOpen, setTopUpOpen] = useState(false)
+
+  // Notifications panel
+  const [notifOpen, setNotifOpen] = useState(false)
+  const [notifications, setNotifications] = useState<NotificationItem[]>([])
+  const [notifLoading, setNotifLoading] = useState(false)
+
+  // Admin broadcast
+  const [broadcastText, setBroadcastText] = useState('')
+  const [isBroadcasting, setIsBroadcasting] = useState(false)
 
   // Admin search
   const [adminSearchQ, setAdminSearchQ] = useState('')
@@ -520,6 +543,7 @@ function App() {
         if (!data.viewer && sessionToken) {
           window.localStorage.removeItem(SESSION_KEY)
           setSessionToken('')
+          setTelegramAuthTried(false) // Allow re-auth via Telegram
           showToast('Сессия истекла — войди заново', 'error')
         }
       } catch (error) {
@@ -562,7 +586,7 @@ function App() {
       return undefined
     }
 
-    const timeout = window.setTimeout(() => setToast(null), 2800)
+    const timeout = window.setTimeout(() => setToast(null), 2200)
     return () => window.clearTimeout(timeout)
   }, [toast])
 
@@ -923,6 +947,36 @@ function App() {
     return `${(meters / 1000).toFixed(1)} км`
   }
 
+  const loadNotifications = async () => {
+    if (!sessionToken) return
+    setNotifLoading(true)
+    try {
+      const data = await apiRequest<{ notifications: NotificationItem[] }>('/api/notifications', undefined, sessionToken)
+      setNotifications(data.notifications)
+    } catch {
+      showToast('Не удалось загрузить уведомления', 'error')
+    } finally {
+      setNotifLoading(false)
+    }
+  }
+
+  const sendBroadcast = async () => {
+    if (!broadcastText.trim() || !sessionToken) return
+    setIsBroadcasting(true)
+    try {
+      const data = await apiRequest<{ ok: boolean; sent: number }>('/api/admin/broadcast', {
+        method: 'POST',
+        body: JSON.stringify({ text: broadcastText.trim() }),
+      }, sessionToken)
+      showToast(`Рассылка отправлена: ${data.sent} пользователей`, 'success')
+      setBroadcastText('')
+    } catch (error) {
+      showToast(error instanceof Error ? error.message : 'Ошибка рассылки', 'error')
+    } finally {
+      setIsBroadcasting(false)
+    }
+  }
+
   // Admin search users
   const adminSearchUsers = async () => {
     if (!adminSearchQ.trim() || !sessionToken) return
@@ -1199,6 +1253,38 @@ function App() {
         </div>
       )}
 
+      {/* --- ПАНЕЛЬ УВЕДОМЛЕНИЙ --- */}
+      {notifOpen && (
+        <div className="notif-layer">
+          <div className="notif-backdrop" onClick={() => setNotifOpen(false)} />
+          <div className="notif-panel">
+            <div className="notif-panel-head">
+              <h3><Bell size={16} /> Уведомления</h3>
+              <button className="ghost-icon" onClick={() => setNotifOpen(false)}>×</button>
+            </div>
+            <div className="notif-list">
+              {notifLoading && <div className="notif-loading">Загрузка...</div>}
+              {!notifLoading && notifications.length === 0 && (
+                <div className="notif-empty">
+                  <Bell size={32} />
+                  <p>Нет уведомлений</p>
+                </div>
+              )}
+              {notifications.map(n => (
+                <div key={n.id} className={`notif-item notif-${n.type}`}>
+                  <span className="notif-icon">{getNotifIcon(n.type)}</span>
+                  <div className="notif-body">
+                    <strong>{n.title}</strong>
+                    <p>{n.text.length > 120 ? n.text.slice(0, 120) + '...' : n.text}</p>
+                    <small>{formatRelativeTime(n.createdAt)}</small>
+                  </div>
+                </div>
+              ))}
+            </div>
+          </div>
+        </div>
+      )}
+
       {/* Верхняя панель — только для залогиненных */}
       {isSignedIn && (
       <header className={`top-header-bar${authOpen || headerHidden ? ' hidden' : ''}`}>
@@ -1222,7 +1308,7 @@ function App() {
               <Zap size={14} />
               <span>{viewer?.powers ?? 0}</span>
             </div>
-            <button className="header-bell-btn" onClick={() => { setActiveTab('chats'); setOpenConvoId(null); setMenuOpen(false); }}>
+            <button className="header-bell-btn" onClick={() => { setNotifOpen(true); void loadNotifications(); }}>
               <Bell size={17} />
               {totalUnread > 0 && <span className="header-badge">{totalUnread}</span>}
             </button>
@@ -1421,7 +1507,10 @@ function App() {
             )}
 
             {/* --- ОТКРЫТЫЙ ЧАТ --- */}
-            {activeTab === 'chats' && openConvoId && (
+            {activeTab === 'chats' && openConvoId && (() => {
+              const currentConvo = conversations.find(c => c.id === openConvoId)
+              const isSystemChat = currentConvo?.isSystem || false
+              return (
               <section className="chat-window page-transition">
                 <div className="chat-window-header">
                   <button className="chat-back-btn" onClick={() => setOpenConvoId(null)}>
@@ -1431,25 +1520,39 @@ function App() {
                     {chatOtherUser?.avatarUrl ? (
                       <img className="chat-header-avatar" src={chatOtherUser.avatarUrl} alt="" />
                     ) : (
-                      <div className="chat-header-avatar-placeholder">
-                        {conversations.find(c => c.id === openConvoId)?.isSystem ? '>]' : chatOtherUser?.name?.[0] || '?'}
+                      <div className={isSystemChat ? 'chat-header-avatar-placeholder system' : 'chat-header-avatar-placeholder'}>
+                        {isSystemChat ? '>]' : chatOtherUser?.name?.[0] || '?'}
                       </div>
                     )}
                     <div>
-                      <strong>{conversations.find(c => c.id === openConvoId)?.isSystem ? '>]Regellik' : chatOtherUser?.name || 'Чат'}</strong>
-                      <small>{chatOtherUser?.handle || ''}</small>
+                      <strong>{isSystemChat ? '>]Regellik' : chatOtherUser?.name || 'Чат'}</strong>
+                      <small>{isSystemChat ? 'системный чат' : chatOtherUser?.handle || ''}</small>
                     </div>
                   </div>
+                  {isSystemChat && <span className="chat-system-badge">SYSTEM</span>}
                 </div>
 
                 <div className="chat-messages-area">
                   {isChatLoading && <div className="chat-loading">Загрузка...</div>}
-                  {chatMessages.map(msg => (
-                    <div key={msg.id} className={msg.senderId === viewer?.id ? 'chat-bubble mine' : 'chat-bubble theirs'}>
-                      <p>{msg.text}</p>
-                      <small>{formatRelativeTime(msg.createdAt)}</small>
-                    </div>
-                  ))}
+                  {chatMessages.map((msg, idx) => {
+                    const isMine = msg.senderId === viewer?.id
+                    const isSystem = !isMine && isSystemChat
+                    const showDate = idx === 0 || new Date(msg.createdAt).toDateString() !== new Date(chatMessages[idx - 1].createdAt).toDateString()
+                    return (
+                      <div key={msg.id}>
+                        {showDate && (
+                          <div className="chat-date-divider">
+                            <span>{new Date(msg.createdAt).toLocaleDateString('ru-RU', { day: 'numeric', month: 'long' })}</span>
+                          </div>
+                        )}
+                        <div className={`chat-bubble ${isMine ? 'mine' : 'theirs'}${isSystem ? ' system' : ''}`}>
+                          {isSystem && <span className="chat-bubble-sender">{'>]Regellik'}</span>}
+                          <p>{msg.text}</p>
+                          <small>{formatRelativeTime(msg.createdAt)}</small>
+                        </div>
+                      </div>
+                    )
+                  })}
                   <div ref={chatBottomRef} />
                 </div>
 
@@ -1465,7 +1568,8 @@ function App() {
                   </button>
                 </div>
               </section>
-            )}
+              )
+            })()}
 
             {/* --- РАДАР --- */}
             {activeTab === 'radar' && (
@@ -1941,6 +2045,27 @@ function App() {
                       <strong>{adminUsers.filter(u => u.status === 'active').length}</strong>
                       <span>активных</span>
                     </div>
+                  </div>
+                </article>
+
+                {/* Рассылка от системы */}
+                <article className="panel-card admin-broadcast-card">
+                  <div className="panel-head compact-head">
+                    <span className="eyebrow">📢 системное сообщение</span>
+                  </div>
+                  <p className="broadcast-desc">Отправить от имени {'>]Regellik'} всем пользователям</p>
+                  <div className="broadcast-input-row">
+                    <textarea
+                      className="broadcast-input"
+                      value={broadcastText}
+                      onChange={e => setBroadcastText(e.target.value)}
+                      placeholder="Текст рассылки..."
+                      rows={2}
+                    />
+                    <button className="primary-btn compact-btn" onClick={() => void sendBroadcast()} disabled={isBroadcasting || !broadcastText.trim()}>
+                      <Send size={14} />
+                      {isBroadcasting ? '...' : 'Отправить'}
+                    </button>
                   </div>
                 </article>
 
