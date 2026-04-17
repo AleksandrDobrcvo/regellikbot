@@ -930,7 +930,8 @@ app.post('/api/auth/telegram', (request, response) => {
     return
   }
 
-  if (TELEGRAM_BOT_TOKEN && !validateTelegramInitData(payload.initData || '')) {
+  // Only validate initData when strict mode is on
+  if (TELEGRAM_AUTH_STRICT && TELEGRAM_BOT_TOKEN && !validateTelegramInitData(payload.initData || '')) {
     response.status(403).json({ error: 'initData Telegram не прошёл проверку' })
     return
   }
@@ -1018,7 +1019,7 @@ app.post('/api/auth/telegram-widget', (request, response) => {
     return
   }
 
-  if (TELEGRAM_BOT_TOKEN && !validateTelegramWidgetData(payload)) {
+  if (TELEGRAM_AUTH_STRICT && TELEGRAM_BOT_TOKEN && !validateTelegramWidgetData(payload)) {
     response.status(403).json({ error: 'Данные Telegram Login Widget не прошли проверку' })
     return
   }
