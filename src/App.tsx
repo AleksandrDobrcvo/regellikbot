@@ -253,14 +253,6 @@ function formatDate(value: string) {
   })
 }
 
-function trimTickerText(value: string, maxLength = 88) {
-  if (value.length <= maxLength) {
-    return value
-  }
-
-  return `${value.slice(0, maxLength).trimEnd()}…`
-}
-
 function isFiniteCoordinate(value: number | null | undefined): value is number {
   return typeof value === 'number' && Number.isFinite(value)
 }
@@ -395,8 +387,6 @@ function App() {
     const oneDayAgo = Date.now() - 86400000
     return publicFeed.filter((item) => new Date(item.createdAt).getTime() > oneDayAgo).length
   }, [publicFeed])
-  const tickerFeed = useMemo(() => publicFeed.slice(0, 8), [publicFeed])
-  const marqueeFeed = useMemo(() => (tickerFeed.length > 0 ? [...tickerFeed, ...tickerFeed] : []), [tickerFeed])
   const referenceLocation = useMemo(() => {
     if (viewer && isFiniteCoordinate(viewer.latitude) && isFiniteCoordinate(viewer.longitude)) {
       return { latitude: viewer.latitude, longitude: viewer.longitude }
@@ -1159,38 +1149,6 @@ function App() {
         )}
       </header>
 
-      {tickerFeed.length > 0 && (
-        <section className="anon-ticker-shell" aria-label="Последние анонимки">
-          <div className="anon-ticker-head">
-            <div className="anon-ticker-kicker">
-              <Sparkles size={16} />
-              <span>live tape</span>
-            </div>
-            <strong>Последние анонимки</strong>
-          </div>
-
-          <div className="anon-ticker-track">
-            <div className="anon-ticker-runner">
-              {marqueeFeed.map((item, index) => (
-                <article key={`${item.id}-${index}`} className="anon-ticker-card">
-                  <div className="anon-ticker-meta">
-                    <span className="anon-ticker-author">{item.authorHandle}</span>
-                    <span className="anon-ticker-dot" aria-hidden="true" />
-                    <span className="anon-ticker-city">
-                      <MapPin size={12} />
-                      {getDistanceLabel(item.latitude, item.longitude)}
-                    </span>
-                    <span className="anon-ticker-dot" aria-hidden="true" />
-                    <span>{formatRelativeTime(item.createdAt)}</span>
-                  </div>
-                  <p>{trimTickerText(item.text)}</p>
-                </article>
-              ))}
-            </div>
-          </div>
-        </section>
-      )}
-
       {/* --- ГЛАВНАЯ (для всех, без табов пока не залогинен) --- */}
       {!isSignedIn && activeTab === 'feed' && (
         <main className="landing-page">
@@ -1223,35 +1181,6 @@ function App() {
               <span>зарабатывай на рефералах</span>
             </div>
           </div>
-
-          {publicFeed.length > 0 && (
-            <section className="panel-card feed-panel">
-              <div className="panel-head">
-                <div>
-                  <span className="eyebrow">🌐 лента</span>
-                  <h2>Последние анонимки</h2>
-                </div>
-              </div>
-              <div className="feed-list">
-                {publicFeed.slice(0, 5).map((item) => (
-                  <article key={item.id} className="feed-card">
-                    <div className="feed-card-head">
-                      <div>
-                        <strong>{item.authorName}</strong>
-                        <span>{item.authorHandle}</span>
-                      </div>
-                      <div className="city-pill">
-                        <MapPin size={14} />
-                        <span>{getDistanceLabel(item.latitude, item.longitude)}</span>
-                      </div>
-                    </div>
-                    <p>{item.text}</p>
-                    <small>{formatRelativeTime(item.createdAt)}</small>
-                  </article>
-                ))}
-              </div>
-            </section>
-          )}
 
           <footer className="app-footer">
             <span>&gt;]Regellik 2026</span>
