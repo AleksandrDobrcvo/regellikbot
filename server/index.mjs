@@ -11,7 +11,8 @@ const statePath = join(__dirname, 'state', 'app-state.json')
 const distPath = join(__dirname, '..', 'dist')
 const indexHtmlPath = join(distPath, 'index.html')
 const TELEGRAM_BOT_TOKEN = process.env.TELEGRAM_BOT_TOKEN || ''
-const ADMIN_BOOTSTRAP_CODE = process.env.ADMIN_BOOTSTRAP_CODE || 'change-me-admin-code'
+const ADMIN_EMAILS = (process.env.ADMIN_EMAILS || '').split(',').map(e => e.trim().toLowerCase()).filter(Boolean)
+const ADMIN_TELEGRAM_IDS = (process.env.ADMIN_TELEGRAM_IDS || '').split(',').map(e => e.trim()).filter(Boolean)
 const TELEGRAM_AUTH_STRICT = process.env.TELEGRAM_AUTH_STRICT !== 'false'
 const CORS_ORIGIN = process.env.CORS_ORIGIN || '*'
 
@@ -65,6 +66,18 @@ function applyCoordinates(target, cityKey = 'city', countryKey = 'country', lati
   return target
 }
 
+function generateNumericId(state) {
+  const maxId = state.users.reduce((max, u) => {
+    const num = Number(u.numericId) || 0
+    return num > max ? num : max
+  }, 0)
+  return maxId + 1
+}
+
+function generateReferralCode() {
+  return crypto.randomBytes(4).toString('hex')
+}
+
 function createSeedUser(data) {
   return applyCoordinates({
     role: 'user',
@@ -82,6 +95,10 @@ function createSeedUser(data) {
     passwordSalt: null,
     latitude: null,
     longitude: null,
+    numericId: null,
+    referralCode: generateReferralCode(),
+    referredBy: null,
+    telegramId: null,
     ...data,
   })
 }
@@ -91,6 +108,7 @@ const defaultState = {
   users: [
     createSeedUser({
       id: 'seed-regellik',
+      numericId: 1,
       provider: 'telegram',
       providerId: '1001',
       name: 'Regellik',
@@ -107,10 +125,12 @@ const defaultState = {
       preferences: { ...defaultPreferences, emailAlerts: true },
       powers: 3400,
       stats: { sent: 18, received: 41, opened: 3, referrals: 9 },
+      telegramId: '1001',
       telegramMeta: { username: 'regellik', isLinked: true },
     }),
     createSeedUser({
       id: 'seed-mila',
+      numericId: 2,
       provider: 'email',
       providerId: 'mila@example.com',
       name: 'Mila',
@@ -128,6 +148,7 @@ const defaultState = {
     }),
     createSeedUser({
       id: 'seed-sara',
+      numericId: 3,
       provider: 'email',
       providerId: 'sara@example.com',
       name: 'Sara',
@@ -217,6 +238,27 @@ function readState() {
           nextUser.badges = nextUser.badges.length ? nextUser.badges : ['ADMIN', 'CORE']
           nextUser.bio = user.bio || 'Главный профиль проекта. Следит за системой, балансом и настройками.'
           nextUser.tagline = user.tagline || 'owner mode'
+        }
+
+        // Ensure numericId
+        if (!nextUser.numericId) {
+          const maxId = state.users.reduce((max, u) => Math.max(max, Number(u.numericId) || 0), 0)
+          nextUser.numericId = maxId + 1
+        }
+
+        // Ensure referralCode
+        if (!nextUser.referralCode) {
+          nextUser.referralCode = generateReferralCode()
+        }
+
+        // Auto-admin from ENV
+        if (ADMIN_EMAILS.length && nextUser.email && ADMIN_EMAILS.includes(nextUser.email.toLowerCase())) {
+          nextUser.role = 'admin'
+          if (!nextUser.badges.includes('ADMIN')) nextUser.badges.unshift('ADMIN')
+        }
+        if (ADMIN_TELEGRAM_IDS.length && nextUser.telegramId && ADMIN_TELEGRAM_IDS.includes(String(nextUser.telegramId))) {
+          nextUser.role = 'admin'
+          if (!nextUser.badges.includes('ADMIN')) nextUser.badges.unshift('ADMIN')
         }
 
         return applyCoordinates(nextUser)
@@ -341,6 +383,7 @@ function pushAudit(state, action, actorId, targetId, details) {
 function publicUser(user) {
   return {
     id: user.id,
+    numericId: user.numericId,
     name: user.name,
     handle: user.handle,
     provider: user.provider,
@@ -359,8 +402,11 @@ function publicUser(user) {
     badges: user.badges,
     joinedAt: user.joinedAt,
     telegramLinked: Boolean(user.telegramMeta?.isLinked),
+    telegramId: user.telegramId || null,
     preferences: user.preferences,
     stats: user.stats,
+    referralCode: user.referralCode,
+    referredBy: user.referredBy,
   }
 }
 
@@ -526,7 +572,7 @@ app.get('/api/bootstrap', (request, response) => {
 
 app.post('/api/auth/email', (request, response) => {
   const state = readState()
-  const { name, email, password, location } = request.body || {}
+  const { name, email, password, location, mode, referralCode: refCode } = request.body || {}
 
   if (!state.siteSettings.emailAuthEnabled) {
     response.status(403).json({ error: 'Вход по email отключён' })
@@ -538,15 +584,30 @@ app.post('/api/auth/email', (request, response) => {
     return
   }
 
-  let user = state.users.find((item) => item.email?.toLowerCase() === String(email).trim().toLowerCase())
-  if (!canSignIn(state, user)) {
-    response.status(403).json({ error: 'Сейчас вход ограничен настройками сайта' })
+  const emailNorm = String(email).trim().toLowerCase()
+
+  // Basic email validation
+  if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(emailNorm)) {
+    response.status(400).json({ error: 'Некорректный формат email' })
     return
   }
 
-  if (!user) {
-    if (!name) {
-      response.status(400).json({ error: 'Для нового аккаунта укажи имя' })
+  let user = state.users.find((item) => item.email?.toLowerCase() === emailNorm)
+
+  // === REGISTRATION ===
+  if (mode === 'register') {
+    if (user) {
+      response.status(409).json({ error: 'Аккаунт с этой почтой уже существует. Войди через вход.' })
+      return
+    }
+
+    if (!state.siteSettings.registrationsOpen) {
+      response.status(403).json({ error: 'Регистрация временно закрыта' })
+      return
+    }
+
+    if (!name || !String(name).trim()) {
+      response.status(400).json({ error: 'Укажи имя для нового аккаунта' })
       return
     }
 
@@ -556,29 +617,69 @@ app.post('/api/auth/email', (request, response) => {
     }
 
     const passwordData = createPasswordHash(String(password))
+    const numericId = generateNumericId(state)
+
     user = createSeedUser({
       id: createToken(),
+      numericId,
       provider: 'email',
-      providerId: String(email).trim().toLowerCase(),
-      name: String(name).trim(),
+      providerId: emailNorm,
+      name: String(name).trim().slice(0, 40),
       handle: ensureUniqueHandle(state, name),
       avatarUrl: `https://ui-avatars.com/api/?name=${encodeURIComponent(String(name).trim())}&background=0d2316&color=bfff3a&bold=true`,
-      email: String(email).trim().toLowerCase(),
+      email: emailNorm,
       city: location?.city || null,
       country: location?.country || null,
       latitude: Number.isFinite(location?.latitude) ? Number(location.latitude) : null,
       longitude: Number.isFinite(location?.longitude) ? Number(location.longitude) : null,
       geoAllowed: Boolean(location?.city),
-      bio: 'Новый email-профиль.',
+      bio: 'Новый профиль.',
       tagline: 'fresh profile',
       badges: ['NEW'],
       passwordHash: passwordData.hash,
       passwordSalt: passwordData.salt,
     })
+
+    // Handle referral
+    if (refCode) {
+      const referrer = state.users.find(u => u.referralCode === String(refCode).trim())
+      if (referrer && referrer.id !== user.id) {
+        user.referredBy = referrer.id
+        referrer.stats.referrals += 1
+        pushAudit(state, 'referral.applied', user.id, referrer.id, `Реферал от ${referrer.handle}.`)
+      }
+    }
+
+    // Auto-admin from ENV
+    if (ADMIN_EMAILS.includes(emailNorm)) {
+      user.role = 'admin'
+      if (!user.badges.includes('ADMIN')) user.badges.unshift('ADMIN')
+    }
+
     state.users.push(user)
-    pushAudit(state, 'auth.email.register', user.id, user.id, 'Создан новый email-пользователь.')
-  } else if (!verifyPassword(String(password), user.passwordSalt, user.passwordHash)) {
-    response.status(403).json({ error: 'Неверная почта или пароль' })
+    pushAudit(state, 'auth.email.register', user.id, user.id, 'Регистрация по email.')
+
+    const token = createToken()
+    state.sessions = state.sessions.filter((item) => item.userId !== user.id)
+    state.sessions.push({ token, userId: user.id, createdAt: new Date().toISOString() })
+    saveState(state)
+    response.json({ token, viewer: publicUser(user), isNewUser: true })
+    return
+  }
+
+  // === LOGIN ===
+  if (!user) {
+    response.status(404).json({ error: 'Аккаунт не найден. Зарегистрируйся.' })
+    return
+  }
+
+  if (!canSignIn(state, user)) {
+    response.status(403).json({ error: 'Вход ограничен настройками сайта' })
+    return
+  }
+
+  if (!verifyPassword(String(password), user.passwordSalt, user.passwordHash)) {
+    response.status(403).json({ error: 'Неверный пароль' })
     return
   }
 
@@ -586,7 +687,7 @@ app.post('/api/auth/email', (request, response) => {
   state.sessions = state.sessions.filter((item) => item.userId !== user.id)
   state.sessions.push({ token, userId: user.id, createdAt: new Date().toISOString() })
   saveState(state)
-  response.json({ token, viewer: publicUser(user) })
+  response.json({ token, viewer: publicUser(user), isNewUser: false })
 })
 
 app.post('/api/auth/telegram', (request, response) => {
@@ -627,10 +728,13 @@ app.post('/api/auth/telegram', (request, response) => {
   }
 
   if (!user) {
+    const numericId = generateNumericId(state)
     user = createSeedUser({
       id: createToken(),
+      numericId,
       provider: 'telegram',
       providerId: String(telegramId),
+      telegramId: String(telegramId),
       name: [firstName, lastName].filter(Boolean).join(' '),
       handle: ensureUniqueHandle(state, username || firstName),
       avatarUrl: photoUrl || null,
@@ -649,6 +753,13 @@ app.post('/api/auth/telegram', (request, response) => {
         initData: payload.initData || '',
       },
     })
+
+    // Auto-admin from ENV
+    if (ADMIN_TELEGRAM_IDS.includes(String(telegramId))) {
+      user.role = 'admin'
+      if (!user.badges.includes('ADMIN')) user.badges.unshift('ADMIN')
+    }
+
     state.users.push(user)
     pushAudit(state, 'auth.telegram.register', user.id, user.id, 'Создан новый telegram-пользователь.')
   } else {
@@ -789,33 +900,6 @@ app.post('/api/profile/update', (request, response) => {
   }
 
   pushAudit(state, 'profile.update', viewer.id, viewer.id, 'Пользователь обновил профиль.')
-  saveState(state)
-  response.json(bootstrapPayload(state, viewer))
-})
-
-app.post('/api/admin/bootstrap', (request, response) => {
-  const state = readState()
-  const viewer = requireUser(request, response, state)
-  if (!viewer) {
-    return
-  }
-
-  const accessCode = String(request.body?.accessCode || '')
-  if (!accessCode) {
-    response.status(400).json({ error: 'Укажи admin code' })
-    return
-  }
-
-  if (accessCode !== ADMIN_BOOTSTRAP_CODE) {
-    response.status(403).json({ error: 'Неверный admin code' })
-    return
-  }
-
-  viewer.role = 'admin'
-  if (!viewer.badges.includes('ADMIN')) {
-    viewer.badges.unshift('ADMIN')
-  }
-  pushAudit(state, 'admin.bootstrap.self', viewer.id, viewer.id, 'Пользователь получил admin по bootstrap code.')
   saveState(state)
   response.json(bootstrapPayload(state, viewer))
 })

@@ -1,9 +1,11 @@
 import type { FormEvent } from 'react'
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
+import { createPortal } from 'react-dom'
 import {
   BadgeCheck,
   Bell,
   ChevronRight,
+  Copy,
   Eye,
   EyeOff,
   LogOut,
@@ -50,6 +52,7 @@ type UserStats = {
 
 type SessionUser = {
   id: string
+  numericId: number | null
   name: string
   handle: string
   provider: AuthProvider
@@ -68,8 +71,11 @@ type SessionUser = {
   badges: string[]
   joinedAt: string
   telegramLinked: boolean
+  telegramId: string | null
   preferences: UserPreferences
   stats: UserStats
+  referralCode: string | null
+  referredBy: string | null
 }
 
 type DirectoryProfile = {
@@ -160,6 +166,7 @@ type BootstrapResponse = {
 type AuthResponse = {
   token: string
   viewer: SessionUser
+  isNewUser?: boolean
 }
 
 type ResolvedLocation = {
@@ -348,7 +355,9 @@ function App() {
   const [onlineCount, setOnlineCount] = useState(0)
   const [activeTab, setActiveTab] = useState<TabId>('feed')
   const [authOpen, setAuthOpen] = useState(false)
+  const [authMode, setAuthMode] = useState<'login' | 'register'>('login')
   const [menuOpen, setMenuOpen] = useState(false)
+  const [introDone, setIntroDone] = useState(false)
   const [emailName, setEmailName] = useState('')
   const [emailValue, setEmailValue] = useState('')
   const [emailPassword, setEmailPassword] = useState('')
@@ -363,15 +372,13 @@ function App() {
   const [isSavingSite, setIsSavingSite] = useState(false)
   const [isSavingAdminUser, setIsSavingAdminUser] = useState(false)
   const [isGrantingAdmin, setIsGrantingAdmin] = useState(false)
-  const [isActivatingAdmin, setIsActivatingAdmin] = useState(false)
   const [toast, setToast] = useState<ToastState | null>(null)
   const [profileName, setProfileName] = useState('')
   const [profileHandle, setProfileHandle] = useState('@regellik')
   const [profileTagline, setProfileTagline] = useState('')
   const [profileBio, setProfileBio] = useState('')
-  const [adminAccessCode, setAdminAccessCode] = useState('')
-  const [selectedAdminUserId, setSelectedAdminUserId] = useState('')
   const [adminDraft, setAdminDraft] = useState<AdminDraft | null>(null)
+  const [selectedAdminUserId, setSelectedAdminUserId] = useState('')
   const [grantIdentifier, setGrantIdentifier] = useState('')
   const [telegramAuthTried, setTelegramAuthTried] = useState(false)
 
@@ -753,6 +760,16 @@ function App() {
       return
     }
 
+    if (authMode === 'register' && !emailName.trim()) {
+      showToast('Укажи имя для регистрации', 'info')
+      return
+    }
+
+    if (authMode === 'register' && emailPassword.trim().length < 6) {
+      showToast('Пароль минимум 6 символов', 'info')
+      return
+    }
+
     try {
       const data = await apiRequest<AuthResponse>('/api/auth/email', {
         method: 'POST',
@@ -761,11 +778,15 @@ function App() {
           email: emailValue.trim(),
           password: emailPassword,
           location: resolvedLocation,
+          mode: authMode,
         }),
       })
       await completeAuth(data)
+      if (data.isNewUser) {
+        showToast('Аккаунт создан! Добро пожаловать', 'success')
+      }
     } catch (error) {
-      showToast(error instanceof Error ? error.message : 'Вход не выполнен', 'error')
+      showToast(error instanceof Error ? error.message : 'Ошибка авторизации', 'error')
     }
   }
 
@@ -938,31 +959,6 @@ function App() {
     }
   }
 
-  const activateOwnAdminAccess = async (event: FormEvent<HTMLFormElement>) => {
-    event.preventDefault()
-
-    if (!sessionToken || !adminAccessCode.trim()) {
-      showToast('Введи admin code', 'info')
-      return
-    }
-
-    setIsActivatingAdmin(true)
-    try {
-      const data = await apiRequest<BootstrapResponse>('/api/admin/bootstrap', {
-        method: 'POST',
-        body: JSON.stringify({ accessCode: adminAccessCode.trim() }),
-      }, sessionToken)
-      applyBootstrap(data)
-      setAdminAccessCode('')
-      setActiveTab('admin')
-      showToast('Admin доступ активирован', 'success')
-    } catch (error) {
-      showToast(error instanceof Error ? error.message : 'Не удалось активировать admin', 'error')
-    } finally {
-      setIsActivatingAdmin(false)
-    }
-  }
-
   const toggleSiteSetting = (key: keyof SiteSettings) => {
     setSiteSettings((current) => ({ ...current, [key]: !current[key] }))
   }
@@ -981,6 +977,16 @@ function App() {
 
   return (
     <div className="app-shell">
+      {!introDone && createPortal(
+        <div className="intro-overlay" onAnimationEnd={(e) => { if (e.animationName === 'introFadeOut') setIntroDone(true); }}>
+          <div className="intro-logo">
+            <span className="intro-bracket">&gt;]</span>
+            <span className="intro-name">Regellik</span>
+          </div>
+          <div className="intro-line" />
+        </div>,
+        document.body
+      )}
       <div className="ambient ambient-a" />
       <div className="ambient ambient-b" />
       <div className="ambient ambient-c" />
@@ -1004,58 +1010,109 @@ function App() {
           <section className="auth-sheet">
             <div className="sheet-head">
               <div>
-                <span className="eyebrow">🔐 Вход</span>
-                <h2>Войди или создай аккаунт</h2>
+                <span className="eyebrow">{authMode === 'register' ? '📝 Регистрация' : '🔐 Вход'}</span>
+                <h2>{authMode === 'register' ? 'Создать аккаунт' : 'Войти в аккаунт'}</h2>
               </div>
               <button className="ghost-icon" onClick={() => setAuthOpen(false)}>
                 ×
               </button>
             </div>
 
+            <div className="auth-mode-tabs">
+              <button className={authMode === 'login' ? 'auth-mode-tab active' : 'auth-mode-tab'} onClick={() => setAuthMode('login')}>Вход</button>
+              <button className={authMode === 'register' ? 'auth-mode-tab active' : 'auth-mode-tab'} onClick={() => setAuthMode('register')}>Регистрация</button>
+            </div>
+
             <div className="auth-stack">
               {webApp?.initDataUnsafe?.user && (
                 <button className="auth-card telegram-card" onClick={() => void signInTelegram(false)} disabled={!siteSettings.telegramAuthEnabled}>
                   <div>
-                    <div className="auth-title">📲 Войти через Telegram</div>
+                    <div className="auth-title">Войти через Telegram</div>
                     <div className="auth-note">Ты в Telegram — нажми и войдёшь моментально</div>
                   </div>
                   <ChevronRight size={18} />
                 </button>
               )}
 
-              {/* Telegram Login Widget — для браузера (не внутри Telegram) */}
               {!webApp?.initDataUnsafe?.user && siteSettings.telegramAuthEnabled && (
                 <div className="auth-card telegram-widget-card">
-                  <div className="auth-title">📲 Войти через Telegram</div>
+                  <div className="auth-title">Войти через Telegram</div>
                   <div className="auth-note">Нажми кнопку ниже — откроется Telegram для подтверждения</div>
                   <div className="telegram-widget-mount" ref={widgetContainerRef} />
                 </div>
               )}
 
               <form className="email-card" onSubmit={signInEmail}>
-                <div className="auth-title">✉️ Email</div>
-                <div className="auth-note">Новая почта — создастся аккаунт. Существующая — введи пароль.</div>
-                <div className="form-grid">
-                  <input value={emailName} onChange={(event) => setEmailName(event.target.value)} placeholder="Имя (для нового аккаунта)" />
-                  <input value={emailValue} onChange={(event) => setEmailValue(event.target.value)} placeholder="Email" type="email" required />
-                </div>
-                <input value={emailPassword} onChange={(event) => setEmailPassword(event.target.value)} placeholder="Пароль" type="password" required />
+                <div className="auth-title">{authMode === 'register' ? 'Регистрация по Email' : 'Вход по Email'}</div>
+                {authMode === 'register' && (
+                  <div className="auth-note">Заполни все поля для создания аккаунта</div>
+                )}
+                {authMode === 'login' && (
+                  <div className="auth-note">Введи email и пароль от существующего аккаунта</div>
+                )}
+
+                {authMode === 'register' && (
+                  <input value={emailName} onChange={(event) => setEmailName(event.target.value)} placeholder="Имя" required />
+                )}
+                <input value={emailValue} onChange={(event) => setEmailValue(event.target.value)} placeholder="Email" type="email" required />
+                <input value={emailPassword} onChange={(event) => setEmailPassword(event.target.value)} placeholder={authMode === 'register' ? 'Пароль (мин. 6 символов)' : 'Пароль'} type="password" required />
+
                 <button className="primary-btn wide" type="submit" disabled={!siteSettings.emailAuthEnabled}>
                   <Mail size={16} />
-                  Войти / создать аккаунт
+                  {authMode === 'register' ? 'Создать аккаунт' : 'Войти'}
                 </button>
               </form>
+
+              <div className="auth-switch">
+                {authMode === 'login' ? (
+                  <span>Нет аккаунта? <button className="auth-switch-btn" onClick={() => setAuthMode('register')}>Зарегистрируйся</button></span>
+                ) : (
+                  <span>Уже есть аккаунт? <button className="auth-switch-btn" onClick={() => setAuthMode('login')}>Войди</button></span>
+                )}
+              </div>
             </div>
           </section>
         </div>
       )}
 
-      {/* Плавающая кнопка-меню в углу */}
-      <div className={authOpen ? 'corner-menu hidden' : 'corner-menu'}>
-        <button className="corner-menu-btn" onClick={() => setMenuOpen(!menuOpen)}>
-          {menuOpen ? <X size={22} /> : <Menu size={22} />}
-          <span className="corner-menu-label">{isSignedIn ? 'Меню' : 'Зайти'}</span>
-        </button>
+      {/* Верхняя панель */}
+      <header className={authOpen ? 'top-header-bar hidden' : 'top-header-bar'}>
+        <div className="header-row-main">
+          <div className="header-left">
+            <button className="header-hamburger" onClick={() => setMenuOpen(!menuOpen)}>
+              {menuOpen ? <X size={20} /> : <Menu size={20} />}
+            </button>
+            <span className="header-brand" onClick={() => { setActiveTab('feed'); setMenuOpen(false); }} style={{cursor:'pointer'}}>
+              <span className="header-brand-icon">&gt;]</span>Regellik
+            </span>
+          </div>
+          <div className="header-right">
+            {isSignedIn && viewer?.referralCode && (
+              <button className="header-ref-btn" onClick={() => {
+                void navigator.clipboard.writeText(`${window.location.origin}?ref=${viewer.referralCode}`)
+                showToast('Реферальная ссылка скопирована!', 'success')
+              }} title="Скопировать реферальную ссылку">
+                <Users size={15} />
+              </button>
+            )}
+            <button className="header-profile-btn" onClick={() => { if (isSignedIn) { setActiveTab('profile'); setMenuOpen(false); } else { setAuthOpen(true); } }}>
+              <User size={16} />
+              <span>{isSignedIn ? 'профиль' : 'вход'}</span>
+            </button>
+          </div>
+        </div>
+        <div className="header-row-stats">
+          <div className="header-stat">
+            <Zap size={13} />
+            <span className="header-stat-val">{siteSettings.onlineCounterVisible ? onlineCount : '—'}</span>
+            <span className="header-stat-label">онлайн</span>
+          </div>
+          <div className="header-stat">
+            <MessageCircle size={13} />
+            <span className="header-stat-val">{messages24h}</span>
+            <span className="header-stat-label">анонимок / 24ч</span>
+          </div>
+        </div>
 
         {menuOpen && (
           <>
@@ -1100,7 +1157,7 @@ function App() {
             </nav>
           </>
         )}
-      </div>
+      </header>
 
       {tickerFeed.length > 0 && (
         <section className="anon-ticker-shell" aria-label="Последние анонимки">
@@ -1136,30 +1193,36 @@ function App() {
 
       {/* --- ГЛАВНАЯ (для всех, без табов пока не залогинен) --- */}
       {!isSignedIn && activeTab === 'feed' && (
-        <main className="main-layout">
-          <section className="hero-panel landing-hero">
-            <div className="hero-copy">
-              <h1>Кто онлайн?</h1>
-              <div className="landing-stats-row">
-                <article className="hero-stat-card accent-green">
-                  <span>⚡ онлайн</span>
-                  <strong>{siteSettings.onlineCounterVisible ? onlineCount : '—'}</strong>
-                  <small>сейчас</small>
-                </article>
-                <article className="hero-stat-card accent-orange">
-                  <span>💬 анонимки</span>
-                  <strong>{messages24h}</strong>
-                  <small>за 24 часа</small>
-                </article>
-              </div>
-
-              <p>Отправляй анонимки, получай ответы, зарабатывай на рефералах. Вход через Email — пару секунд.</p>
-
-              <button className="primary-btn wide" onClick={() => setAuthOpen(true)}>
-                🔽 Зайти в Регель
-              </button>
+        <main className="landing-page">
+          <section className="landing-center">
+            <div className="landing-logo">
+              <div className="landing-logo-icon">&gt;]</div>
+              <div className="landing-logo-text">Regellik</div>
             </div>
+
+            <h1 className="welcome-heading">добро пожаловать</h1>
+            <p className="welcome-sub">анонимки • профили • транзакции</p>
+
+            <button className="landing-cta" onClick={() => setAuthOpen(true)}>
+              Зайти в Регель
+            </button>
           </section>
+
+          <div className="landing-marquee">
+            <div className="landing-marquee-track">
+              <span>здесь качели публичных анонимных</span>
+              <span>•</span>
+              <span>отправляй анонимки — получай ответы</span>
+              <span>•</span>
+              <span>зарабатывай на рефералах</span>
+              <span>•</span>
+              <span>здесь качели публичных анонимных</span>
+              <span>•</span>
+              <span>отправляй анонимки — получай ответы</span>
+              <span>•</span>
+              <span>зарабатывай на рефералах</span>
+            </div>
+          </div>
 
           {publicFeed.length > 0 && (
             <section className="panel-card feed-panel">
@@ -1191,13 +1254,11 @@ function App() {
           )}
 
           <footer className="app-footer">
-            <span>Regellik © 2024</span>
-            <span>•</span>
-            <span>Нормы и Согласие</span>
-            <span>•</span>
-            <span>Обратная связь</span>
-            <span>•</span>
-            <span>О Нас</span>
+            <span>&gt;]Regellik 2026</span>
+            <span>Нормативы</span>
+            <span>О нас</span>
+            <span>FAQ</span>
+            <span>Связаться</span>
           </footer>
         </main>
       )}
@@ -1433,6 +1494,20 @@ function App() {
                   <p className="hero-card-copy">
                     Приглашай друзей — получай бонусы к лимитам. Каждый реферал = +5 отправок и +5 получений в сутки.
                   </p>
+                  {viewer.referralCode && (
+                    <div className="referral-link-block">
+                      <span className="referral-link-label">Твоя реферальная ссылка:</span>
+                      <div className="referral-link-row">
+                        <code className="referral-link-code">{`${window.location.origin}?ref=${viewer.referralCode}`}</code>
+                        <button className="referral-copy-btn" type="button" onClick={() => {
+                          void navigator.clipboard.writeText(`${window.location.origin}?ref=${viewer.referralCode}`)
+                          showToast('Ссылка скопирована!', 'success')
+                        }}>
+                          <Copy size={14} />
+                        </button>
+                      </div>
+                    </div>
+                  )}
                   <div className="referral-stats">
                     <div className="referral-stat">
                       <Users size={20} />
@@ -1485,9 +1560,15 @@ function App() {
                 {/* Инфо */}
                 <article className="panel-card profile-meta-card">
                   <div className="meta-row">
-                    <span>мой id</span>
-                    <strong>{viewer.id}</strong>
+                    <span>ID профиля</span>
+                    <strong>#{viewer.numericId || '—'}</strong>
                   </div>
+                  {viewer.telegramId && (
+                    <div className="meta-row">
+                      <span>Telegram ID</span>
+                      <strong>{viewer.telegramId}</strong>
+                    </div>
+                  )}
                   <div className="meta-row">
                     <span>статус</span>
                     <strong>{viewer.status}</strong>
@@ -1505,28 +1586,6 @@ function App() {
                     <strong>{viewer.badges.length ? viewer.badges.join(', ') : 'пока нет'}</strong>
                   </div>
                 </article>
-
-                {!isAdmin && (
-                  <form className="panel-card admin-bootstrap-card" onSubmit={activateOwnAdminAccess}>
-                    <div className="panel-head">
-                      <div>
-                        <span className="eyebrow">🛡️ вход в админку</span>
-                        <h2>Активировать admin</h2>
-                      </div>
-                    </div>
-                    <p className="hero-card-copy">
-                      Введи admin code, который задан на сервере.
-                    </p>
-                    <label className="input-block">
-                      <span>Admin code</span>
-                      <input value={adminAccessCode} onChange={(event) => setAdminAccessCode(event.target.value)} placeholder="admin code" type="password" />
-                    </label>
-                    <button className="primary-btn wide" type="submit" disabled={isActivatingAdmin}>
-                      <ShieldCheck size={16} />
-                      {isActivatingAdmin ? 'Проверяю...' : 'Получить admin'}
-                    </button>
-                  </form>
-                )}
 
                 <footer className="app-footer">
                   <span>Нормы и Согласие</span>
