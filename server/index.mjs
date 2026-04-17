@@ -5,6 +5,7 @@ import { dirname, join } from 'path'
 import { fileURLToPath } from 'url'
 import { createServer } from 'http'
 import crypto from 'crypto'
+import { MongoClient } from 'mongodb'
 
 const __dirname = dirname(fileURLToPath(import.meta.url))
 const statePath = join(__dirname, 'state', 'app-state.json')
@@ -15,9 +16,14 @@ const ADMIN_EMAILS = (process.env.ADMIN_EMAILS || '').split(',').map(e => e.trim
 const ADMIN_TELEGRAM_IDS = (process.env.ADMIN_TELEGRAM_IDS || '').split(',').map(e => e.trim()).filter(Boolean)
 const TELEGRAM_AUTH_STRICT = process.env.TELEGRAM_AUTH_STRICT === 'true'
 const CORS_ORIGIN = process.env.CORS_ORIGIN || '*'
+const MONGODB_URI = process.env.MONGODB_URI || ''
+const MONGODB_DB_NAME = process.env.MONGODB_DB_NAME || 'regellik'
 const SESSION_TTL_MS = 30 * 24 * 60 * 60 * 1000 // 30 days
 const MAX_SESSIONS_PER_USER = 5
 const ALLOWED_EMAIL_DOMAINS = ['gmail.com','mail.ru','yandex.ru','yahoo.com','outlook.com','hotmail.com','icloud.com','protonmail.com','mail.com','inbox.ru','bk.ru','list.ru','ya.ru','rambler.ru','ukr.net','i.ua','wp.pl','o2.pl','onet.pl','interia.pl','tut.by','zoho.com','aol.com','live.com']
+
+// MongoDB state – set after connectMongo()
+let mongoCol = null
 
 // --- Simple in-memory rate limiter ---
 const rateLimitStore = new Map()
@@ -245,6 +251,23 @@ const defaultState = {
   ],
 }
 
+// --- In-memory state cache (loaded from MongoDB or file on start) ---
+let cachedState = null
+
+async function connectMongo() {
+  if (!MONGODB_URI) return
+  try {
+    const client = new MongoClient(MONGODB_URI)
+    await client.connect()
+    const db = client.db(MONGODB_DB_NAME)
+    mongoCol = db.collection('appstate')
+    console.log('MongoDB connected')
+  } catch (err) {
+    console.error('MongoDB connection failed, falling back to file:', err.message)
+    mongoCol = null
+  }
+}
+
 function ensureStateFile() {
   if (!existsSync(statePath)) {
     mkdirSync(dirname(statePath), { recursive: true })
@@ -252,9 +275,7 @@ function ensureStateFile() {
   }
 }
 
-function readState() {
-  ensureStateFile()
-  const state = JSON.parse(readFileSync(statePath, 'utf8'))
+function normalizeState(state) {
   state.siteSettings = { ...defaultSiteSettings, ...(state.siteSettings || {}) }
   state.auditLog = Array.isArray(state.auditLog) ? state.auditLog : []
   state.users = Array.isArray(state.users)
@@ -273,18 +294,15 @@ function readState() {
           nextUser.tagline = user.tagline || 'owner mode'
         }
 
-        // Ensure numericId
         if (!nextUser.numericId) {
           const maxId = state.users.reduce((max, u) => Math.max(max, Number(u.numericId) || 0), 0)
           nextUser.numericId = maxId + 1
         }
 
-        // Ensure referralCode
         if (!nextUser.referralCode) {
           nextUser.referralCode = generateReferralCode()
         }
 
-        // Auto-admin from ENV
         if (ADMIN_EMAILS.length && nextUser.email && ADMIN_EMAILS.includes(nextUser.email.toLowerCase())) {
           nextUser.role = 'admin'
           if (!nextUser.badges.includes('ADMIN')) nextUser.badges.unshift('ADMIN')
@@ -305,11 +323,74 @@ function readState() {
     : []
   state.conversations = Array.isArray(state.conversations) ? state.conversations : []
   state.chatMessages = Array.isArray(state.chatMessages) ? state.chatMessages : []
+  state.sessions = Array.isArray(state.sessions) ? state.sessions : []
   return state
 }
 
+async function loadStateFromMongo() {
+  if (!mongoCol) return null
+  try {
+    const doc = await mongoCol.findOne({ _id: 'state' })
+    if (doc) {
+      delete doc._id
+      return doc
+    }
+  } catch (err) {
+    console.error('MongoDB read error:', err.message)
+  }
+  return null
+}
+
+async function saveStateToMongo(state) {
+  if (!mongoCol) return
+  try {
+    const doc = { ...state, _id: 'state' }
+    await mongoCol.replaceOne({ _id: 'state' }, doc, { upsert: true })
+  } catch (err) {
+    console.error('MongoDB write error:', err.message)
+  }
+}
+
+async function initState() {
+  // Try MongoDB first
+  const mongoState = await loadStateFromMongo()
+  if (mongoState) {
+    cachedState = normalizeState(mongoState)
+    console.log('State loaded from MongoDB')
+    return
+  }
+
+  // Fall back to file
+  ensureStateFile()
+  const raw = JSON.parse(readFileSync(statePath, 'utf8'))
+  cachedState = normalizeState(raw)
+
+  // If mongo is available, seed it with the file state
+  if (mongoCol) {
+    await saveStateToMongo(cachedState)
+    console.log('State seeded to MongoDB from file')
+  }
+}
+
+function readState() {
+  if (!cachedState) {
+    // Fallback: sync read from file (only before initState completes)
+    ensureStateFile()
+    cachedState = normalizeState(JSON.parse(readFileSync(statePath, 'utf8')))
+  }
+  return cachedState
+}
+
 function saveState(state) {
-  writeFileSync(statePath, JSON.stringify(state, null, 2), 'utf8')
+  cachedState = state
+  // Always write to file as local backup
+  try {
+    writeFileSync(statePath, JSON.stringify(state, null, 2), 'utf8')
+  } catch { /* ignore file write errors on ephemeral disk */ }
+  // Write to MongoDB async (fire-and-forget)
+  if (mongoCol) {
+    saveStateToMongo(state).catch(err => console.error('MongoDB save error:', err.message))
+  }
 }
 
 function createToken() {
@@ -1518,6 +1599,16 @@ wss.on('connection', (socket) => {
 })
 
 const port = Number(process.env.PORT || process.env.API_PORT || 8787)
-server.listen(port, () => {
-  console.log(`Regellik backend listening on ${port}`)
+
+async function start() {
+  await connectMongo()
+  await initState()
+  server.listen(port, () => {
+    console.log(`Regellik backend listening on ${port}${mongoCol ? ' (MongoDB)' : ' (file-only)'}`)
+  })
+}
+
+start().catch(err => {
+  console.error('Startup failed:', err)
+  process.exit(1)
 })
