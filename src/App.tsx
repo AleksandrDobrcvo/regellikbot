@@ -35,7 +35,7 @@ import {
 import { TelegramWebApp } from './types/telegram'
 import './App.css'
 
-type TabId = 'feed' | 'chats' | 'profile' | 'transactions' | 'admin'
+type TabId = 'feed' | 'chats' | 'profile' | 'transactions' | 'admin' | 'radar'
 type AuthProvider = 'telegram' | 'email'
 type LocationState = 'idle' | 'loading' | 'granted' | 'denied'
 type ToastTone = 'success' | 'error' | 'info'
@@ -572,6 +572,13 @@ function App() {
 
     void syncLocation(resolvedLocation)
   }, [resolvedLocation, viewer])
+
+  // Auto-load radar when tab is opened
+  useEffect(() => {
+    if (activeTab === 'radar' && radarUsers.length === 0 && !isRadarLoading && sessionToken) {
+      void loadRadar()
+    }
+  }, [activeTab])
 
   useEffect(() => {
     if (!viewer) {
@@ -1224,6 +1231,9 @@ function App() {
                   <button className={activeTab === 'chats' ? 'corner-menu-item active' : 'corner-menu-item'} onClick={() => { setActiveTab('chats'); setMenuOpen(false) }}>
                     <MessageCircle size={16} /> Чаты
                   </button>
+                  <button className={activeTab === 'radar' ? 'corner-menu-item active' : 'corner-menu-item'} onClick={() => { setActiveTab('radar'); void loadRadar(); setMenuOpen(false) }}>
+                    <Radar size={16} /> Радар
+                  </button>
                   <button className={activeTab === 'profile' ? 'corner-menu-item active' : 'corner-menu-item'} onClick={() => { setActiveTab('profile'); setMenuOpen(false) }}>
                     <User size={16} /> Профиль
                   </button>
@@ -1300,8 +1310,9 @@ function App() {
                 <div className="chats-header-row">
                   <h2 className="chats-title">Чаты</h2>
                   <div className="chats-header-actions">
-                    <button className="chats-radar-btn" onClick={() => { setActiveTab('feed'); void loadRadar(); }} title="Радар">
-                      <Radar size={18} />
+                    <button className="chats-radar-btn" onClick={() => { setActiveTab('radar'); void loadRadar(); }} title="Радар">
+                      <Radar size={16} />
+                      <span>Радар</span>
                     </button>
                   </div>
                 </div>
@@ -1430,13 +1441,13 @@ function App() {
             )}
 
             {/* --- РАДАР --- */}
-            {activeTab === 'feed' && (
+            {activeTab === 'radar' && (
               <section className="radar-screen page-transition">
                 <div className="radar-header">
-                  <button className="chat-back-btn" onClick={() => setActiveTab('chats')}>
-                    <ArrowLeft size={20} />
-                  </button>
-                  <h2>Радар</h2>
+                  <div className="radar-header-left">
+                    <Radar size={20} className="radar-header-icon" />
+                    <h2>Радар</h2>
+                  </div>
                   <button className="secondary-btn" onClick={() => void loadRadar()} disabled={isRadarLoading}>
                     {isRadarLoading ? '...' : 'Обновить'}
                   </button>
