@@ -253,44 +253,6 @@ function formatDate(value: string) {
   })
 }
 
-function isFiniteCoordinate(value: number | null | undefined): value is number {
-  return typeof value === 'number' && Number.isFinite(value)
-}
-
-function calculateDistanceKm(
-  from: { latitude: number; longitude: number } | null,
-  to: { latitude: number | null; longitude: number | null },
-) {
-  if (!from || !isFiniteCoordinate(to.latitude) || !isFiniteCoordinate(to.longitude)) {
-    return null
-  }
-
-  const earthRadiusKm = 6371
-  const dLat = ((to.latitude - from.latitude) * Math.PI) / 180
-  const dLon = ((to.longitude - from.longitude) * Math.PI) / 180
-  const fromLat = (from.latitude * Math.PI) / 180
-  const toLat = (to.latitude * Math.PI) / 180
-
-  const a =
-    Math.sin(dLat / 2) * Math.sin(dLat / 2) +
-    Math.cos(fromLat) * Math.cos(toLat) * Math.sin(dLon / 2) * Math.sin(dLon / 2)
-
-  const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a))
-  return earthRadiusKm * c
-}
-
-function formatDistanceKm(distanceKm: number | null) {
-  if (distanceKm === null) {
-    return 'нет гео'
-  }
-
-  if (distanceKm < 1) {
-    return '<1 км'
-  }
-
-  return `${Math.round(distanceKm).toLocaleString('ru-RU')} км`
-}
-
 function getStoredSessionToken() {
   if (typeof window === 'undefined') {
     return ''
@@ -387,17 +349,6 @@ function App() {
     const oneDayAgo = Date.now() - 86400000
     return publicFeed.filter((item) => new Date(item.createdAt).getTime() > oneDayAgo).length
   }, [publicFeed])
-  const referenceLocation = useMemo(() => {
-    if (viewer && isFiniteCoordinate(viewer.latitude) && isFiniteCoordinate(viewer.longitude)) {
-      return { latitude: viewer.latitude, longitude: viewer.longitude }
-    }
-
-    if (resolvedLocation) {
-      return { latitude: resolvedLocation.latitude, longitude: resolvedLocation.longitude }
-    }
-
-    return null
-  }, [resolvedLocation, viewer])
   const viewerLocation = useMemo(() => {
     if (viewer?.city) {
       return `${viewer.city}${viewer.country ? `, ${viewer.country}` : ''}`
@@ -406,10 +357,6 @@ function App() {
     return locationState === 'granted' ? locationLabel : 'Гео не включено'
   }, [locationLabel, locationState, viewer?.city, viewer?.country])
   const selectedAdminUser = useMemo(() => adminUsers.find((item) => item.id === selectedAdminUserId) || null, [adminUsers, selectedAdminUserId])
-
-  const getDistanceLabel = useCallback((latitude: number | null, longitude: number | null) => {
-    return formatDistanceKm(calculateDistanceKm(referenceLocation, { latitude, longitude }))
-  }, [referenceLocation])
 
   const showToast = (message: string, tone: ToastTone) => {
     setToast({ message, tone })
@@ -966,7 +913,7 @@ function App() {
   }
 
   return (
-    <div className="app-shell">
+    <div className={isSignedIn ? 'app-shell has-header' : 'app-shell'}>
       {!introDone && createPortal(
         <div className="intro-overlay" onAnimationEnd={(e) => { if (e.animationName === 'introFadeOut') setIntroDone(true); }}>
           <div className="intro-logo">
@@ -1065,19 +1012,20 @@ function App() {
         </div>
       )}
 
-      {/* Верхняя панель */}
+      {/* Верхняя панель — только для залогиненных */}
+      {isSignedIn && (
       <header className={authOpen ? 'top-header-bar hidden' : 'top-header-bar'}>
         <div className="header-row-main">
           <div className="header-left">
             <button className="header-hamburger" onClick={() => setMenuOpen(!menuOpen)}>
               {menuOpen ? <X size={20} /> : <Menu size={20} />}
             </button>
-            <span className="header-brand" onClick={() => { setActiveTab('feed'); setMenuOpen(false); }} style={{cursor:'pointer'}}>
+            <span className="header-brand" onClick={() => { setActiveTab('chats'); setMenuOpen(false); }} style={{cursor:'pointer'}}>
               <span className="header-brand-icon">&gt;]</span>Regellik
             </span>
           </div>
           <div className="header-right">
-            {isSignedIn && viewer?.referralCode && (
+            {viewer?.referralCode && (
               <button className="header-ref-btn" onClick={() => {
                 void navigator.clipboard.writeText(`${window.location.origin}?ref=${viewer.referralCode}`)
                 showToast('Реферальная ссылка скопирована!', 'success')
@@ -1085,9 +1033,9 @@ function App() {
                 <Users size={15} />
               </button>
             )}
-            <button className="header-profile-btn" onClick={() => { if (isSignedIn) { setActiveTab('profile'); setMenuOpen(false); } else { setAuthOpen(true); } }}>
+            <button className="header-profile-btn" onClick={() => { setActiveTab('profile'); setMenuOpen(false); }}>
               <User size={16} />
-              <span>{isSignedIn ? 'профиль' : 'вход'}</span>
+              <span>профиль</span>
             </button>
           </div>
         </div>
@@ -1148,6 +1096,7 @@ function App() {
           </>
         )}
       </header>
+      )}
 
       {/* --- ГЛАВНАЯ (для всех, без табов пока не залогинен) --- */}
       {!isSignedIn && activeTab === 'feed' && (
@@ -1198,142 +1147,111 @@ function App() {
           <main className="main-layout">
             {/* --- ЧАТЫ --- */}
             {activeTab === 'chats' && (
-              <section className="content-grid">
-                <div className="content-main">
-                  <div className="landing-stats-row">
-                    <article className="hero-stat-card accent-green">
-                      <span>⚡ онлайн</span>
-                      <strong>{siteSettings.onlineCounterVisible ? onlineCount : '—'}</strong>
-                      <small>сейчас</small>
-                    </article>
-                    <article className="hero-stat-card accent-orange">
-                      <span>💬 анонимки</span>
-                      <strong>{messages24h}</strong>
-                      <small>за 24 часа</small>
-                    </article>
+              <section className="chats-screen page-transition">
+                {/* Горизонтальный список профилей */}
+                <div className="profiles-scroll-wrap">
+                  <div className="profiles-scroll-label">
+                    <Users size={14} />
+                    <span>Кому написать</span>
+                    <span className="profiles-count">{sortedDirectory.length}</span>
                   </div>
-
-                  <section className="panel-card directory-panel">
-                    <div className="panel-head">
-                      <div>
-                        <span className="eyebrow">👥 кому писать</span>
-                        <h2>Профили</h2>
-                      </div>
-                      <div className="head-chip">
-                        <Users size={15} />
-                        <span>{sortedDirectory.length}</span>
-                      </div>
-                    </div>
-
-                    <div className="directory-grid">
-                      {sortedDirectory.map((item) => (
-                        <button
-                          key={item.id}
-                          className={selectedRecipient === item.id ? 'directory-card selected' : 'directory-card'}
-                          onClick={() => setSelectedRecipient(item.id)}
-                        >
-                          <div className="directory-avatar">
-                            {item.avatarUrl ? <img src={item.avatarUrl} alt={item.name} /> : <span>{item.name[0]}</span>}
-                          </div>
-                          <div className="directory-copy">
-                            <strong>{item.name}</strong>
-                            <span>{item.handle}</span>
-                            <small>{getDistanceLabel(item.latitude, item.longitude)} от тебя</small>
-                            <small>{item.tagline}</small>
-                            <div className="badge-row">
-                              {item.badges.slice(0, 3).map((badge) => (
-                                <span key={badge} className="mini-badge">{badge}</span>
-                              ))}
-                            </div>
-                          </div>
-                        </button>
-                      ))}
-                    </div>
-                  </section>
-
-                  <section className="panel-card compose-panel">
-                    <div className="panel-head">
-                      <div>
-                        <span className="eyebrow">✍️ анонимка</span>
-                        <h2>Отправка</h2>
-                      </div>
-                      <div className={viewer?.geoAllowed ? 'status-chip success' : 'status-chip danger'}>
-                        <MapPin size={14} />
-                        <span>{siteSettings.geoRequiredForSend ? (viewer?.geoAllowed ? 'гео вкл' : 'гео выкл') : 'гео не требуется'}</span>
-                      </div>
-                    </div>
-
-                    <form className="compose-form" onSubmit={sendMessage}>
-                      <textarea value={messageText} onChange={(event) => setMessageText(event.target.value)} placeholder="Напиши анонимное сообщение" />
-                      <button className="primary-btn wide" type="submit" disabled={isSending || (siteSettings.geoRequiredForSend && !viewer?.geoAllowed)}>
-                        <Send size={16} />
-                        {isSending ? '⏳ Отправка...' : '🚀 Отправить'}
+                  <div className="profiles-scroll">
+                    {sortedDirectory.map((item) => (
+                      <button
+                        key={item.id}
+                        className={selectedRecipient === item.id ? 'profile-chip selected' : 'profile-chip'}
+                        onClick={() => setSelectedRecipient(item.id)}
+                      >
+                        <div className="profile-chip-avatar">
+                          {item.avatarUrl ? <img src={item.avatarUrl} alt={item.name} /> : <span>{item.name[0]}</span>}
+                        </div>
+                        <div className="profile-chip-info">
+                          <strong>{item.name}</strong>
+                          <span>{item.handle}</span>
+                        </div>
                       </button>
-                    </form>
-                  </section>
-
-                  <section className="panel-card feed-panel">
-                    <div className="panel-head">
-                      <div>
-                        <span className="eyebrow">🌐 лента</span>
-                        <h2>Публично</h2>
-                      </div>
-                    </div>
-                    <div className="feed-list">
-                      {publicFeed.map((item) => (
-                        <article key={item.id} className="feed-card">
-                          <div className="feed-card-head">
-                            <div>
-                              <strong>{item.authorName}</strong>
-                              <span>{item.authorHandle}</span>
-                            </div>
-                            <div className="city-pill">
-                              <MapPin size={14} />
-                              <span>{getDistanceLabel(item.latitude, item.longitude)}</span>
-                            </div>
-                          </div>
-                          <p>{item.text}</p>
-                          <small>{formatRelativeTime(item.createdAt)}</small>
-                        </article>
-                      ))}
-                    </div>
-                  </section>
+                    ))}
+                  </div>
                 </div>
 
-                <aside className="content-side">
-                  <section className="panel-card inbox-panel">
-                    <div className="panel-head">
-                      <div>
-                        <span className="eyebrow">📥 входящие</span>
-                        <h2>Личные</h2>
+                {/* Форма отправки */}
+                <section className="panel-card compose-compact">
+                  <form className="compose-form" onSubmit={sendMessage}>
+                    <div className="compose-top-row">
+                      <span className="compose-label">
+                        <Send size={14} />
+                        {selectedRecipient ? `→ ${sortedDirectory.find(d => d.id === selectedRecipient)?.name || 'Выбранный'}` : 'Выбери профиль выше'}
+                      </span>
+                      <div className={viewer?.geoAllowed ? 'status-chip success mini' : 'status-chip danger mini'}>
+                        <MapPin size={12} />
+                        <span>{viewer?.geoAllowed ? 'гео' : 'нет гео'}</span>
                       </div>
                     </div>
-                    <div className="inbox-list">
+                    <textarea value={messageText} onChange={(event) => setMessageText(event.target.value)} placeholder="Напиши анонимное сообщение..." rows={2} />
+                    <button className="primary-btn wide" type="submit" disabled={isSending || (siteSettings.geoRequiredForSend && !viewer?.geoAllowed)}>
+                      <Send size={16} />
+                      {isSending ? 'Отправка...' : 'Отправить'}
+                    </button>
+                  </form>
+                </section>
+
+                {/* Входящие */}
+                {inbox.length > 0 && (
+                  <section className="panel-card inbox-compact">
+                    <div className="panel-head compact-head">
+                      <div>
+                        <span className="eyebrow">📥 входящие</span>
+                        <h2>Личные ({inbox.length})</h2>
+                      </div>
+                    </div>
+                    <div className="inbox-list compact-list">
                       {inbox.map((item) => (
-                        <article key={item.id} className="inbox-card">
+                        <article key={item.id} className="inbox-card compact-inbox-card">
                           <div className="inbox-head">
                             <div>
                               <strong>{item.senderLabel}</strong>
                               <span>{item.senderHandle}</span>
                             </div>
-                            <div className="geo-mini">
-                              <MapPin size={13} />
-                              <span>{getDistanceLabel(item.senderLatitude, item.senderLongitude)}</span>
-                            </div>
+                            <small>{formatRelativeTime(item.createdAt)}</small>
                           </div>
                           <p>{item.text}</p>
-                          <small>{getDistanceLabel(item.senderLatitude, item.senderLongitude)} • {formatRelativeTime(item.createdAt)}</small>
                         </article>
                       ))}
                     </div>
                   </section>
-                </aside>
+                )}
+
+                {/* Публичная лента */}
+                {publicFeed.length > 0 && (
+                  <section className="panel-card feed-compact">
+                    <div className="panel-head compact-head">
+                      <div>
+                        <span className="eyebrow">🌐 лента</span>
+                        <h2>Публично</h2>
+                      </div>
+                    </div>
+                    <div className="feed-list compact-list">
+                      {publicFeed.slice(0, 10).map((item) => (
+                        <article key={item.id} className="feed-card compact-feed-card">
+                          <div className="feed-card-head">
+                            <div>
+                              <strong>{item.authorName}</strong>
+                              <span>{item.authorHandle}</span>
+                            </div>
+                            <small>{formatRelativeTime(item.createdAt)}</small>
+                          </div>
+                          <p>{item.text}</p>
+                        </article>
+                      ))}
+                    </div>
+                  </section>
+                )}
               </section>
             )}
 
             {/* --- ПРОФИЛЬ --- */}
             {activeTab === 'profile' && viewer && (
-              <section className="profile-screen deep-profile-screen">
+              <section className="profile-screen deep-profile-screen page-transition">
                 <article className="panel-card profile-hero">
                   <div className="profile-hero-main">
                     <div className="profile-avatar-large">
@@ -1528,7 +1446,7 @@ function App() {
 
             {/* --- ТРАНЗАКЦИИ --- */}
             {activeTab === 'transactions' && (
-              <section className="transactions-screen">
+              <section className="transactions-screen page-transition">
                 <article className="panel-card">
                   <div className="panel-head">
                     <div>
@@ -1557,7 +1475,7 @@ function App() {
 
             {/* --- АДМИНКА --- */}
             {activeTab === 'admin' && isAdmin && (
-              <section className="admin-screen">
+              <section className="admin-screen page-transition">
                 <div className="admin-grid">
                   <div className="admin-left-column">
                     <form className="panel-card admin-settings-card" onSubmit={saveSiteSettings}>

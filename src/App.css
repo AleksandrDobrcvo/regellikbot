@@ -97,8 +97,12 @@ select {
 .app-shell {
   position: relative;
   min-height: 100vh;
-  padding: calc(96px + env(safe-area-inset-top, 0px)) 20px 112px;
+  padding: 20px 20px 112px;
   overflow: hidden;
+}
+
+.app-shell.has-header {
+  padding-top: calc(96px + env(safe-area-inset-top, 0px));
 }
 
 @supports (min-height: 100dvh) {
@@ -141,7 +145,7 @@ select {
   position: fixed;
   top: calc(16px + env(safe-area-inset-top, 0px));
   right: 20px;
-  z-index: 30;
+  z-index: 9999;
   display: grid;
   grid-template-columns: 52px minmax(0, 1fr);
   gap: 14px;
@@ -1513,6 +1517,10 @@ select {
     padding: 14px 14px 104px;
   }
 
+  .app-shell.has-header {
+    padding-top: calc(92px + env(safe-area-inset-top, 0px));
+  }
+
   .topbar,
   .hero-panel,
   .panel-card,
@@ -1573,6 +1581,10 @@ select {
 @media (max-width: 480px) {
   .app-shell {
     padding: 10px 10px 96px;
+  }
+
+  .app-shell.has-header {
+    padding-top: calc(86px + env(safe-area-inset-top, 0px));
   }
 
   .topbar,
@@ -2288,12 +2300,13 @@ select {
   backdrop-filter: blur(20px);
   border-bottom: 1px solid rgba(255, 255, 255, 0.06);
   padding-top: env(safe-area-inset-top, 0px);
-  animation: landingFadeUp 0.5s cubic-bezier(0.16, 1, 0.3, 1) 2.4s both;
+  transition: opacity 0.2s ease, transform 0.2s ease;
 }
 
 .top-header-bar.hidden {
   opacity: 0;
   pointer-events: none;
+  transform: translateY(-8px);
 }
 
 .header-row-main {
@@ -2605,10 +2618,11 @@ select {
 
 @media (max-width: 820px) {
   .app-shell {
-    padding:
-      calc(92px + env(safe-area-inset-top, 0px))
-      14px
-      calc(110px + env(safe-area-inset-bottom, 0px));
+    padding: 14px 14px calc(110px + env(safe-area-inset-bottom, 0px));
+  }
+
+  .app-shell.has-header {
+    padding-top: calc(92px + env(safe-area-inset-top, 0px));
   }
 
   .main-layout {
@@ -2845,10 +2859,11 @@ select {
 
 @media (max-width: 480px) {
   .app-shell {
-    padding:
-      calc(86px + env(safe-area-inset-top, 0px))
-      10px
-      calc(96px + env(safe-area-inset-bottom, 0px));
+    padding: 10px 10px calc(96px + env(safe-area-inset-bottom, 0px));
+  }
+
+  .app-shell.has-header {
+    padding-top: calc(86px + env(safe-area-inset-top, 0px));
   }
 
   .landing-hero h1 {
@@ -2948,4 +2963,335 @@ select {
   .app-footer {
     font-size: 12px;
   }
+}
+
+/* === Page transitions === */
+@keyframes pageIn {
+  from {
+    opacity: 0;
+    transform: translateY(12px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+.page-transition {
+  animation: pageIn 0.3s ease both;
+}
+
+/* === Chats screen compact === */
+.chats-screen {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+}
+
+.profiles-scroll-wrap {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.profiles-scroll-label {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  color: var(--muted);
+  font-family: var(--font-mono);
+  font-size: 0.75rem;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+}
+
+.profiles-count {
+  background: rgba(185, 255, 59, 0.12);
+  color: var(--green);
+  padding: 2px 8px;
+  border-radius: 8px;
+  font-size: 0.72rem;
+  font-weight: 700;
+}
+
+.profiles-scroll {
+  display: flex;
+  gap: 10px;
+  overflow-x: auto;
+  padding-bottom: 6px;
+  scroll-snap-type: x mandatory;
+  -webkit-overflow-scrolling: touch;
+}
+
+.profiles-scroll::-webkit-scrollbar {
+  height: 4px;
+}
+
+.profiles-scroll::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+.profiles-scroll::-webkit-scrollbar-thumb {
+  background: rgba(255, 255, 255, 0.08);
+  border-radius: 4px;
+}
+
+.profile-chip {
+  flex-shrink: 0;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 10px 14px;
+  border: 1px solid rgba(255, 255, 255, 0.06);
+  border-radius: 16px;
+  background: rgba(255, 255, 255, 0.03);
+  color: var(--text);
+  cursor: pointer;
+  transition: all 0.2s;
+  scroll-snap-align: start;
+  min-width: 140px;
+}
+
+.profile-chip:hover {
+  border-color: rgba(185, 255, 59, 0.2);
+  background: rgba(185, 255, 59, 0.04);
+}
+
+.profile-chip.selected {
+  border-color: var(--green);
+  background: rgba(185, 255, 59, 0.08);
+  box-shadow: 0 0 16px rgba(185, 255, 59, 0.1);
+}
+
+.profile-chip-avatar {
+  width: 36px;
+  height: 36px;
+  border-radius: 10px;
+  background: linear-gradient(135deg, rgba(185, 255, 59, 0.2), rgba(111, 230, 255, 0.15));
+  display: grid;
+  place-items: center;
+  font-weight: 700;
+  font-size: 0.85rem;
+  color: var(--green);
+  overflow: hidden;
+  flex-shrink: 0;
+}
+
+.profile-chip-avatar img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+
+.profile-chip-info {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+}
+
+.profile-chip-info strong {
+  font-size: 0.82rem;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.profile-chip-info span {
+  font-size: 0.7rem;
+  color: var(--muted);
+}
+
+/* Compose compact */
+.compose-compact {
+  padding: 16px !important;
+}
+
+.compose-compact .compose-form {
+  gap: 10px;
+}
+
+.compose-compact textarea {
+  min-height: 60px !important;
+  font-size: 0.88rem;
+}
+
+.compose-top-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+}
+
+.compose-label {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 0.78rem;
+  font-family: var(--font-mono);
+  color: var(--cyan);
+}
+
+.status-chip.mini {
+  padding: 4px 8px;
+  font-size: 0.68rem;
+  min-height: auto;
+  border-radius: 8px;
+}
+
+/* Compact lists */
+.compact-head {
+  margin-bottom: 10px !important;
+}
+
+.compact-head h2 {
+  font-size: 1.1rem !important;
+}
+
+.compact-list {
+  gap: 8px !important;
+}
+
+.compact-inbox-card,
+.compact-feed-card {
+  padding: 12px 14px !important;
+  border-radius: 14px !important;
+}
+
+.compact-inbox-card p,
+.compact-feed-card p {
+  font-size: 0.85rem;
+  line-height: 1.45;
+  margin: 4px 0 0;
+}
+
+.compact-inbox-card .inbox-head,
+.compact-feed-card .feed-card-head {
+  align-items: center;
+  flex-direction: row !important;
+}
+
+.compact-inbox-card .inbox-head small,
+.compact-feed-card .feed-card-head small {
+  color: var(--muted);
+  font-size: 0.7rem;
+  margin-left: auto;
+  flex-shrink: 0;
+}
+
+.inbox-compact,
+.feed-compact {
+  padding: 14px !important;
+}
+
+/* Profile compact mobile */
+@media (max-width: 820px) {
+  .deep-profile-screen {
+    gap: 12px !important;
+  }
+
+  .profile-hero {
+    padding: 14px !important;
+  }
+
+  .profile-hero-main {
+    gap: 12px !important;
+  }
+
+  .profile-avatar-large {
+    width: 56px !important;
+    height: 56px !important;
+    border-radius: 16px !important;
+  }
+
+  .profile-hero h2 {
+    font-size: 1.3rem !important;
+  }
+
+  .profile-subline {
+    font-size: 0.72rem;
+  }
+
+  .limits-card {
+    padding: 14px !important;
+  }
+
+  .limits-card h2 {
+    font-size: 1.1rem !important;
+  }
+
+  .limits-note {
+    font-size: 0.75rem;
+  }
+
+  .profile-stats-grid {
+    grid-template-columns: repeat(2, 1fr) !important;
+    gap: 8px !important;
+  }
+
+  .profile-stat-box {
+    padding: 12px !important;
+    border-radius: 14px !important;
+  }
+
+  .profile-stat-box strong {
+    font-size: 1.4rem !important;
+  }
+
+  .profile-stat-box span {
+    font-size: 0.68rem;
+  }
+
+  .referral-card,
+  .profile-editor-card,
+  .profile-meta-card {
+    padding: 14px !important;
+  }
+
+  .referral-card h2,
+  .profile-editor-card h2 {
+    font-size: 1.1rem !important;
+  }
+
+  .hero-card-copy {
+    font-size: 0.82rem !important;
+  }
+
+  .referral-stats {
+    gap: 8px !important;
+  }
+
+  .referral-stat {
+    padding: 10px !important;
+  }
+
+  .meta-row {
+    padding: 8px 0 !important;
+    font-size: 0.82rem;
+  }
+
+  .input-block span {
+    font-size: 0.72rem;
+  }
+
+  .input-block input,
+  .input-block textarea,
+  .input-block select {
+    padding: 10px 12px !important;
+    font-size: 0.85rem !important;
+    border-radius: 12px !important;
+  }
+
+  .profile-editor-card textarea {
+    min-height: 80px !important;
+  }
+}
+
+/* Landing page without header - no top padding needed */
+.landing-page {
+  padding-top: 0 !important;
+}
+
+/* When signed in, app-shell needs header padding */
+.app-shell {
+  min-height: 100dvh;
 }
