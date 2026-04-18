@@ -64,6 +64,7 @@ type UserPreferences = {
   neonProfile: boolean
   emailAlerts: boolean
   telegramAutoAuth: boolean
+  showContact?: boolean
 }
 
 type UserStats = {
@@ -399,6 +400,7 @@ function App() {
   const [isChatLoading, setIsChatLoading] = useState(false)
   const [composeOpen, setComposeOpen] = useState(false)
   const [composeSearch, setComposeSearch] = useState('')
+  const [deletingConvoId, setDeletingConvoId] = useState<string | null>(null)
 
   // Radar state
   const [radarUsers, setRadarUsers] = useState<RadarUser[]>([])
@@ -465,6 +467,30 @@ function App() {
   const closeCompose = () => {
     setComposeExiting(true)
     setTimeout(() => { setComposeExiting(false); setComposeOpen(false); setComposeSearch('') }, 250)
+  }
+
+  const deleteConversation = async (convoId: string) => {
+    if (!sessionToken) return
+    try {
+      const data = await apiRequest<{ ok: boolean; conversations: ConversationPreview[] }>(`/api/conversations/${convoId}`, { method: 'DELETE' }, sessionToken)
+      setConversations(data.conversations)
+      showToast('Чат удалён', 'success')
+    } catch {
+      showToast('Не удалось удалить чат', 'error')
+    } finally {
+      setDeletingConvoId(null)
+    }
+  }
+
+  const deleteAvatar = async () => {
+    if (!sessionToken || !viewer) return
+    try {
+      await apiRequest<{ ok: boolean }>('/api/profile/avatar', { method: 'DELETE' }, sessionToken)
+      setViewer({ ...viewer, avatarUrl: null })
+      showToast('Аватар удалён', 'success')
+    } catch {
+      showToast('Не удалось удалить аватар', 'error')
+    }
   }
 
   const closeMenu = () => {
@@ -1515,6 +1541,9 @@ function App() {
                   <button className={activeTab === 'chats' ? 'corner-menu-item active' : 'corner-menu-item'} onClick={() => switchTab('chats', closeMenu)}>
                     <MessageCircle size={16} /> Чаты
                   </button>
+                  <button className="corner-menu-item" onClick={() => { switchTab('chats', () => { closeMenu(); setComposeOpen(true) }) }}>
+                    <PenSquare size={16} /> Написать
+                  </button>
                   <button className={activeTab === 'radar' ? 'corner-menu-item active' : 'corner-menu-item'} onClick={() => switchTab('radar', () => { void loadRadar(); closeMenu() })}>
                     <Radar size={16} /> Радар
                   </button>
@@ -1642,7 +1671,7 @@ function App() {
             )}
 
             {/* --- ЧАТЫ (мессенджер) --- */}
-            {activeTab === 'chats' && !openConvoId && (
+            {activeTab === 'chats' && !openConvoId && !composeOpen && (
               <section className="chats-screen page-transition">
                 <div className="chats-header-row">
                   <h2 className="chats-title">Чаты</h2>
@@ -1657,6 +1686,10 @@ function App() {
                       <Radar size={16} />
                       <span>Радар</span>
                     </button>
+                    <button className="compose-fab-inline" onClick={() => setComposeOpen(true)} title="Написать">
+                      <PenSquare size={16} />
+                      <span>Написать</span>
+                    </button>
                   </div>
                 </div>
 
@@ -1664,77 +1697,82 @@ function App() {
                   <div className="chats-empty">
                     <MessageCircle size={40} />
                     <p>Пока нет чатов</p>
-                    <span>Нажми кнопку нового чата чтобы начать разговор</span>
+                    <span>Нажми «Написать» чтобы начать разговор</span>
                   </div>
                 )}
 
                 <div className="conversation-list">
                   {conversations.map((convo) => (
-                    <button key={convo.id} className={`conversation-item${convo.unreadCount > 0 ? ' has-unread' : ''}`} onClick={() => openConversation(convo.id)}>
-                      <div className="convo-avatar">
-                        {convo.isSystem ? (
-                          <span className="convo-avatar-system">&gt;]</span>
-                        ) : convo.otherUser?.avatarUrl ? (
-                          <img src={convo.otherUser.avatarUrl} alt="" />
-                        ) : (
-                          <span>{convo.otherUser?.name?.[0] || '?'}</span>
-                        )}
-                      </div>
-                      <div className="convo-body">
-                        <div className="convo-top">
-                          <strong>{convo.isSystem ? '>]Regellik' : convo.otherUser?.name || 'Пользователь'}</strong>
-                          <small>{convo.lastMessage ? formatRelativeTime(convo.lastMessage.createdAt) : ''}</small>
+                    <div key={convo.id} className={`conversation-item-wrap${deletingConvoId === convo.id ? ' deleting' : ''}`}>
+                      <button className={`conversation-item${convo.unreadCount > 0 ? ' has-unread' : ''}`} onClick={() => openConversation(convo.id)}>
+                        <div className="convo-avatar">
+                          {convo.isSystem ? (
+                            <span className="convo-avatar-system">&gt;]</span>
+                          ) : convo.otherUser?.avatarUrl ? (
+                            <img src={convo.otherUser.avatarUrl} alt="" />
+                          ) : (
+                            <span>{convo.otherUser?.name?.[0] || '?'}</span>
+                          )}
                         </div>
-                        <div className="convo-bottom">
-                          <span className="convo-preview">{convo.lastMessage?.text || 'Нет сообщений'}</span>
-                          {convo.unreadCount > 0 && <span className="convo-unread">{convo.unreadCount}</span>}
+                        <div className="convo-body">
+                          <div className="convo-top">
+                            <strong>{convo.isSystem ? '>]Regellik' : convo.otherUser?.name || 'Пользователь'}</strong>
+                            <small>{convo.lastMessage ? formatRelativeTime(convo.lastMessage.createdAt) : ''}</small>
+                          </div>
+                          <div className="convo-bottom">
+                            <span className="convo-preview">{convo.lastMessage?.text || 'Нет сообщений'}</span>
+                            {convo.unreadCount > 0 && <span className="convo-unread">{convo.unreadCount}</span>}
+                          </div>
                         </div>
-                      </div>
-                    </button>
+                      </button>
+                      {deletingConvoId === convo.id ? (
+                        <div className="convo-delete-confirm">
+                          <span>Удалить?</span>
+                          <button className="convo-del-yes" onClick={() => void deleteConversation(convo.id)}>Да</button>
+                          <button className="convo-del-no" onClick={() => setDeletingConvoId(null)}>Нет</button>
+                        </div>
+                      ) : (
+                        <button className="convo-delete-btn" onClick={() => setDeletingConvoId(convo.id)} title="Удалить чат">
+                          <X size={14} />
+                        </button>
+                      )}
+                    </div>
                   ))}
                 </div>
+              </section>
+            )}
 
-                {/* Compose FAB */}
-                {!composeOpen && (
-                <button className="compose-fab" onClick={() => setComposeOpen(true)}>
-                  <PenSquare size={16} />
-                  <span>Написать</span>
-                </button>
-                )}
-
-                {/* Compose — full page under header */}
-                {composeOpen && (
-                  <div className={`compose-page${composeExiting ? ' compose-page-exit' : ''}`}>
-                    <div className="compose-page-header">
-                      <button className="compose-back-btn" onClick={closeCompose}>
-                        <ArrowLeft size={20} />
+            {/* --- COMPOSE (новый чат — заменяет экран чатов) --- */}
+            {activeTab === 'chats' && !openConvoId && composeOpen && (
+              <section className={`chats-screen compose-screen page-transition${composeExiting ? ' compose-page-exit' : ''}`}>
+                <div className="chats-header-row">
+                  <button className="compose-back-btn" onClick={closeCompose}>
+                    <ArrowLeft size={20} />
+                  </button>
+                  <h2 className="chats-title">Новый чат</h2>
+                </div>
+                <div className="compose-search-row">
+                  <Search size={16} />
+                  <input value={composeSearch} onChange={e => setComposeSearch(e.target.value)} placeholder="Поиск по имени или handle..." autoFocus />
+                </div>
+                <div className="compose-user-list">
+                  {sortedDirectory
+                    .filter(u => u.id !== viewer?.id && (
+                      u.name.toLowerCase().includes(composeSearch.toLowerCase()) ||
+                      u.handle.toLowerCase().includes(composeSearch.toLowerCase())
+                    ))
+                    .map(u => (
+                      <button key={u.id} className="compose-user-item" onClick={() => void startConversation(u.id)}>
+                        <div className="compose-user-avatar">
+                          {u.avatarUrl ? <img src={u.avatarUrl} alt="" /> : <span>{u.name[0]}</span>}
+                        </div>
+                        <div>
+                          <strong>{u.name}</strong>
+                          <span>{u.handle}</span>
+                        </div>
                       </button>
-                      <h3>Новый чат</h3>
-                    </div>
-                    <div className="compose-search-row">
-                      <Search size={16} />
-                      <input value={composeSearch} onChange={e => setComposeSearch(e.target.value)} placeholder="Поиск по имени или handle..." autoFocus />
-                    </div>
-                    <div className="compose-user-list">
-                      {sortedDirectory
-                        .filter(u => u.id !== viewer?.id && (
-                          u.name.toLowerCase().includes(composeSearch.toLowerCase()) ||
-                          u.handle.toLowerCase().includes(composeSearch.toLowerCase())
-                        ))
-                        .map(u => (
-                          <button key={u.id} className="compose-user-item" onClick={() => void startConversation(u.id)}>
-                            <div className="compose-user-avatar">
-                              {u.avatarUrl ? <img src={u.avatarUrl} alt="" /> : <span>{u.name[0]}</span>}
-                            </div>
-                            <div>
-                              <strong>{u.name}</strong>
-                              <span>{u.handle}</span>
-                            </div>
-                          </button>
-                        ))}
-                    </div>
-                  </div>
-                )}
+                    ))}
+                </div>
               </section>
             )}
 
@@ -1858,25 +1896,22 @@ function App() {
                         <Camera size={20} />
                         <input type="file" accept="image/png,image/jpeg,image/webp,image/gif" onChange={handleAvatarUpload} hidden disabled={isUploadingAvatar} />
                       </label>
+                      {viewer.avatarUrl && (
+                        <button className="avatar-delete-btn" type="button" onClick={() => void deleteAvatar()} title="Удалить аватар">
+                          <X size={14} />
+                        </button>
+                      )}
                     </div>
                     <div className="profile-hero-info">
                       <h2>{viewer.name}</h2>
                       <div className="profile-subline">
                         <span>{viewer.handle}</span>
-                        <span className="dot-separator" />
-                        <span>Email</span>
-                      </div>
-                      <div className="profile-badges-row">
-                        {viewer.badges.length > 0 ? viewer.badges.map((b, i) => (
-                          <span key={i} className="profile-badge-chip">{b}</span>
-                        )) : <span className="profile-badge-chip muted">нет бейджей</span>}
                       </div>
                     </div>
                   </div>
                   <div className="profile-quick-stats">
                     <div><strong>{viewer.stats.sent}</strong><span>отправлено</span></div>
                     <div><strong>{viewer.stats.received}</strong><span>получено</span></div>
-                    <div><strong>{viewer.stats.referrals}</strong><span>рефералы</span></div>
                     <div><strong>{viewer.powers}</strong><span>энергия</span></div>
                   </div>
                 </article>
@@ -1964,35 +1999,12 @@ function App() {
                     </div>
                   </div>
                   <label className="input-block">
-                    <span>Подпись</span>
-                    <input value={profileTagline} onChange={(event) => setProfileTagline(event.target.value)} />
-                  </label>
-                  <label className="input-block">
                     <span>О себе</span>
                     <textarea value={profileBio} onChange={(event) => setProfileBio(event.target.value)} rows={2} />
                   </label>
                 </form>
 
-                {/* Рефералы */}
-                <article className="panel-card referral-card compact-referral">
-                  <div className="panel-head compact-head">
-                    <span className="eyebrow"># рефералы</span>
-                  </div>
-                  <p className="referral-desc">Приглашай друзей — статистика обновляется автоматически.</p>
-                  {viewer.referralCode && (
-                    <div className="referral-link-row">
-                      <code className="referral-link-code">{`${window.location.origin}?ref=${viewer.referralCode}`}</code>
-                      <button className="referral-copy-btn" type="button" onClick={() => {
-                        void navigator.clipboard.writeText(`${window.location.origin}?ref=${viewer.referralCode}`)
-                        showToast('Ссылка скопирована!', 'success')
-                      }}>
-                        <Copy size={14} />
-                      </button>
-                    </div>
-                  )}
-                </article>
-
-                {/* Инфо — на русском */}
+                {/* Инфо */}
                 <article className="panel-card profile-meta-card">
                   <div className="meta-row">
                     <span>ID профиля</span>
@@ -2004,25 +2016,29 @@ function App() {
                       <strong>{viewer.telegramId}</strong>
                     </div>
                   )}
-                  <div className="meta-row">
-                    <span>Статус</span>
-                    <strong>{viewer.status === 'active' ? 'Активен' : 'Заблокирован'}</strong>
-                  </div>
-                  <div className="meta-row">
-                    <span>Роль</span>
-                    <strong>{viewer.role === 'admin' ? 'Администратор' : 'Пользователь'}</strong>
-                  </div>
+                  {isAdmin && (
+                    <div className="meta-row">
+                      <span>Роль</span>
+                      <strong className="meta-admin-badge">Администратор</strong>
+                    </div>
+                  )}
                   <div className="meta-row">
                     <span>Контакт</span>
-                    <strong>{viewer.email || 'Telegram'}</strong>
+                    <div className="meta-row-actions">
+                      {viewer.preferences.showContact !== false && <strong>{viewer.email || 'Telegram'}</strong>}
+                      <button
+                        className={viewer.preferences.showContact !== false ? 'toggle-mini active' : 'toggle-mini'}
+                        type="button"
+                        onClick={() => void updatePreference('showContact' as keyof UserPreferences, viewer.preferences.showContact === false)}
+                      >
+                        {viewer.preferences.showContact !== false ? <Eye size={14} /> : <EyeOff size={14} />}
+                        <span>{viewer.preferences.showContact !== false ? 'Видно' : 'Скрыто'}</span>
+                      </button>
+                    </div>
                   </div>
                   <div className="meta-row">
                     <span>Дата регистрации</span>
                     <strong>{formatDate(viewer.joinedAt)}</strong>
-                  </div>
-                  <div className="meta-row">
-                    <span>Бейджи</span>
-                    <strong>{viewer.badges.length ? viewer.badges.join(', ') : 'пока нет'}</strong>
                   </div>
                 </article>
               </section>
@@ -2849,15 +2865,6 @@ function App() {
               </section>
             )}
           </main>
-          <footer className="app-footer-inner">
-            <div className="footer-brand">&gt;]Regellik</div>
-            <div className="footer-links">
-              <span>Нормативы</span>
-              <span>О нас</span>
-              <span>FAQ</span>
-            </div>
-            <div className="footer-copy">© 2026 Regellik. Все права защищены.</div>
-          </footer>
         </>
       )}
 

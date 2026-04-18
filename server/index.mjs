@@ -506,7 +506,7 @@ function createWelcomeConversation(state, userId) {
 
 function getConversationsForUser(state, userId) {
   return state.conversations
-    .filter(c => c.participants.includes(userId))
+    .filter(c => c.participants.includes(userId) && !(Array.isArray(c.hiddenBy) && c.hiddenBy.includes(userId)))
     .map(c => {
       const messages = state.chatMessages
         .filter(m => m.conversationId === c.id)
@@ -1406,6 +1406,17 @@ app.post('/api/profile/avatar', (request, response) => {
   response.json({ ok: true, avatarUrl: viewer.avatarUrl })
 })
 
+// Delete avatar
+app.delete('/api/profile/avatar', (request, response) => {
+  const state = readState()
+  const viewer = requireUser(request, response, state)
+  if (!viewer) return
+  viewer.avatarUrl = null
+  pushAudit(state, 'profile.avatar.delete', viewer.id, viewer.id, 'Пользователь удалил аватар.')
+  saveState(state)
+  response.json({ ok: true })
+})
+
 app.post('/api/location', (request, response) => {
   const state = readState()
   const viewer = requireUser(request, response, state)
@@ -2029,6 +2040,27 @@ app.post('/api/conversations', (request, response) => {
   sendSystemNotification(state, recipientId, `${viewer.name} (@${viewer.handle}) начал с вами чат.`)
   saveState(state)
   response.json({ conversationId: convoId })
+})
+
+// Delete conversation (soft-delete: removes from participant's view by adding to hiddenBy array)
+app.delete('/api/conversations/:id', (request, response) => {
+  const state = readState()
+  const viewer = requireUser(request, response, state)
+  if (!viewer) return
+
+  const convo = state.conversations.find(c => c.id === request.params.id)
+  if (!convo || !convo.participants.includes(viewer.id)) {
+    response.status(404).json({ error: 'Чат не найден' })
+    return
+  }
+
+  if (!Array.isArray(convo.hiddenBy)) convo.hiddenBy = []
+  if (!convo.hiddenBy.includes(viewer.id)) {
+    convo.hiddenBy.push(viewer.id)
+  }
+
+  saveState(state)
+  response.json({ ok: true, conversations: getConversationsForUser(state, viewer.id) })
 })
 
 app.get('/api/conversations/:id/messages', (request, response) => {
