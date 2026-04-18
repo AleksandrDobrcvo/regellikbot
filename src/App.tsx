@@ -7,7 +7,6 @@ import {
   Ban,
   Bell,
   Camera,
-  ChevronDown,
   Copy,
   Dices,
   DollarSign,
@@ -477,7 +476,7 @@ function App() {
   const [profileTagline, setProfileTagline] = useState('')
   const [profileBio, setProfileBio] = useState('')
   const [adminDraft, setAdminDraft] = useState<AdminDraft | null>(null)
-  const [selectedAdminUserId, setSelectedAdminUserId] = useState('')
+  const [selectedAdminUserId, setSelectedAdminUserId] = useState<string | null>('')
   const [grantIdentifier, setGrantIdentifier] = useState('')
 
   // Messenger state
@@ -2836,9 +2835,17 @@ function App() {
 
                 {/* Admin header */}
                 <div className="admin-top-bar">
-                  <h2 className="admin-top-title"><ShieldCheck size={20} /> Панель администратора</h2>
+                  {adminSection !== 'none' ? (
+                    <button className="admin-back-btn" onClick={() => { setAdminSection('none'); setAdminDraft(null); setSelectedAdminUserId(null) }}>
+                      <ArrowLeft size={18} /> Назад
+                    </button>
+                  ) : (
+                    <h2 className="admin-top-title"><ShieldCheck size={20} /> Панель</h2>
+                  )}
                 </div>
 
+                {/* Show nav grid + stats only when no section is open */}
+                {adminSection === 'none' && (<>
                 {/* Quick stats row */}
                 <div className="admin-quick-stats">
                   <div className="admin-qs-item">
@@ -2878,26 +2885,26 @@ function App() {
                   ]).map(sec => (
                     <button
                       key={sec.id}
-                      className={`admin-nav-btn${adminSection === sec.id ? ' active' : ''}`}
-                      onClick={() => setAdminSection(adminSection === sec.id ? 'none' : sec.id)}
+                      className="admin-nav-btn"
+                      onClick={() => setAdminSection(sec.id)}
                     >
                       <div className="admin-nav-icon">{sec.icon}</div>
                       <div className="admin-nav-text">
                         <strong>{sec.label}</strong>
                         <span>{sec.desc}</span>
                       </div>
-                      <ChevronDown size={16} className={`admin-nav-chevron${adminSection === sec.id ? ' open' : ''}`} />
                     </button>
                   ))}
                 </div>
+                </>)}
 
                 {/* === Expandable sections === */}
 
                 {/* Economy */}
                 {adminSection === 'economy' && (
-                  <form className="admin-expand-panel" onSubmit={saveSiteSettings}>
-                    <div className="admin-expand-head">
-                      <span># Настройки экономики</span>
+                  <form className="admin-section-view" onSubmit={saveSiteSettings}>
+                    <div className="admin-section-head">
+                      <DollarSign size={18} /> Экономика
                       <button className="primary-btn compact-btn" type="submit" disabled={isSavingSite}>
                         <Save size={14} /> {isSavingSite ? '...' : 'Сохранить'}
                       </button>
@@ -2921,9 +2928,9 @@ function App() {
 
                 {/* Site settings */}
                 {adminSection === 'site' && (
-                  <form className="admin-expand-panel" onSubmit={saveSiteSettings}>
-                    <div className="admin-expand-head">
-                      <span># Настройки сайта</span>
+                  <form className="admin-section-view" onSubmit={saveSiteSettings}>
+                    <div className="admin-section-head">
+                      <Settings2 size={18} /> Настройки сайта
                       <button className="primary-btn compact-btn" type="submit" disabled={isSavingSite}>
                         <Save size={14} /> {isSavingSite ? '...' : 'Сохранить'}
                       </button>
@@ -2952,9 +2959,9 @@ function App() {
 
                 {/* Roles */}
                 {adminSection === 'roles' && (
-                  <form className="admin-expand-panel" onSubmit={grantAdmin}>
-                    <div className="admin-expand-head">
-                      <span># Выдача роли admin</span>
+                  <form className="admin-section-view" onSubmit={grantAdmin}>
+                    <div className="admin-section-head">
+                      <ShieldCheck size={18} /> Выдача роли admin
                     </div>
                     <label className="input-block">
                       <span>ID, handle или email</span>
@@ -2969,9 +2976,9 @@ function App() {
 
                 {/* Top-up */}
                 {adminSection === 'topup' && (
-                  <div className="admin-expand-panel">
-                    <div className="admin-expand-head">
-                      <span>⚡ Top-up пользователю</span>
+                  <div className="admin-section-view">
+                    <div className="admin-section-head">
+                      <Zap size={18} /> Top-up пользователю
                     </div>
                     <label className="input-block">
                       <span>User ID</span>
@@ -2999,15 +3006,12 @@ function App() {
                 )}
 
                 {/* Users */}
-                {adminSection === 'users' && (
-                  <div className="admin-expand-panel admin-users-section">
-                    <div className="admin-expand-head">
-                      <span>👥 Пользователи ({adminUsers.length})</span>
+                {adminSection === 'users' && !adminDraft && (
+                  <div className="admin-section-view">
+                    <div className="admin-section-head">
+                      <Users size={18} /> Пользователи ({adminUsers.length})
                     </div>
 
-                    <div className={`admin-users-layout${adminDraft ? ' has-editor' : ''}`}>
-                      {/* LEFT: Search + list */}
-                      <div className="admin-users-left">
                     {/* Search */}
                     <div className="admin-search-row">
                       <div className="admin-search-input-wrap">
@@ -3061,35 +3065,48 @@ function App() {
                         </button>
                       ))}
                     </div>
+                  </div>
+                )}
+
+                {/* User editor — full page */}
+                {adminSection === 'users' && adminDraft && (
+                  <div className="admin-section-view admin-user-editor-view">
+                    <button className="admin-back-btn" onClick={() => { setAdminDraft(null); setSelectedAdminUserId(null) }}>
+                      <ArrowLeft size={16} /> К списку
+                    </button>
+
+                    <form className="admin-user-editor" onSubmit={saveAdminUser}>
+                      <div className="admin-editor-user-head">
+                        <div className="admin-editor-avatar">
+                          {adminDraft.avatarUrl
+                            ? <img src={adminDraft.avatarUrl} alt="" />
+                            : <span>{adminDraft.name[0]}</span>}
+                        </div>
+                        <div>
+                          <h3>{adminDraft.name}</h3>
+                          <span className="admin-editor-handle">@{adminDraft.handle}</span>
+                        </div>
+                        <button className="primary-btn compact-btn admin-editor-save" type="button" onClick={() => {
+                          setAdminConfirmAction({
+                            label: `Сохранить изменения для ${adminDraft.name}`,
+                            action: () => {
+                              const form = document.querySelector<HTMLFormElement>('.admin-user-editor')
+                              if (form) form.requestSubmit()
+                              setAdminConfirmAction(null)
+                            }
+                          })
+                        }} disabled={isSavingAdminUser}>
+                          <Save size={14} /> {isSavingAdminUser ? '...' : 'Сохранить'}
+                        </button>
                       </div>
 
-                      {/* RIGHT: User editor */}
-                    {adminDraft && (
-                      <div className="admin-users-right">
-                      <form className="admin-user-editor" onSubmit={saveAdminUser}>
-                        <div className="admin-expand-head">
-                          <span># {adminDraft.name}</span>
-                          <button className="primary-btn compact-btn" type="button" onClick={() => {
-                            setAdminConfirmAction({
-                              label: `Сохранить изменения для ${adminDraft.name}`,
-                              action: () => {
-                                const form = document.querySelector<HTMLFormElement>('.admin-user-editor')
-                                if (form) form.requestSubmit()
-                                setAdminConfirmAction(null)
-                              }
-                            })
-                          }} disabled={isSavingAdminUser}>
-                            <Save size={14} /> {isSavingAdminUser ? '...' : 'Сохранить'}
-                          </button>
-                        </div>
-
-                        <div className="admin-editor-id-row">
-                          <span className="admin-editor-id">ID: {adminDraft.id}</span>
-                          <button type="button" className="ghost-icon" onClick={() => {
-                            void navigator.clipboard.writeText(adminDraft.id)
-                            showToast('ID скопирован', 'success')
-                          }}><Copy size={12} /></button>
-                        </div>
+                      <div className="admin-editor-id-row">
+                        <span className="admin-editor-id">ID: {adminDraft.id}</span>
+                        <button type="button" className="ghost-icon" onClick={() => {
+                          void navigator.clipboard.writeText(adminDraft.id)
+                          showToast('ID скопирован', 'success')
+                        }}><Copy size={12} /></button>
+                      </div>
 
                         <div className="field-grid-3">
                           <label className="input-block">
@@ -3333,17 +3350,14 @@ function App() {
                           )}
                         </div>
                       </form>
-                      </div>
-                    )}
-                    </div>
                   </div>
                 )}
 
                 {/* Badges / Prefixes */}
                 {adminSection === 'badges' && (
-                  <div className="admin-expand-panel">
-                    <div className="admin-expand-head">
-                      <span>◈ Каталог префиксов</span>
+                  <div className="admin-section-view">
+                    <div className="admin-section-head">
+                      <BadgeCheck size={18} /> Каталог префиксов
                     </div>
                     <p className="admin-badges-desc">
                       Все доступные префиксы. Для выдачи откройте пользователя в разделе «Пользователи» и используйте вкладку «Создать» в редакторе префиксов.
@@ -3360,8 +3374,8 @@ function App() {
                       ))}
                     </div>
 
-                    <div className="admin-expand-head" style={{marginTop: 8}}>
-                      <span>Быстрая выдача/отзыв</span>
+                    <div className="admin-section-subhead" style={{marginTop: 8}}>
+                      Быстрая выдача/отзыв
                     </div>
                     <div className="admin-quick-badge-form">
                       <label className="input-block">
@@ -3413,9 +3427,9 @@ function App() {
 
                 {/* Bans */}
                 {adminSection === 'bans' && (
-                  <div className="admin-expand-panel">
-                    <div className="admin-expand-head">
-                      <span>🚫 Управление банами</span>
+                  <div className="admin-section-view">
+                    <div className="admin-section-head">
+                      <Ban size={18} /> Управление банами
                     </div>
 
                     {/* Issue ban form */}
@@ -3460,8 +3474,8 @@ function App() {
 
                     {/* Active bans list */}
                     <div className="admin-bans-list">
-                      <div className="admin-expand-head" style={{marginTop: 12}}>
-                        <span>Активные баны</span>
+                      <div className="admin-section-subhead" style={{marginTop: 12}}>
+                        Активные баны
                       </div>
                       {adminUsers.filter(u => u.ban).length === 0 && (
                         <div className="chats-empty" style={{padding: '16px'}}><p>Нет активных банов</p></div>
@@ -3484,9 +3498,9 @@ function App() {
 
                 {/* Audit log */}
                 {adminSection === 'audit' && (
-                  <div className="admin-expand-panel">
-                    <div className="admin-expand-head">
-                      <span>📜 Журнал — Audit log</span>
+                  <div className="admin-section-view">
+                    <div className="admin-section-head">
+                      <Search size={18} /> Журнал — Audit log
                     </div>
                     <div className="audit-list">
                       {auditLog.slice(0, 50).map(item => (
@@ -3503,9 +3517,9 @@ function App() {
 
                 {/* Broadcast */}
                 {adminSection === 'broadcast' && (
-                  <div className="admin-expand-panel">
-                    <div className="admin-expand-head">
-                      <span>📢 Системное сообщение</span>
+                  <div className="admin-section-view">
+                    <div className="admin-section-head">
+                      <Send size={18} /> Системное сообщение
                     </div>
 
                     <div className="broadcast-mode-tabs">

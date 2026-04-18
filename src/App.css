@@ -5843,14 +5843,14 @@ html {
   display: flex;
   align-items: center;
   gap: 10px;
-  margin-bottom: 16px;
+  margin-bottom: 8px;
 }
 
 .admin-top-title {
   display: flex;
   align-items: center;
   gap: 8px;
-  font-size: 20px;
+  font-size: 18px;
   font-weight: 800;
   font-family: var(--font-mono);
   color: var(--text);
@@ -5861,6 +5861,26 @@ html {
   color: var(--accent);
 }
 
+/* Admin back button */
+.admin-back-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  background: rgba(255,255,255,0.06);
+  border: 1px solid rgba(255,255,255,0.08);
+  border-radius: 12px;
+  color: var(--text);
+  font-size: 13px;
+  font-weight: 600;
+  font-family: var(--font-mono);
+  padding: 8px 14px;
+  cursor: pointer;
+  transition: background 0.15s;
+}
+.admin-back-btn:hover {
+  background: rgba(255,255,255,0.1);
+}
+
 /* Admin search */
 .admin-search-card {
   margin-bottom: 16px;
@@ -5869,7 +5889,6 @@ html {
 .admin-search-row {
   display: flex;
   gap: 8px;
-  margin-top: 12px;
 }
 
 .admin-search-input-wrap {
@@ -6931,18 +6950,90 @@ html {
   color: var(--muted);
 }
 
-.admin-nav-chevron {
+/* ===== ADMIN SECTION VIEW (full page) ===== */
+.admin-section-view {
+  display: grid;
+  gap: 12px;
+  animation: adminSectionIn 0.25s cubic-bezier(0.16, 1, 0.3, 1) both;
+}
+
+@keyframes adminSectionIn {
+  from { opacity: 0; transform: translateX(20px); }
+  to { opacity: 1; transform: translateX(0); }
+}
+
+.admin-section-head {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 16px;
+  font-weight: 800;
+  font-family: var(--font-mono);
+  color: var(--text);
+  padding: 8px 0;
+  border-bottom: 1px solid rgba(255,255,255,0.06);
+  margin-bottom: 4px;
+}
+
+.admin-section-subhead {
+  font-size: 13px;
+  font-weight: 700;
+  color: var(--muted);
+  font-family: var(--font-mono);
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+}
+
+/* User editor full page */
+.admin-user-editor-view {
+  animation: adminSectionIn 0.2s cubic-bezier(0.16, 1, 0.3, 1) both;
+}
+
+.admin-editor-user-head {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 12px 0;
+  border-bottom: 1px solid rgba(255,255,255,0.06);
+}
+
+.admin-editor-avatar {
+  width: 44px;
+  height: 44px;
+  border-radius: 50%;
+  overflow: hidden;
+  background: rgba(255,255,255,0.06);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 18px;
+  font-weight: 700;
   color: var(--muted);
   flex-shrink: 0;
-  transition: transform 0.25s;
 }
 
-.admin-nav-chevron.open {
-  transform: rotate(180deg);
-  color: var(--accent);
+.admin-editor-avatar img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
 }
 
-/* Expand panel — content container */
+.admin-editor-user-head h3 {
+  font-size: 16px;
+  font-weight: 700;
+  margin: 0;
+}
+
+.admin-editor-handle {
+  font-size: 12px;
+  color: var(--muted);
+}
+
+.admin-editor-save {
+  margin-left: auto;
+}
+
+/* Keep expand-panel style for legacy/compat */
 .admin-expand-panel {
   display: grid;
   gap: 12px;
@@ -7111,35 +7202,13 @@ html {
   }
 }
 
-/* ===== ADMIN 2-COLUMN USER LAYOUT ===== */
-
-.admin-users-layout {
-  display: grid;
-  grid-template-columns: 1fr;
-  gap: 16px;
-}
-
-/* Only split to 2 cols on wide screens */
-@media (min-width: 900px) {
-  .admin-users-layout.has-editor {
-    grid-template-columns: 320px 1fr;
-    align-items: start;
-  }
-}
+/* ===== ADMIN USER LIST ===== */
 
 .admin-users-left {
   display: flex;
   flex-direction: column;
   gap: 10px;
   min-width: 0;
-}
-
-.admin-users-right {
-  min-width: 0;
-}
-
-.admin-users-right .admin-user-editor {
-  margin-top: 0;
 }
 
 /* ===== BADGE EDITOR IN ADMIN ===== */
