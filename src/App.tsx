@@ -1602,10 +1602,12 @@ function App() {
                     <div className="compose-modal-sheet">
                       <div className="compose-modal-head">
                         <h3>Новый чат</h3>
-                        <button className="ghost-icon" onClick={() => { setComposeOpen(false); setComposeSearch(''); }}>×</button>
+                        <button className="compose-close-btn" onClick={() => { setComposeOpen(false); setComposeSearch(''); }}>
+                          <X size={18} />
+                        </button>
                       </div>
                       <div className="compose-search-row">
-                        <Search size={16} />
+                        <Search size={18} />
                         <input value={composeSearch} onChange={e => setComposeSearch(e.target.value)} placeholder="Поиск по имени или handle..." autoFocus />
                       </div>
                       <div className="compose-user-list">
@@ -2611,6 +2613,12 @@ function App() {
               </section>
             )}
           </main>
+          <footer className="app-footer">
+            <span>&gt;]Regellik 2026</span>
+            <span>Нормативы</span>
+            <span>О нас</span>
+            <span>FAQ</span>
+          </footer>
         </>
       )}
 

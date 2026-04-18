@@ -256,21 +256,33 @@ let cachedState = null
 
 async function connectMongo() {
   if (!MONGODB_URI) return
-  try {
-    const client = new MongoClient(MONGODB_URI, {
-      tls: true,
-      tlsAllowInvalidCertificates: false,
-      serverSelectionTimeoutMS: 10000,
-      connectTimeoutMS: 10000,
-    })
-    await client.connect()
-    const db = client.db(MONGODB_DB_NAME)
-    mongoCol = db.collection('appstate')
-    console.log('MongoDB connected')
-  } catch (err) {
-    console.error('MongoDB connection failed, falling back to file:', err.message)
-    mongoCol = null
+  // Retry up to 3 times
+  for (let attempt = 1; attempt <= 3; attempt++) {
+    try {
+      const client = new MongoClient(MONGODB_URI, {
+        serverSelectionTimeoutMS: 15000,
+        connectTimeoutMS: 15000,
+        socketTimeoutMS: 30000,
+        retryWrites: true,
+        retryReads: true,
+      })
+      await client.connect()
+      // Verify connection with a ping
+      await client.db('admin').command({ ping: 1 })
+      const db = client.db(MONGODB_DB_NAME)
+      mongoCol = db.collection('appstate')
+      console.log(`MongoDB connected (attempt ${attempt})`)
+      return
+    } catch (err) {
+      console.error(`MongoDB connection attempt ${attempt}/3 failed:`, err.message)
+      if (attempt < 3) {
+        // Wait before retry: 2s, 4s
+        await new Promise(resolve => setTimeout(resolve, attempt * 2000))
+      }
+    }
   }
+  console.error('MongoDB connection failed after 3 attempts, falling back to file')
+  mongoCol = null
 }
 
 function ensureStateFile() {
