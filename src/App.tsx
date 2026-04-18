@@ -11,11 +11,13 @@ import {
   Eye,
   EyeOff,
   Hash,
+  Home,
   LogOut,
   Mail,
   MapPin,
   Menu,
   MessageCircle,
+  Monitor,
   PenSquare,
   Plus,
   Radar,
@@ -24,6 +26,7 @@ import {
   Send,
   Settings2,
   ShieldCheck,
+  Smartphone,
   Sparkles,
   User,
   UserCog,
@@ -35,7 +38,7 @@ import {
 import { TelegramWebApp } from './types/telegram'
 import './App.css'
 
-type TabId = 'feed' | 'chats' | 'profile' | 'transactions' | 'admin' | 'radar' | 'settings'
+type TabId = 'feed' | 'home' | 'chats' | 'profile' | 'transactions' | 'admin' | 'radar' | 'settings'
 type AuthProvider = 'telegram' | 'email'
 type LocationState = 'idle' | 'loading' | 'granted' | 'denied'
 type ToastTone = 'success' | 'error' | 'info'
@@ -424,6 +427,11 @@ function App() {
   const [adminTopUpReason, setAdminTopUpReason] = useState('')
   const [adminConfirmAction, setAdminConfirmAction] = useState<{ label: string; action: () => void } | null>(null)
 
+  // Sessions
+  type SessionInfo = { id: string; isCurrent: boolean; createdAt: string | null; userAgent: string }
+  const [userSessions, setUserSessions] = useState<SessionInfo[]>([])
+  const [sessionsLoading, setSessionsLoading] = useState(false)
+
   // Header auto-hide
   const [headerHidden, setHeaderHidden] = useState(false)
   const lastScrollY = useRef(0)
@@ -539,6 +547,10 @@ function App() {
         }
 
         applyBootstrap(data)
+
+        if (data.viewer && activeTab === 'feed') {
+          setActiveTab('home')
+        }
 
         if (!data.viewer && sessionToken) {
           window.localStorage.removeItem(SESSION_KEY)
@@ -715,7 +727,7 @@ function App() {
     setSessionToken(data.token)
     setViewer(data.viewer)
     setAuthOpen(false)
-    setActiveTab('chats')
+    setActiveTab('home')
     setEmailName('')
     setEmailValue('')
     setEmailPassword('')
@@ -874,6 +886,45 @@ function App() {
     setAuditLog([])
     setActiveTab('feed')
     showToast('Сессия завершена', 'info')
+  }
+
+  const loadSessions = async () => {
+    if (!sessionToken) return
+    setSessionsLoading(true)
+    try {
+      const data = await apiRequest<{ sessions: SessionInfo[] }>('/api/sessions', undefined, sessionToken)
+      setUserSessions(data.sessions)
+    } catch { /* ignore */ }
+    setSessionsLoading(false)
+  }
+
+  const killSession = async (sid: string) => {
+    try {
+      await apiRequest('/api/sessions/kill', { method: 'POST', body: JSON.stringify({ sessionId: sid }) }, sessionToken)
+      showToast('Сессия завершена', 'success')
+      void loadSessions()
+    } catch (err) {
+      showToast(err instanceof Error ? err.message : 'Ошибка', 'error')
+    }
+  }
+
+  function parseUserAgent(ua: string) {
+    if (!ua) return 'Неизвестное устройство'
+    const isMobile = /mobile|android|iphone|ipad/i.test(ua)
+    const isTelegram = /telegram/i.test(ua)
+    let browser = 'Браузер'
+    if (/firefox/i.test(ua)) browser = 'Firefox'
+    else if (/edg/i.test(ua)) browser = 'Edge'
+    else if (/chrome/i.test(ua)) browser = 'Chrome'
+    else if (/safari/i.test(ua)) browser = 'Safari'
+    let os = ''
+    if (/windows/i.test(ua)) os = 'Windows'
+    else if (/mac/i.test(ua)) os = 'macOS'
+    else if (/android/i.test(ua)) os = 'Android'
+    else if (/iphone|ipad/i.test(ua)) os = 'iOS'
+    else if (/linux/i.test(ua)) os = 'Linux'
+    const prefix = isTelegram ? 'Telegram • ' : ''
+    return `${prefix}${browser}${os ? ' • ' + os : ''}${isMobile ? ' 📱' : ' 🖥️'}`
   }
 
   // === MESSENGER FUNCTIONS ===
@@ -1315,7 +1366,7 @@ function App() {
             <button className="header-hamburger" onClick={() => setMenuOpen(!menuOpen)}>
               {menuOpen ? <X size={20} /> : <Menu size={20} />}
             </button>
-            <span className="header-brand" onClick={() => { setActiveTab('chats'); setOpenConvoId(null); setMenuOpen(false); }} style={{cursor:'pointer'}}>
+            <span className="header-brand" onClick={() => { setActiveTab('home'); setOpenConvoId(null); setMenuOpen(false); }} style={{cursor:'pointer'}}>
               <span className="header-brand-icon">&gt;]</span>Regellik
             </span>
           </div>
@@ -1360,6 +1411,9 @@ function App() {
 
               {isSignedIn && (
                 <>
+                  <button className={activeTab === 'home' ? 'corner-menu-item active' : 'corner-menu-item'} onClick={() => { setActiveTab('home'); setMenuOpen(false) }}>
+                    <Home size={16} /> Главная
+                  </button>
                   <button className={activeTab === 'chats' ? 'corner-menu-item active' : 'corner-menu-item'} onClick={() => { setActiveTab('chats'); setMenuOpen(false) }}>
                     <MessageCircle size={16} /> Чаты
                   </button>
@@ -1439,6 +1493,56 @@ function App() {
       {isSignedIn && (
         <>
           <main className="main-layout">
+            {/* --- ГЛАВНАЯ (home) --- */}
+            {activeTab === 'home' && viewer && (
+              <section className="home-screen page-transition">
+                <div className="home-logo">
+                  <div className="home-logo-icon">&gt;]</div>
+                  <div className="home-logo-text">Regellik</div>
+                </div>
+
+                <p className="home-greeting">Привет, <strong>{viewer.name}</strong></p>
+
+                <div className="home-stats-row">
+                  <div className="home-stat">
+                    <strong>{viewer.powers.toFixed(1)}</strong>
+                    <span>⚡ Powers</span>
+                  </div>
+                  <div className="home-stat">
+                    <strong>{conversations.length}</strong>
+                    <span>Чатов</span>
+                  </div>
+                  <div className="home-stat">
+                    <strong>{totalUnread}</strong>
+                    <span>Новых</span>
+                  </div>
+                </div>
+
+                <div className="home-nav-grid">
+                  <button className="home-nav-btn" onClick={() => setActiveTab('chats')}>
+                    <MessageCircle size={24} />
+                    <strong>Чаты</strong>
+                    <span>Сообщения</span>
+                  </button>
+                  <button className="home-nav-btn" onClick={() => { setActiveTab('radar'); void loadRadar(); }}>
+                    <Radar size={24} />
+                    <strong>Радар</strong>
+                    <span>Люди рядом</span>
+                  </button>
+                  <button className="home-nav-btn" onClick={() => setActiveTab('profile')}>
+                    <User size={24} />
+                    <strong>Профиль</strong>
+                    <span>Настройка</span>
+                  </button>
+                  <button className="home-nav-btn" onClick={() => setActiveTab('transactions')}>
+                    <Wallet size={24} />
+                    <strong>Баланс</strong>
+                    <span>Транзакции</span>
+                  </button>
+                </div>
+              </section>
+            )}
+
             {/* --- ЧАТЫ (мессенджер) --- */}
             {activeTab === 'chats' && !openConvoId && (
               <section className="chats-screen page-transition">
@@ -1926,6 +2030,44 @@ function App() {
                     <LogOut size={16} />
                     Выйти из аккаунта
                   </button>
+                </article>
+
+                {/* Активные сессии */}
+                <article className="panel-card settings-card">
+                  <div className="panel-head compact-head">
+                    <span className="eyebrow">📱 активные сессии</span>
+                  </div>
+                  {userSessions.length === 0 && !sessionsLoading && (
+                    <button className="secondary-btn wide" onClick={() => void loadSessions()}>
+                      Загрузить сессии
+                    </button>
+                  )}
+                  {sessionsLoading && <p style={{ color: 'var(--muted)', fontSize: '13px', textAlign: 'center' }}>Загрузка...</p>}
+                  {userSessions.length > 0 && (
+                    <div className="sessions-list">
+                      {userSessions.map(s => (
+                        <div key={s.id} className={`session-item${s.isCurrent ? ' current' : ''}`}>
+                          <div className="session-icon">
+                            {/mobile|android|iphone|ipad/i.test(s.userAgent) ? <Smartphone size={18} /> : <Monitor size={18} />}
+                          </div>
+                          <div className="session-info">
+                            <strong>{parseUserAgent(s.userAgent)}</strong>
+                            <span>{s.createdAt ? new Date(s.createdAt).toLocaleDateString('ru-RU', { day: 'numeric', month: 'short', year: 'numeric', hour: '2-digit', minute: '2-digit' }) : '—'}</span>
+                          </div>
+                          {s.isCurrent ? (
+                            <span className="session-current-badge">текущая</span>
+                          ) : (
+                            <button className="session-kill-btn" onClick={() => void killSession(s.id)}>Завершить</button>
+                          )}
+                        </div>
+                      ))}
+                    </div>
+                  )}
+                  {userSessions.length > 0 && (
+                    <button className="secondary-btn wide" style={{ marginTop: '8px' }} onClick={() => void loadSessions()}>
+                      Обновить
+                    </button>
+                  )}
                 </article>
 
                 {/* Геолокация */}

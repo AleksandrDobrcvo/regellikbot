@@ -257,7 +257,12 @@ let cachedState = null
 async function connectMongo() {
   if (!MONGODB_URI) return
   try {
-    const client = new MongoClient(MONGODB_URI)
+    const client = new MongoClient(MONGODB_URI, {
+      tls: true,
+      tlsAllowInvalidCertificates: false,
+      serverSelectionTimeoutMS: 10000,
+      connectTimeoutMS: 10000,
+    })
     await client.connect()
     const db = client.db(MONGODB_DB_NAME)
     mongoCol = db.collection('appstate')
@@ -628,7 +633,7 @@ function resolveSession(state, token) {
   return state.users.find((item) => item.id === session.userId) || null
 }
 
-function createSessionForUser(state, userId) {
+function createSessionForUser(state, userId, userAgent = '') {
   const token = createToken()
   // Remove expired sessions for this user, keep up to MAX_SESSIONS_PER_USER - 1
   const now = Date.now()
@@ -639,7 +644,7 @@ function createSessionForUser(state, userId) {
 
   const keepTokens = new Set(userSessions.slice(0, MAX_SESSIONS_PER_USER - 1).map(s => s.token))
   state.sessions = state.sessions.filter(s => s.userId !== userId || keepTokens.has(s.token))
-  state.sessions.push({ token, userId, createdAt: new Date().toISOString() })
+  state.sessions.push({ token, userId, createdAt: new Date().toISOString(), userAgent: String(userAgent || '').slice(0, 300) })
   return token
 }
 
@@ -864,7 +869,7 @@ app.post('/api/auth/email', (request, response) => {
     createWelcomeConversation(state, user.id)
     pushAudit(state, 'auth.email.register', user.id, user.id, 'Регистрация по email.')
 
-    const token = createSessionForUser(state, user.id)
+    const token = createSessionForUser(state, user.id, request.headers['user-agent'])
     saveState(state)
     response.json({ token, viewer: publicUser(user), isNewUser: true, conversations: getConversationsForUser(state, user.id) })
     return
@@ -887,7 +892,7 @@ app.post('/api/auth/email', (request, response) => {
     user.passwordHash = passwordData.hash
     user.passwordSalt = passwordData.salt
     pushAudit(state, 'auth.email.password-set', user.id, user.id, 'Установлен пароль (отсутствовал).')
-    const token = createSessionForUser(state, user.id)
+    const token = createSessionForUser(state, user.id, request.headers['user-agent'])
     saveState(state)
     response.json({ token, viewer: publicUser(user), isNewUser: false })
     return
@@ -898,7 +903,7 @@ app.post('/api/auth/email', (request, response) => {
     return
   }
 
-  const token = createSessionForUser(state, user.id)
+  const token = createSessionForUser(state, user.id, request.headers['user-agent'])
   saveState(state)
   response.json({ token, viewer: publicUser(user), isNewUser: false })
 })
@@ -994,7 +999,7 @@ app.post('/api/auth/telegram', (request, response) => {
     }
   }
 
-  const token = createSessionForUser(state, user.id)
+  const token = createSessionForUser(state, user.id, request.headers['user-agent'])
   saveState(state)
   response.json({ token, viewer: publicUser(user) })
 })
@@ -1077,7 +1082,7 @@ app.post('/api/auth/telegram-widget', (request, response) => {
     }
   }
 
-  const token = createSessionForUser(state, user.id)
+  const token = createSessionForUser(state, user.id, request.headers['user-agent'])
   saveState(state)
   response.json({ token, viewer: publicUser(user) })
 })
@@ -1450,6 +1455,56 @@ app.post('/api/session/logout', (request, response) => {
   const token = getBearerToken(request)
   const state = readState()
   state.sessions = state.sessions.filter((item) => item.token !== token)
+  saveState(state)
+  response.json({ ok: true })
+})
+
+// List active sessions for current user
+app.get('/api/sessions', (request, response) => {
+  const state = readState()
+  const viewer = requireUser(request, response, state)
+  if (!viewer) return
+
+  const currentToken = getBearerToken(request)
+  const now = Date.now()
+  const userSessions = state.sessions
+    .filter(s => s.userId === viewer.id)
+    .filter(s => !s.createdAt || (now - new Date(s.createdAt).getTime()) < SESSION_TTL_MS)
+    .sort((a, b) => (b.createdAt || '').localeCompare(a.createdAt || ''))
+    .map(s => ({
+      id: s.token.slice(0, 8),
+      isCurrent: s.token === currentToken,
+      createdAt: s.createdAt || null,
+      userAgent: s.userAgent || '',
+    }))
+
+  response.json({ sessions: userSessions })
+})
+
+// Kill a specific session by its short id
+app.post('/api/sessions/kill', (request, response) => {
+  const state = readState()
+  const viewer = requireUser(request, response, state)
+  if (!viewer) return
+
+  const { sessionId } = request.body || {}
+  if (!sessionId || typeof sessionId !== 'string') {
+    response.status(400).json({ error: 'Не указан ID сессии' })
+    return
+  }
+
+  const currentToken = getBearerToken(request)
+  const target = state.sessions.find(s => s.userId === viewer.id && s.token.startsWith(sessionId))
+  if (!target) {
+    response.status(404).json({ error: 'Сессия не найдена' })
+    return
+  }
+  if (target.token === currentToken) {
+    response.status(400).json({ error: 'Нельзя завершить текущую сессию. Используй «Выйти»' })
+    return
+  }
+
+  state.sessions = state.sessions.filter(s => s.token !== target.token)
   saveState(state)
   response.json({ ok: true })
 })
