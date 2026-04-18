@@ -642,6 +642,8 @@ html {
   display: grid;
   gap: 20px;
   flex: 1;
+  width: 100%;
+  box-sizing: border-box;
 }
 
 .hero-panel {
@@ -3584,6 +3586,7 @@ html {
   display: flex;
   flex-direction: column;
   gap: 14px;
+  width: 100%;
 }
 
 .profiles-scroll-wrap {
