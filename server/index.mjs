@@ -6,6 +6,7 @@ import { fileURLToPath } from 'url'
 import { createServer } from 'http'
 import crypto from 'crypto'
 import { MongoClient } from 'mongodb'
+import nodemailer from 'nodemailer'
 
 const __dirname = dirname(fileURLToPath(import.meta.url))
 const statePath = join(__dirname, 'state', 'app-state.json')
@@ -21,6 +22,57 @@ const MONGODB_DB_NAME = process.env.MONGODB_DB_NAME || 'regellik'
 const SESSION_TTL_MS = 30 * 24 * 60 * 60 * 1000 // 30 days
 const MAX_SESSIONS_PER_USER = 5
 const ALLOWED_EMAIL_DOMAINS = ['gmail.com','mail.ru','yandex.ru','yahoo.com','outlook.com','hotmail.com','icloud.com','protonmail.com','mail.com','inbox.ru','bk.ru','list.ru','ya.ru','rambler.ru','ukr.net','i.ua','wp.pl','o2.pl','onet.pl','interia.pl','tut.by','zoho.com','aol.com','live.com']
+
+// SMTP settings for email verification codes
+const SMTP_HOST = process.env.SMTP_HOST || ''
+const SMTP_PORT = parseInt(process.env.SMTP_PORT || '587', 10)
+const SMTP_USER = process.env.SMTP_USER || ''
+const SMTP_PASS = process.env.SMTP_PASS || ''
+const SMTP_FROM = process.env.SMTP_FROM || SMTP_USER
+
+// In-memory store for verification codes: email -> { code, expiresAt, attempts, name, mode }
+const emailVerificationCodes = new Map()
+
+// Cleanup expired codes every 5 minutes
+setInterval(() => {
+  const now = Date.now()
+  for (const [key, entry] of emailVerificationCodes) {
+    if (now > entry.expiresAt) emailVerificationCodes.delete(key)
+  }
+}, 5 * 60 * 1000)
+
+function createEmailTransporter() {
+  if (!SMTP_HOST || !SMTP_USER || !SMTP_PASS) return null
+  return nodemailer.createTransport({
+    host: SMTP_HOST,
+    port: SMTP_PORT,
+    secure: SMTP_PORT === 465,         // true для 465 (SSL), false для 587 (STARTTLS)
+    requireTLS: SMTP_PORT === 587,     // принудительный STARTTLS для Gmail/587
+    auth: { user: SMTP_USER, pass: SMTP_PASS },
+    tls: { rejectUnauthorized: true }, // проверяем сертификат (безопасность)
+  })
+}
+
+async function sendVerificationEmail(toEmail, code) {
+  const transporter = createEmailTransporter()
+  if (!transporter) {
+    // Dev mode: log code to console
+    console.log(`[DEV] Verification code for ${toEmail}: ${code}`)
+    return
+  }
+  await transporter.sendMail({
+    from: `"Regellik" <${SMTP_FROM}>`,
+    to: toEmail,
+    subject: `${code} — код подтверждения Regellik`,
+    text: `Твой код подтверждения: ${code}\n\nКод действует 10 минут. Не передавай его никому.\n\n— Команда Regellik`,
+    html: `<div style="font-family:monospace;background:#0a0a0a;color:#f0f0f0;padding:32px;border-radius:12px;max-width:480px">
+      <h2 style="margin:0 0 24px;color:#fff;font-size:20px">&gt;] Regellik</h2>
+      <p style="color:#999;margin:0 0 16px">Твой код подтверждения:</p>
+      <div style="font-size:42px;font-weight:800;letter-spacing:12px;color:#fff;margin:0 0 24px;padding:20px;background:rgba(255,255,255,0.06);border:1px solid rgba(255,255,255,0.12);border-radius:8px;text-align:center">${code}</div>
+      <p style="color:#666;font-size:13px;margin:0">Код действует 10 минут. Не передавай его никому.</p>
+    </div>`,
+  })
+}
 
 // MongoDB state – set after connectMongo()
 let mongoCol = null
@@ -795,6 +847,95 @@ app.get('/api/bootstrap', (request, response) => {
   response.json(bootstrapPayload(state, viewer))
 })
 
+app.post('/api/auth/send-code', async (request, response) => {
+  const clientIp = request.headers['x-forwarded-for']?.split(',')[0]?.trim() || request.socket.remoteAddress || 'unknown'
+  if (!rateLimit(`sendcode:${clientIp}`, 5, 60000)) {
+    response.status(429).json({ error: 'Слишком много запросов. Подожди минуту.' })
+    return
+  }
+
+  const state = readState()
+  const { email, name, mode } = request.body || {}
+
+  if (!state.siteSettings.emailAuthEnabled) {
+    response.status(403).json({ error: 'Вход по email отключён' })
+    return
+  }
+
+  if (!email) {
+    response.status(400).json({ error: 'Email обязателен' })
+    return
+  }
+
+  const emailNorm = String(email).trim().toLowerCase()
+
+  if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(emailNorm)) {
+    response.status(400).json({ error: 'Некорректный формат email' })
+    return
+  }
+
+  const emailDomain = emailNorm.split('@')[1]
+  if (!ALLOWED_EMAIL_DOMAINS.includes(emailDomain)) {
+    response.status(400).json({ error: `Домен @${emailDomain} не поддерживается. Используй Gmail, Mail.ru, Yandex, Outlook и т.д.` })
+    return
+  }
+
+  if (mode === 'register') {
+    if (!state.siteSettings.registrationsOpen) {
+      response.status(403).json({ error: 'Регистрация временно закрыта' })
+      return
+    }
+    if (!name || !String(name).trim()) {
+      response.status(400).json({ error: 'Укажи имя для регистрации' })
+      return
+    }
+    const existing = state.users.find(u => u.email?.toLowerCase() === emailNorm)
+    if (existing) {
+      response.status(409).json({ error: 'Аккаунт с этой почтой уже существует. Войди через вход.' })
+      return
+    }
+  } else {
+    const existing = state.users.find(u => u.email?.toLowerCase() === emailNorm)
+    if (!existing) {
+      response.status(404).json({ error: 'Аккаунт не найден. Зарегистрируйся.' })
+      return
+    }
+    if (!canSignIn(state, existing)) {
+      response.status(403).json({ error: 'Вход ограничен настройками сайта' })
+      return
+    }
+  }
+
+  // Rate-limit per email: max 3 codes in 10 minutes
+  const existingEntry = emailVerificationCodes.get(emailNorm)
+  if (existingEntry && Date.now() < existingEntry.expiresAt && existingEntry.sendCount >= 3) {
+    response.status(429).json({ error: 'Слишком много кодов отправлено. Подожди 10 минут.' })
+    return
+  }
+
+  const code = String(Math.floor(100000 + Math.random() * 900000))
+  const sendCount = (existingEntry && Date.now() < existingEntry.expiresAt ? existingEntry.sendCount : 0) + 1
+
+  emailVerificationCodes.set(emailNorm, {
+    code,
+    expiresAt: Date.now() + 10 * 60 * 1000,
+    attempts: 0,
+    name: name ? String(name).trim().slice(0, 40) : undefined,
+    mode: mode || 'login',
+    sendCount,
+  })
+
+  try {
+    await sendVerificationEmail(emailNorm, code)
+  } catch (err) {
+    console.error('Email send error:', err.message)
+    response.status(500).json({ error: 'Не удалось отправить письмо. Проверь почту или попробуй позже.' })
+    return
+  }
+
+  response.json({ ok: true, hint: SMTP_HOST ? undefined : `[DEV] код: ${code}` })
+})
+
 app.post('/api/auth/email', (request, response) => {
   const clientIp = request.headers['x-forwarded-for']?.split(',')[0]?.trim() || request.socket.remoteAddress || 'unknown'
   if (!rateLimit(`auth:${clientIp}`, 10, 60000)) {
@@ -803,33 +944,52 @@ app.post('/api/auth/email', (request, response) => {
   }
 
   const state = readState()
-  const { name, email, password, location, mode, referralCode: refCode } = request.body || {}
+  const { email, code, location, referralCode: refCode } = request.body || {}
 
   if (!state.siteSettings.emailAuthEnabled) {
     response.status(403).json({ error: 'Вход по email отключён' })
     return
   }
 
-  if (!email || !password) {
-    response.status(400).json({ error: 'Почта и пароль обязательны' })
+  if (!email || !code) {
+    response.status(400).json({ error: 'Email и код подтверждения обязательны' })
     return
   }
 
   const emailNorm = String(email).trim().toLowerCase()
 
-  // Basic email validation
   if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(emailNorm)) {
     response.status(400).json({ error: 'Некорректный формат email' })
     return
   }
 
-  // Domain validation
-  const emailDomain = emailNorm.split('@')[1]
-  if (!ALLOWED_EMAIL_DOMAINS.includes(emailDomain)) {
-    response.status(400).json({ error: `Домен @${emailDomain} не поддерживается. Используй Gmail, Mail.ru, Yandex, Outlook и т.д.` })
+  // Verify code
+  const codeEntry = emailVerificationCodes.get(emailNorm)
+  if (!codeEntry) {
+    response.status(400).json({ error: 'Сначала запроси код подтверждения' })
+    return
+  }
+  if (Date.now() > codeEntry.expiresAt) {
+    emailVerificationCodes.delete(emailNorm)
+    response.status(400).json({ error: 'Код истёк. Запроси новый.' })
+    return
+  }
+  codeEntry.attempts += 1
+  if (codeEntry.attempts > 5) {
+    emailVerificationCodes.delete(emailNorm)
+    response.status(429).json({ error: 'Превышено число попыток. Запроси новый код.' })
+    return
+  }
+  if (String(code).trim() !== codeEntry.code) {
+    response.status(400).json({ error: `Неверный код. Осталось попыток: ${Math.max(0, 5 - codeEntry.attempts)}` })
     return
   }
 
+  // Code valid — remove it
+  emailVerificationCodes.delete(emailNorm)
+
+  const mode = codeEntry.mode
+  const name = codeEntry.name
   let user = state.users.find((item) => item.email?.toLowerCase() === emailNorm)
 
   // === REGISTRATION ===
@@ -838,33 +998,24 @@ app.post('/api/auth/email', (request, response) => {
       response.status(409).json({ error: 'Аккаунт с этой почтой уже существует. Войди через вход.' })
       return
     }
-
     if (!state.siteSettings.registrationsOpen) {
       response.status(403).json({ error: 'Регистрация временно закрыта' })
       return
     }
-
-    if (!name || !String(name).trim()) {
-      response.status(400).json({ error: 'Укажи имя для нового аккаунта' })
+    if (!name) {
+      response.status(400).json({ error: 'Имя не найдено — запроси код заново' })
       return
     }
 
-    if (String(password).length < 6) {
-      response.status(400).json({ error: 'Пароль должен быть не короче 6 символов' })
-      return
-    }
-
-    const passwordData = createPasswordHash(String(password))
     const numericId = generateNumericId(state)
-
     user = createSeedUser({
       id: createToken(),
       numericId,
       provider: 'email',
       providerId: emailNorm,
-      name: String(name).trim().slice(0, 40),
+      name,
       handle: ensureUniqueHandle(state, name),
-      avatarUrl: `https://ui-avatars.com/api/?name=${encodeURIComponent(String(name).trim())}&background=0d2316&color=bfff3a&bold=true`,
+      avatarUrl: `https://ui-avatars.com/api/?name=${encodeURIComponent(name)}&background=111111&color=ffffff&bold=true`,
       email: emailNorm,
       city: location?.city || null,
       country: location?.country || null,
@@ -874,11 +1025,10 @@ app.post('/api/auth/email', (request, response) => {
       bio: 'Новый профиль.',
       tagline: 'fresh profile',
       badges: ['NEW'],
-      passwordHash: passwordData.hash,
-      passwordSalt: passwordData.salt,
+      passwordHash: null,
+      passwordSalt: null,
     })
 
-    // Handle referral
     if (refCode) {
       const referrer = state.users.find(u => u.referralCode === String(refCode).trim())
       if (referrer && referrer.id !== user.id) {
@@ -888,7 +1038,6 @@ app.post('/api/auth/email', (request, response) => {
       }
     }
 
-    // Auto-admin from ENV
     if (ADMIN_EMAILS.includes(emailNorm)) {
       user.role = 'admin'
       if (!user.badges.includes('ADMIN')) user.badges.unshift('ADMIN')
@@ -896,7 +1045,7 @@ app.post('/api/auth/email', (request, response) => {
 
     state.users.push(user)
     createWelcomeConversation(state, user.id)
-    pushAudit(state, 'auth.email.register', user.id, user.id, 'Регистрация по email.')
+    pushAudit(state, 'auth.email.register', user.id, user.id, 'Регистрация по email с кодом.')
 
     const token = createSessionForUser(state, user.id, request.headers['user-agent'])
     saveState(state)
@@ -915,24 +1064,8 @@ app.post('/api/auth/email', (request, response) => {
     return
   }
 
-  // Handle users missing password (migrated/corrupted state)
-  if (!user.passwordHash || !user.passwordSalt) {
-    const passwordData = createPasswordHash(String(password))
-    user.passwordHash = passwordData.hash
-    user.passwordSalt = passwordData.salt
-    pushAudit(state, 'auth.email.password-set', user.id, user.id, 'Установлен пароль (отсутствовал).')
-    const token = createSessionForUser(state, user.id, request.headers['user-agent'])
-    saveState(state)
-    response.json({ token, viewer: publicUser(user), isNewUser: false })
-    return
-  }
-
-  if (!verifyPassword(String(password), user.passwordSalt, user.passwordHash)) {
-    response.status(403).json({ error: 'Неверный пароль' })
-    return
-  }
-
   const token = createSessionForUser(state, user.id, request.headers['user-agent'])
+  pushAudit(state, 'auth.email.login', user.id, user.id, 'Вход по email с кодом.')
   saveState(state)
   response.json({ token, viewer: publicUser(user), isNewUser: false })
 })

@@ -1,5 +1,5 @@
 import type { FormEvent } from 'react'
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
+import { useEffect, useMemo, useRef, useState } from 'react'
 import { createPortal } from 'react-dom'
 import {
   ArrowLeft,
@@ -7,7 +7,6 @@ import {
   Ban,
   Bell,
   ChevronDown,
-  ChevronRight,
   Copy,
   DollarSign,
   Eye,
@@ -39,11 +38,10 @@ import {
   X,
   Zap,
 } from 'lucide-react'
-import { TelegramWebApp } from './types/telegram'
 import './App.css'
 
 type TabId = 'feed' | 'home' | 'chats' | 'profile' | 'transactions' | 'admin' | 'radar' | 'settings'
-type AuthProvider = 'telegram' | 'email'
+type AuthProvider = 'email'
 type LocationState = 'idle' | 'loading' | 'granted' | 'denied'
 type ToastTone = 'success' | 'error' | 'info'
 type UserRole = 'user' | 'admin'
@@ -252,7 +250,6 @@ type AdminDraft = AdminManagedUser & {
 const SESSION_KEY = 'regellik.session'
 const API_BASE_URL = (import.meta.env.VITE_API_BASE_URL || '').replace(/\/$/, '')
 const WS_URL = import.meta.env.VITE_WS_URL || ''
-const TELEGRAM_BOT_USERNAME = import.meta.env.VITE_TELEGRAM_BOT_USERNAME || 'regellik_clonebot'
 
 function resolveApiPath(path: string) {
   if (/^https?:\/\//.test(path)) {
@@ -370,7 +367,6 @@ async function apiRequest<T>(path: string, init?: RequestInit, token?: string) {
 }
 
 function App() {
-  const [webApp, setWebApp] = useState<TelegramWebApp | null>(null)
   const [sessionToken, setSessionToken] = useState('')
   const [viewer, setViewer] = useState<SessionUser | null>(null)
   const [publicFeed, setPublicFeed] = useState<FeedMessage[]>([])
@@ -387,7 +383,9 @@ function App() {
   const [introDone, setIntroDone] = useState(false)
   const [emailName, setEmailName] = useState('')
   const [emailValue, setEmailValue] = useState('')
-  const [emailPassword, setEmailPassword] = useState('')
+  const [emailStep, setEmailStep] = useState<'email' | 'code'>('email')
+  const [emailCode, setEmailCode] = useState('')
+  const [isSendingCode, setIsSendingCode] = useState(false)
   const [locationState, setLocationState] = useState<LocationState>('idle')
   const [locationLabel, setLocationLabel] = useState('Гео не включено')
   const [resolvedLocation, setResolvedLocation] = useState<ResolvedLocation | null>(null)
@@ -404,7 +402,6 @@ function App() {
   const [adminDraft, setAdminDraft] = useState<AdminDraft | null>(null)
   const [selectedAdminUserId, setSelectedAdminUserId] = useState('')
   const [grantIdentifier, setGrantIdentifier] = useState('')
-  const [telegramAuthTried, setTelegramAuthTried] = useState(false)
 
   // Messenger state
   const [conversations, setConversations] = useState<ConversationPreview[]>([])
@@ -542,44 +539,6 @@ function App() {
     setSessionToken(getStoredSessionToken())
   }, [])
 
-  useEffect(() => {
-    let mounted = true
-
-    const initTelegram = () => {
-      if (!mounted) {
-        return
-      }
-
-      const telegram = window.Telegram?.WebApp
-      if (!telegram) {
-        return
-      }
-
-      telegram.ready()
-      telegram.expand()
-      setWebApp(telegram)
-    }
-
-    if (window.Telegram?.WebApp) {
-      initTelegram()
-      return () => {
-        mounted = false
-      }
-    }
-
-    const script = document.createElement('script')
-    script.src = 'https://telegram.org/js/telegram-web-app.js'
-    script.onload = initTelegram
-    document.head.appendChild(script)
-
-    return () => {
-      mounted = false
-      if (document.head.contains(script)) {
-        document.head.removeChild(script)
-      }
-    }
-  }, [])
-
   // Track if user explicitly disabled geo (don't auto-re-enable)
   const geoUserDisabled = useRef(false)
 
@@ -609,7 +568,6 @@ function App() {
         if (!data.viewer && sessionToken) {
           window.localStorage.removeItem(SESSION_KEY)
           setSessionToken('')
-          setTelegramAuthTried(false) // Allow re-auth via Telegram
           showToast('Сессия истекла — войди заново', 'error')
         }
       } catch (error) {
@@ -749,19 +707,6 @@ function App() {
     })
   }, [selectedAdminUser])
 
-  useEffect(() => {
-    if (!siteSettings.telegramAuthEnabled || telegramAuthTried || viewer || sessionToken) {
-      return
-    }
-
-    if (!webApp?.initDataUnsafe?.user) {
-      return
-    }
-
-    setTelegramAuthTried(true)
-    void signInTelegram(true)
-  }, [siteSettings.telegramAuthEnabled, telegramAuthTried, viewer, sessionToken, webApp])
-
   const syncLocation = async (location: ResolvedLocation) => {
     if (!sessionToken) {
       return
@@ -833,7 +778,8 @@ function App() {
     setActiveTab('home')
     setEmailName('')
     setEmailValue('')
-    setEmailPassword('')
+    setEmailCode('')
+    setEmailStep('email')
     showToast(`Вход выполнен: ${data.viewer.name}`, 'success')
 
     if (resolvedLocation && !data.viewer.geoAllowed && !geoUserDisabled.current) {
@@ -841,111 +787,42 @@ function App() {
     }
   }
 
-  const widgetContainerRef = useRef<HTMLDivElement>(null)
-  const widgetLoadedRef = useRef(false)
-  const [widgetFailed, setWidgetFailed] = useState(false)
+  const sendEmailCode = async (event: FormEvent<HTMLFormElement>) => {
+    event.preventDefault()
 
-  const signInTelegramWidget = useCallback(async (widgetData: Record<string, unknown>) => {
-    try {
-      const data = await apiRequest<AuthResponse>('/api/auth/telegram-widget', {
-        method: 'POST',
-        body: JSON.stringify({ ...widgetData, location: resolvedLocation }),
-      })
-      await completeAuth(data)
-    } catch (error) {
-      showToast(error instanceof Error ? error.message : 'Вход через Telegram не выполнен', 'error')
+    if (!emailValue.trim()) {
+      showToast('Укажи email', 'info')
+      return
     }
-  }, [resolvedLocation])
-
-  // Mount Telegram Login Widget when auth modal opens (for browser users)
-  useEffect(() => {
-    if (!authOpen || !siteSettings.telegramAuthEnabled) return
-    // Skip widget if inside Telegram WebApp
-    if (webApp?.initDataUnsafe?.user) return
-    if (!widgetContainerRef.current) return
-    if (widgetLoadedRef.current) return
-
-    widgetLoadedRef.current = true
-    setWidgetFailed(false)
-    const container = widgetContainerRef.current
-
-    // Global callback for the widget
-    ;(window as any).onTelegramWidgetAuth = (user: Record<string, unknown>) => {
-      void signInTelegramWidget(user)
-    }
-
-    const script = document.createElement('script')
-    script.src = 'https://telegram.org/js/telegram-widget.js?22'
-    script.async = true
-    script.setAttribute('data-telegram-login', TELEGRAM_BOT_USERNAME)
-    script.setAttribute('data-size', 'large')
-    script.setAttribute('data-radius', '14')
-    script.setAttribute('data-onauth', 'onTelegramWidgetAuth(user)')
-    script.setAttribute('data-request-access', 'write')
-    container.innerHTML = ''
-    container.appendChild(script)
-
-    // Timeout: if widget iframe doesn't render properly in 4s, show fallback
-    const timeout = window.setTimeout(() => {
-      const iframe = container.querySelector('iframe')
-      if (!iframe || iframe.offsetHeight < 20) {
-        setWidgetFailed(true)
-      }
-    }, 4000)
-
-    return () => {
-      window.clearTimeout(timeout)
-      widgetLoadedRef.current = false
-      delete (window as any).onTelegramWidgetAuth
-    }
-  }, [authOpen, siteSettings.telegramAuthEnabled, webApp, signInTelegramWidget])
-
-  const signInTelegram = async (silent = false) => {
-    const telegramUser = webApp?.initDataUnsafe?.user
-    if (!telegramUser) {
-      if (!silent) {
-        showToast('Открой приложение через Telegram для этого входа', 'info')
-      }
+    if (authMode === 'register' && !emailName.trim()) {
+      showToast('Укажи имя для регистрации', 'info')
       return
     }
 
+    setIsSendingCode(true)
     try {
-      const data = await apiRequest<AuthResponse>('/api/auth/telegram', {
+      const result = await apiRequest<{ ok: boolean; hint?: string }>('/api/auth/send-code', {
         method: 'POST',
         body: JSON.stringify({
-          id: telegramUser.id,
-          first_name: telegramUser.first_name,
-          last_name: telegramUser.last_name,
-          username: telegramUser.username,
-          photo_url: telegramUser.photo_url,
-          initData: webApp?.initData || '',
-          initDataUnsafe: webApp?.initDataUnsafe,
-          location: resolvedLocation,
+          email: emailValue.trim(),
+          name: emailName.trim() || undefined,
+          mode: authMode,
         }),
       })
-      await completeAuth(data)
+      setEmailStep('code')
+      showToast(result.hint || 'Код отправлен на почту', 'success')
     } catch (error) {
-      if (!silent) {
-        showToast(error instanceof Error ? error.message : 'Вход не выполнен', 'error')
-      }
+      showToast(error instanceof Error ? error.message : 'Не удалось отправить код', 'error')
+    } finally {
+      setIsSendingCode(false)
     }
   }
 
   const signInEmail = async (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault()
 
-    if (!emailValue.trim() || !emailPassword.trim()) {
-      showToast('Заполни почту и пароль', 'info')
-      return
-    }
-
-    if (authMode === 'register' && !emailName.trim()) {
-      showToast('Укажи имя для регистрации', 'info')
-      return
-    }
-
-    if (authMode === 'register' && emailPassword.trim().length < 6) {
-      showToast('Пароль минимум 6 символов', 'info')
+    if (!emailCode.trim()) {
+      showToast('Введи код подтверждения', 'info')
       return
     }
 
@@ -953,11 +830,9 @@ function App() {
       const data = await apiRequest<AuthResponse>('/api/auth/email', {
         method: 'POST',
         body: JSON.stringify({
-          name: emailName.trim(),
           email: emailValue.trim(),
-          password: emailPassword,
+          code: emailCode.trim(),
           location: resolvedLocation,
-          mode: authMode,
         }),
       })
       await completeAuth(data)
@@ -1397,82 +1272,80 @@ function App() {
 
       {authOpen && (
         <div className="auth-layer">
-          <div className="auth-backdrop" onClick={() => setAuthOpen(false)} />
+          <div className="auth-backdrop" onClick={() => { setAuthOpen(false); setEmailStep('email'); setEmailCode('') }} />
           <section className="auth-sheet">
             <div className="sheet-head">
               <div>
-                <span className="eyebrow">{authMode === 'register' ? '📝 Регистрация' : '🔐 Вход'}</span>
+                <span className="eyebrow">{authMode === 'register' ? 'Регистрация' : 'Вход'}</span>
                 <h2>{authMode === 'register' ? 'Создать аккаунт' : 'Войти в аккаунт'}</h2>
               </div>
-              <button className="ghost-icon" onClick={() => setAuthOpen(false)}>
+              <button className="ghost-icon" onClick={() => { setAuthOpen(false); setEmailStep('email'); setEmailCode('') }}>
                 ×
               </button>
             </div>
 
             <div className="auth-mode-tabs">
-              <button className={authMode === 'login' ? 'auth-mode-tab active' : 'auth-mode-tab'} onClick={() => setAuthMode('login')}>Вход</button>
-              <button className={authMode === 'register' ? 'auth-mode-tab active' : 'auth-mode-tab'} onClick={() => setAuthMode('register')}>Регистрация</button>
+              <button className={authMode === 'login' ? 'auth-mode-tab active' : 'auth-mode-tab'} onClick={() => { setAuthMode('login'); setEmailStep('email'); setEmailCode('') }}>Вход</button>
+              <button className={authMode === 'register' ? 'auth-mode-tab active' : 'auth-mode-tab'} onClick={() => { setAuthMode('register'); setEmailStep('email'); setEmailCode('') }}>Регистрация</button>
             </div>
 
             <div className="auth-stack">
-              {webApp?.initDataUnsafe?.user && (
-                <button className="auth-card telegram-card" onClick={() => void signInTelegram(false)} disabled={!siteSettings.telegramAuthEnabled}>
-                  <div>
-                    <div className="auth-title">Войти через Telegram</div>
-                    <div className="auth-note">Ты в Telegram — нажми и войдёшь моментально</div>
+              {emailStep === 'email' ? (
+                <form className="email-card" onSubmit={sendEmailCode}>
+                  <div className="auth-title">
+                    <Mail size={16} />
+                    {authMode === 'register' ? 'Регистрация по Email' : 'Вход по Email'}
                   </div>
-                  <ChevronRight size={18} />
-                </button>
-              )}
-
-              {!webApp?.initDataUnsafe?.user && siteSettings.telegramAuthEnabled && (
-                <div className="auth-card telegram-widget-card">
-                  <div className="auth-title">Войти через Telegram</div>
-                  {widgetFailed ? (
-                    <>
-                      <div className="auth-note">Виджет Telegram недоступен в этом браузере</div>
-                      <a className="primary-btn wide telegram-direct-btn" href={`https://t.me/${TELEGRAM_BOT_USERNAME}?start=auth`} target="_blank" rel="noreferrer">
-                        Открыть @{TELEGRAM_BOT_USERNAME} в Telegram
-                      </a>
-                    </>
-                  ) : (
-                    <>
-                      <div className="auth-note">Нажми кнопку ниже — откроется Telegram для подтверждения</div>
-                      <div className="telegram-widget-mount" ref={widgetContainerRef} />
-                    </>
+                  <div className="auth-note">
+                    {authMode === 'register'
+                      ? 'Укажи имя и email — пришлём код подтверждения'
+                      : 'Введи email — пришлём 6-значный код для входа'}
+                  </div>
+                  {authMode === 'register' && (
+                    <input value={emailName} onChange={(e) => setEmailName(e.target.value)} placeholder="Имя" required />
                   )}
-                  <a className="telegram-fallback-link" href={`https://t.me/${TELEGRAM_BOT_USERNAME}?start=auth`} target="_blank" rel="noreferrer">
-                    Или открой бота @{TELEGRAM_BOT_USERNAME} напрямую
-                  </a>
-                </div>
+                  <input value={emailValue} onChange={(e) => setEmailValue(e.target.value)} placeholder="Email" type="email" required />
+                  <button className="primary-btn wide" type="submit" disabled={isSendingCode || !siteSettings.emailAuthEnabled}>
+                    <Mail size={16} />
+                    {isSendingCode ? 'Отправляем...' : 'Получить код'}
+                  </button>
+                </form>
+              ) : (
+                <form className="email-card" onSubmit={signInEmail}>
+                  <div className="auth-title">
+                    <ShieldCheck size={16} />
+                    Подтверждение
+                  </div>
+                  <div className="auth-note code-sent-note">
+                    Код отправлен на <strong>{emailValue}</strong>
+                  </div>
+                  <input
+                    className="code-input"
+                    value={emailCode}
+                    onChange={(e) => setEmailCode(e.target.value.replace(/\D/g, '').slice(0, 6))}
+                    placeholder="000000"
+                    type="text"
+                    inputMode="numeric"
+                    autoComplete="one-time-code"
+                    maxLength={6}
+                    required
+                    autoFocus
+                  />
+                  <button className="primary-btn wide" type="submit" disabled={emailCode.length < 6}>
+                    <ShieldCheck size={16} />
+                    {authMode === 'register' ? 'Создать аккаунт' : 'Войти'}
+                  </button>
+                  <button type="button" className="auth-switch-btn back-btn" onClick={() => { setEmailStep('email'); setEmailCode('') }}>
+                    ← Назад
+                  </button>
+                </form>
               )}
-
-              <form className="email-card" onSubmit={signInEmail}>
-                <div className="auth-title">{authMode === 'register' ? 'Регистрация по Email' : 'Вход по Email'}</div>
-                {authMode === 'register' && (
-                  <div className="auth-note">Заполни все поля для создания аккаунта</div>
-                )}
-                {authMode === 'login' && (
-                  <div className="auth-note">Введи email и пароль от существующего аккаунта</div>
-                )}
-
-                {authMode === 'register' && (
-                  <input value={emailName} onChange={(event) => setEmailName(event.target.value)} placeholder="Имя" required />
-                )}
-                <input value={emailValue} onChange={(event) => setEmailValue(event.target.value)} placeholder="Email" type="email" required />
-                <input value={emailPassword} onChange={(event) => setEmailPassword(event.target.value)} placeholder={authMode === 'register' ? 'Пароль (мин. 6 символов)' : 'Пароль'} type="password" required />
-
-                <button className="primary-btn wide" type="submit" disabled={!siteSettings.emailAuthEnabled}>
-                  <Mail size={16} />
-                  {authMode === 'register' ? 'Создать аккаунт' : 'Войти'}
-                </button>
-              </form>
 
               <div className="auth-switch">
                 {authMode === 'login' ? (
-                  <span>Нет аккаунта? <button className="auth-switch-btn" onClick={() => setAuthMode('register')}>Зарегистрируйся</button></span>
+                  <span>Нет аккаунта? <button className="auth-switch-btn" onClick={() => { setAuthMode('register'); setEmailStep('email'); setEmailCode('') }}>Зарегистрируйся</button></span>
                 ) : (
-                  <span>Уже есть аккаунт? <button className="auth-switch-btn" onClick={() => setAuthMode('login')}>Войди</button></span>
+                  <span>Уже есть аккаунт? <button className="auth-switch-btn" onClick={() => { setAuthMode('login'); setEmailStep('email'); setEmailCode('') }}>Войди</button></span>
                 )}
               </div>
             </div>
@@ -1910,7 +1783,7 @@ function App() {
                       <div className="profile-subline">
                         <span>{viewer.handle}</span>
                         <span className="dot-separator" />
-                        <span>{viewer.provider === 'telegram' ? 'Telegram' : 'Email'}</span>
+                        <span>Email</span>
                       </div>
                       <div className="profile-badges-row">
                         {viewer.badges.length > 0 ? viewer.badges.map((b, i) => (
@@ -2167,7 +2040,7 @@ function App() {
                   <div className="settings-info-rows">
                     <div className="meta-row">
                       <span>Вход через</span>
-                      <strong>{viewer.provider === 'telegram' ? 'Telegram' : 'Email'}</strong>
+                      <strong>Email</strong>
                     </div>
                     <div className="meta-row">
                       <span>Telegram привязан</span>
