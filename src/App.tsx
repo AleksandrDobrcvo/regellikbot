@@ -1594,44 +1594,43 @@ function App() {
                 </div>
 
                 {/* Compose FAB */}
+                {!composeOpen && (
                 <button className="compose-fab" onClick={() => setComposeOpen(true)}>
                   <PenSquare size={16} />
                   <span>Написать</span>
                 </button>
+                )}
 
-                {/* Compose modal */}
+                {/* Compose — full page under header */}
                 {composeOpen && (
-                  <div className="compose-modal">
-                    <div className="compose-modal-backdrop" onClick={() => { setComposeOpen(false); setComposeSearch(''); }} />
-                    <div className="compose-modal-sheet">
-                      <div className="compose-modal-head">
-                        <h3>Новый чат</h3>
-                        <button className="compose-close-btn" onClick={() => { setComposeOpen(false); setComposeSearch(''); }}>
-                          <X size={18} />
-                        </button>
-                      </div>
-                      <div className="compose-search-row">
-                        <Search size={18} />
-                        <input value={composeSearch} onChange={e => setComposeSearch(e.target.value)} placeholder="Поиск по имени или handle..." autoFocus />
-                      </div>
-                      <div className="compose-user-list">
-                        {sortedDirectory
-                          .filter(u => u.id !== viewer?.id && (
-                            u.name.toLowerCase().includes(composeSearch.toLowerCase()) ||
-                            u.handle.toLowerCase().includes(composeSearch.toLowerCase())
-                          ))
-                          .map(u => (
-                            <button key={u.id} className="compose-user-item" onClick={() => void startConversation(u.id)}>
-                              <div className="compose-user-avatar">
-                                {u.avatarUrl ? <img src={u.avatarUrl} alt="" /> : <span>{u.name[0]}</span>}
-                              </div>
-                              <div>
-                                <strong>{u.name}</strong>
-                                <span>{u.handle}</span>
-                              </div>
-                            </button>
-                          ))}
-                      </div>
+                  <div className="compose-page">
+                    <div className="compose-page-header">
+                      <button className="compose-back-btn" onClick={() => { setComposeOpen(false); setComposeSearch(''); }}>
+                        <ArrowLeft size={20} />
+                      </button>
+                      <h3>Новый чат</h3>
+                    </div>
+                    <div className="compose-search-row">
+                      <Search size={16} />
+                      <input value={composeSearch} onChange={e => setComposeSearch(e.target.value)} placeholder="Поиск по имени или handle..." autoFocus />
+                    </div>
+                    <div className="compose-user-list">
+                      {sortedDirectory
+                        .filter(u => u.id !== viewer?.id && (
+                          u.name.toLowerCase().includes(composeSearch.toLowerCase()) ||
+                          u.handle.toLowerCase().includes(composeSearch.toLowerCase())
+                        ))
+                        .map(u => (
+                          <button key={u.id} className="compose-user-item" onClick={() => void startConversation(u.id)}>
+                            <div className="compose-user-avatar">
+                              {u.avatarUrl ? <img src={u.avatarUrl} alt="" /> : <span>{u.name[0]}</span>}
+                            </div>
+                            <div>
+                              <strong>{u.name}</strong>
+                              <span>{u.handle}</span>
+                            </div>
+                          </button>
+                        ))}
                     </div>
                   </div>
                 )}
@@ -1949,10 +1948,31 @@ function App() {
                     </div>
                   </div>
 
-                  <button className="topup-cta-btn" onClick={() => setTopUpOpen(true)}>
-                    <Plus size={18} />
-                    Пополнить баланс
+                  <button className="topup-cta-btn" onClick={() => setTopUpOpen(!topUpOpen)}>
+                    {topUpOpen ? <X size={18} /> : <Plus size={18} />}
+                    {topUpOpen ? 'Скрыть' : 'Пополнить баланс'}
                   </button>
+
+                  {/* Inline top-up options */}
+                  {topUpOpen && (
+                    <div className="topup-inline">
+                      <p className="topup-desc">Выбери сумму пополнения ⚡</p>
+                      <div className="topup-options-grid">
+                        {(siteSettings.topUpOptions || [10, 50, 100, 250, 500, 1000]).map(amount => (
+                          <button key={amount} className="topup-option-btn" onClick={() => {
+                            showToast(`Пополнение на ${amount}⚡ — скоро будет доступно!`, 'info')
+                            setTopUpOpen(false)
+                          }}>
+                            <Zap size={16} />
+                            <span>{amount}</span>
+                          </button>
+                        ))}
+                      </div>
+                      <div className="topup-note">
+                        <span>💡 Оплата скоро станет доступна. Следи за обновлениями!</span>
+                      </div>
+                    </div>
+                  )}
                 </article>
 
                 <article className="panel-card">
@@ -1977,36 +1997,6 @@ function App() {
                     </div>
                   </div>
                 </article>
-
-                {/* Top-up modal */}
-                {topUpOpen && (
-                  <div className="compose-modal">
-                    <div className="compose-modal-backdrop" onClick={() => setTopUpOpen(false)} />
-                    <div className="compose-modal-sheet topup-sheet">
-                      <div className="compose-modal-head">
-                        <h3>Пополнить баланс</h3>
-                        <button className="compose-close-btn" onClick={() => setTopUpOpen(false)}>
-                          <X size={18} />
-                        </button>
-                      </div>
-                      <p className="topup-desc">Выбери сумму пополнения ⚡</p>
-                      <div className="topup-options-grid">
-                        {(siteSettings.topUpOptions || [10, 50, 100, 250, 500, 1000]).map(amount => (
-                          <button key={amount} className="topup-option-btn" onClick={() => {
-                            showToast(`Пополнение на ${amount}⚡ — скоро будет доступно!`, 'info')
-                            setTopUpOpen(false)
-                          }}>
-                            <Zap size={16} />
-                            <span>{amount}</span>
-                          </button>
-                        ))}
-                      </div>
-                      <div className="topup-note">
-                        <span>💡 Оплата скоро станет доступна. Следи за обновлениями!</span>
-                      </div>
-                    </div>
-                  </div>
-                )}
               </section>
             )}
 
