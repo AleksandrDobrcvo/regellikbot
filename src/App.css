@@ -1695,11 +1695,10 @@ select {
   flex-wrap: wrap;
   gap: 8px 16px;
   justify-content: center;
-  padding: 24px 0 60px;
+  padding: 24px 0;
   font-size: 13px;
   color: rgba(255, 255, 255, 0.4);
   text-align: center;
-  margin-top: 20px;
 }
 
 /* --- Landing page --- */
@@ -3594,48 +3593,22 @@ select {
   flex-shrink: 0;
 }
 
-/* Compose FAB */
-
-.compose-fab {
-  position: fixed;
-  bottom: 24px;
-  right: 24px;
-  width: 56px;
-  height: 56px;
-  border-radius: 16px;
-  background: linear-gradient(135deg, var(--green), #8ce830);
-  color: #000;
-  border: none;
-  cursor: pointer;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  box-shadow: 0 4px 24px rgba(185, 255, 59, 0.3);
-  transition: transform 0.2s, box-shadow 0.2s;
-  z-index: 50;
-}
-
-.compose-fab:hover {
-  transform: scale(1.05);
-  box-shadow: 0 6px 32px rgba(185, 255, 59, 0.4);
-}
-
-/* Compose modal — full screen overlay */
+/* Compose / topup modal — bottom sheet */
 
 .compose-modal {
   position: fixed;
   inset: 0;
   z-index: 2000;
   display: flex;
-  align-items: stretch;
+  align-items: flex-end;
   justify-content: center;
 }
 
 .compose-modal-backdrop {
   position: absolute;
   inset: 0;
-  background: rgba(0, 0, 0, 0.7);
-  backdrop-filter: blur(6px);
+  background: rgba(0, 0, 0, 0.6);
+  backdrop-filter: blur(8px);
   animation: composeBackdropIn 0.2s ease-out;
 }
 
@@ -3648,26 +3621,30 @@ select {
   position: relative;
   width: 100%;
   max-width: 500px;
-  height: 100%;
-  max-height: 100vh;
+  max-height: 85vh;
   background:
     radial-gradient(ellipse at 20% 0%, rgba(185, 255, 59, 0.04) 0%, transparent 50%),
-    linear-gradient(180deg, rgba(8, 24, 14, 0.99), rgba(4, 14, 8, 0.99));
+    linear-gradient(180deg, rgba(10, 28, 16, 0.99), rgba(4, 14, 8, 0.99));
   display: flex;
   flex-direction: column;
   overflow: hidden;
-  animation: composeSheetIn 0.3s cubic-bezier(0.16, 1, 0.3, 1);
+  border-radius: 24px 24px 0 0;
+  border-top: 1px solid rgba(185, 255, 59, 0.1);
+  box-shadow: 0 -8px 40px rgba(0, 0, 0, 0.4);
+  animation: composeSheetSlideUp 0.35s cubic-bezier(0.16, 1, 0.3, 1);
 }
 
-@keyframes composeSheetIn {
-  from { opacity: 0; transform: translateY(40px); }
+@keyframes composeSheetSlideUp {
+  from { opacity: 0; transform: translateY(100%); }
   to { opacity: 1; transform: translateY(0); }
 }
 
 @media (min-width: 601px) {
+  .compose-modal {
+    align-items: center;
+  }
   .compose-modal-sheet {
     margin: 40px auto;
-    height: auto;
     max-height: calc(100vh - 80px);
     border-radius: 24px;
     border: 1px solid rgba(255, 255, 255, 0.08);
@@ -3679,9 +3656,27 @@ select {
   display: flex;
   align-items: center;
   justify-content: space-between;
-  padding: 16px 20px;
+  padding: 18px 20px 14px;
   border-bottom: 1px solid rgba(185, 255, 59, 0.08);
   flex-shrink: 0;
+}
+
+.compose-modal-head::before {
+  content: '';
+  position: absolute;
+  top: 8px;
+  left: 50%;
+  transform: translateX(-50%);
+  width: 36px;
+  height: 4px;
+  border-radius: 2px;
+  background: rgba(255, 255, 255, 0.15);
+}
+
+@media (min-width: 601px) {
+  .compose-modal-head::before {
+    display: none;
+  }
 }
 
 .compose-modal-head h3 {
@@ -4340,20 +4335,6 @@ select {
   }
 }
 
-/* Compose FAB pulse */
-.compose-fab {
-  animation: fabPulse 2s ease-in-out infinite;
-}
-
-@keyframes fabPulse {
-  0%, 100% { box-shadow: 0 4px 20px rgba(185, 255, 59, 0.3); }
-  50% { box-shadow: 0 4px 28px rgba(185, 255, 59, 0.5); }
-}
-
-.compose-fab:active {
-  transform: scale(0.9);
-}
-
 /* Chat send animation */
 .chat-send-btn:not(:disabled):active {
   transform: scale(0.85);
@@ -4493,6 +4474,7 @@ select {
 /* Top-up sheet */
 .topup-sheet {
   max-height: 70vh;
+  padding-bottom: env(safe-area-inset-bottom, 12px);
 }
 
 .topup-desc {
@@ -4515,7 +4497,7 @@ select {
   align-items: center;
   gap: 6px;
   padding: 18px 8px;
-  border-radius: 14px;
+  border-radius: 18px;
   background: rgba(185, 255, 59, 0.06);
   border: 1px solid rgba(185, 255, 59, 0.12);
   color: var(--green);
@@ -5520,35 +5502,6 @@ select {
   animation: unreadPop 0.2s ease-out;
 }
 
-/* ===== COMPOSE FAB GLOW ===== */
-.compose-fab {
-  position: fixed;
-  bottom: 24px;
-  right: 24px;
-  width: 56px;
-  height: 56px;
-  border-radius: 16px;
-  background: linear-gradient(135deg, var(--green), #8ce830);
-  color: #000;
-  border: none;
-  cursor: pointer;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  box-shadow: 0 4px 28px rgba(185, 255, 59, 0.35), 0 0 60px rgba(185, 255, 59, 0.08);
-  transition: transform 0.2s, box-shadow 0.2s;
-  z-index: 50;
-}
-
-.compose-fab:hover {
-  transform: scale(1.08) rotate(-2deg);
-  box-shadow: 0 6px 36px rgba(185, 255, 59, 0.45), 0 0 80px rgba(185, 255, 59, 0.12);
-}
-
-.compose-fab:active {
-  transform: scale(0.96);
-}
-
 /* ===== CHATS TITLE GRADIENT ===== */
 .chats-title {
   background: linear-gradient(135deg, var(--text), var(--green));
@@ -5597,13 +5550,6 @@ select {
     gap: 3px;
     padding-bottom: 72px;
   }
-  .compose-fab {
-    bottom: 20px;
-    right: 16px;
-    width: 50px;
-    height: 50px;
-    border-radius: 14px;
-  }
   .app-shell.has-header {
     padding-top: calc(56px + env(safe-area-inset-top, 0px));
   }
@@ -5617,49 +5563,51 @@ select {
 .compose-fab {
   position: fixed;
   bottom: 24px;
-  right: 24px;
-  width: 58px;
-  height: 58px;
-  border-radius: 18px;
+  right: 16px;
+  height: 44px;
+  padding: 0 18px;
+  border-radius: 999px;
   background: linear-gradient(135deg, #b9ff3b, #6fe6ff, #b9ff3b);
   background-size: 200% 200%;
-  color: #000;
+  color: #041008;
   border: none;
   cursor: pointer;
   display: flex;
   align-items: center;
   justify-content: center;
+  gap: 8px;
+  font-size: 13px;
+  font-weight: 800;
+  font-family: var(--font-mono);
   box-shadow:
-    0 4px 28px rgba(185, 255, 59, 0.4),
-    0 0 60px rgba(185, 255, 59, 0.12),
-    inset 0 1px 0 rgba(255, 255, 255, 0.2);
+    0 4px 20px rgba(185, 255, 59, 0.35),
+    0 0 40px rgba(185, 255, 59, 0.08);
   transition: transform 0.2s, box-shadow 0.2s;
   z-index: 50;
-  animation: fabGradientShift 3s ease-in-out infinite, fabFloat 2.5s ease-in-out infinite;
-}
-
-@keyframes fabGradientShift {
-  0%, 100% { background-position: 0% 50%; }
-  50% { background-position: 100% 50%; }
-}
-
-@keyframes fabFloat {
-  0%, 100% { transform: translateY(0); box-shadow: 0 4px 28px rgba(185, 255, 59, 0.4), 0 0 60px rgba(185, 255, 59, 0.12); }
-  50% { transform: translateY(-4px); box-shadow: 0 8px 36px rgba(185, 255, 59, 0.55), 0 0 80px rgba(185, 255, 59, 0.18); }
+  animation: fabGradientShift 3s ease-in-out infinite;
 }
 
 .compose-fab:hover {
-  transform: scale(1.1) rotate(-3deg);
+  transform: scale(1.05);
   box-shadow:
-    0 8px 40px rgba(185, 255, 59, 0.5),
-    0 0 100px rgba(185, 255, 59, 0.2),
-    0 0 40px rgba(111, 230, 255, 0.15);
+    0 6px 30px rgba(185, 255, 59, 0.45),
+    0 0 60px rgba(185, 255, 59, 0.15);
   animation: none;
 }
 
 .compose-fab:active {
-  transform: scale(0.94);
+  transform: scale(0.96);
   animation: none;
+}
+
+@media (max-width: 600px) {
+  .compose-fab {
+    bottom: 20px;
+    right: 12px;
+    height: 40px;
+    padding: 0 14px;
+    font-size: 12px;
+  }
 }
 
 /* ===== HOME SCREEN (authorized) ===== */

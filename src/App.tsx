@@ -1592,7 +1592,8 @@ function App() {
 
                 {/* Compose FAB */}
                 <button className="compose-fab" onClick={() => setComposeOpen(true)}>
-                  <PenSquare size={22} />
+                  <PenSquare size={16} />
+                  <span>Написать</span>
                 </button>
 
                 {/* Compose modal */}
@@ -1978,7 +1979,9 @@ function App() {
                     <div className="compose-modal-sheet topup-sheet">
                       <div className="compose-modal-head">
                         <h3>Пополнить баланс</h3>
-                        <button className="ghost-icon" onClick={() => setTopUpOpen(false)}>×</button>
+                        <button className="compose-close-btn" onClick={() => setTopUpOpen(false)}>
+                          <X size={18} />
+                        </button>
                       </div>
                       <p className="topup-desc">Выбери сумму пополнения ⚡</p>
                       <div className="topup-options-grid">
@@ -2613,12 +2616,6 @@ function App() {
               </section>
             )}
           </main>
-          <footer className="app-footer">
-            <span>&gt;]Regellik 2026</span>
-            <span>Нормативы</span>
-            <span>О нас</span>
-            <span>FAQ</span>
-          </footer>
         </>
       )}
 
