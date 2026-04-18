@@ -336,7 +336,7 @@ html {
   gap: 2px;
   padding: 8px 16px;
   border-radius: 22px;
-  background: linear-gradient(180deg, rgba(6, 6, 6, 0.92), rgba(8, 26, 17, 0.88));
+  background: linear-gradient(180deg, rgba(6, 6, 6, 0.92), rgba(8, 8, 8, 0.88));
   border: 1px solid rgba(200, 200, 200, 0.2);
 }
 
@@ -652,7 +652,7 @@ html {
   border: 1px solid var(--line);
   border-radius: 34px;
   background:
-    linear-gradient(135deg, rgba(9, 30, 19, 0.96), rgba(8, 8, 8, 0.88)),
+    linear-gradient(135deg, rgba(8, 8, 8, 0.96), rgba(8, 8, 8, 0.88)),
     linear-gradient(120deg, rgba(255, 255, 255, 0.08), transparent 42%);
   box-shadow: var(--shadow);
 }
@@ -768,7 +768,7 @@ html {
   padding: 18px;
   border-radius: 26px;
   border: 1px solid rgba(255, 255, 255, 0.06);
-  background: rgba(7, 23, 15, 0.9);
+  background: rgba(8, 8, 8, 0.9);
   box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.03), 0 0 24px rgba(0, 0, 0, 0.12);
 }
 
@@ -776,7 +776,7 @@ html {
   min-height: 220px;
   background:
     radial-gradient(circle at top right, rgba(200, 200, 200, 0.12), transparent 34%),
-    linear-gradient(180deg, rgba(6, 6, 6, 0.96), rgba(8, 20, 14, 0.94));
+    linear-gradient(180deg, rgba(6, 6, 6, 0.96), rgba(8, 8, 8, 0.94));
 }
 
 .compact-card {
@@ -904,15 +904,23 @@ html {
   gap: 10px;
   padding: 14px 18px;
   border-radius: 18px;
-  background: rgba(4, 4, 4, 0.74);
-  border: 1px solid rgba(255, 255, 255, 0.07);
+  background: rgba(255, 255, 255, 0.03);
+  border: 1px solid rgba(255, 255, 255, 0.06);
+  color: var(--muted);
+  transition: all 0.25s cubic-bezier(0.16, 1, 0.3, 1);
+  cursor: pointer;
+}
+
+.tab-btn:hover {
+  background: rgba(255, 255, 255, 0.06);
   color: var(--text);
 }
 
 .tab-btn.active {
-  border-color: rgba(255, 255, 255, 0.5);
-  background: linear-gradient(135deg, rgba(255, 255, 255, 0.16), rgba(4, 4, 4, 0.9));
-  box-shadow: 0 0 24px rgba(255, 255, 255, 0.12);
+  border-color: rgba(255, 255, 255, 0.35);
+  background: rgba(255, 255, 255, 0.1);
+  color: var(--text);
+  box-shadow: 0 0 20px rgba(255, 255, 255, 0.08);
 }
 
 .content-grid {
@@ -1411,15 +1419,15 @@ html {
   padding: 14px 16px;
   border-radius: 18px;
   border: 1px solid rgba(255, 255, 255, 0.08);
-  background: rgba(8, 20, 14, 0.9);
+  background: rgba(8, 8, 8, 0.9);
   color: var(--text);
   text-align: left;
 }
 
 .toggle-card.active {
   border-color: rgba(255, 255, 255, 0.28);
-  background: linear-gradient(135deg, rgba(255, 255, 255, 0.14), rgba(8, 20, 14, 0.94));
-  color: #ecffd8;
+  background: linear-gradient(135deg, rgba(255, 255, 255, 0.14), rgba(8, 8, 8, 0.94));
+  color: #f2f2f2;
 }
 
 .toggle-card.danger,
@@ -1444,14 +1452,14 @@ html {
   padding: 16px;
   border-radius: 18px;
   border: 1px solid rgba(255, 255, 255, 0.06);
-  background: rgba(8, 20, 14, 0.88);
+  background: rgba(8, 8, 8, 0.88);
   color: var(--text);
   text-align: left;
 }
 
 .admin-user-item.active {
   border-color: rgba(200, 200, 200, 0.3);
-  background: linear-gradient(135deg, rgba(200, 200, 200, 0.12), rgba(8, 20, 14, 0.94));
+  background: linear-gradient(135deg, rgba(200, 200, 200, 0.12), rgba(8, 8, 8, 0.94));
 }
 
 .admin-user-meta {
@@ -3082,18 +3090,19 @@ html {
 @keyframes pageIn {
   from {
     opacity: 0;
-    transform: translateY(24px) scale(0.97);
-    filter: blur(6px);
+    transform: translateY(16px);
   }
   to {
     opacity: 1;
-    transform: translateY(0) scale(1);
-    filter: blur(0);
+    transform: translateY(0);
   }
 }
 
 .page-transition {
-  animation: pageIn 0.45s cubic-bezier(0.16, 1, 0.3, 1) both;
+  animation: pageIn 0.35s cubic-bezier(0.16, 1, 0.3, 1) both;
+  will-change: transform, opacity;
+  backface-visibility: hidden;
+  -webkit-backface-visibility: hidden;
 }
 
 /* Stagger animation for cards inside pages */
@@ -3128,13 +3137,11 @@ html {
 @keyframes pageOut {
   from {
     opacity: 1;
-    transform: translateY(0) scale(1);
-    filter: blur(0);
+    transform: translateY(0);
   }
   to {
     opacity: 0;
-    transform: translateY(-18px) scale(0.97);
-    filter: blur(4px);
+    transform: translateY(-12px);
   }
 }
 
@@ -4390,7 +4397,7 @@ html {
   background:
     radial-gradient(ellipse at 20% 0%, rgba(255, 255, 255, 0.03) 0%, transparent 50%),
     radial-gradient(ellipse at 80% 100%, rgba(200, 200, 200, 0.03) 0%, transparent 50%),
-    linear-gradient(180deg, rgba(8, 8, 8, 0.98), rgba(2, 10, 6, 0.96) 30%);
+    linear-gradient(180deg, rgba(8, 8, 8, 0.98), rgba(4, 4, 4, 0.96) 30%);
   z-index: 900;
 }
 
@@ -4576,11 +4583,11 @@ html {
 
 .chat-bubble.mine {
   align-self: flex-end;
-  background: linear-gradient(135deg, rgba(255, 255, 255, 0.25), rgba(140, 232, 48, 0.1));
-  border: 1px solid rgba(255, 255, 255, 0.22);
+  background: rgba(255, 255, 255, 0.12);
+  border: 1px solid rgba(255, 255, 255, 0.2);
   color: var(--text);
   border-bottom-right-radius: 6px;
-  box-shadow: 0 2px 16px rgba(255, 255, 255, 0.1), 0 0 30px rgba(255, 255, 255, 0.03);
+  box-shadow: 0 2px 12px rgba(255, 255, 255, 0.06);
 }
 
 .chat-bubble.mine small {
@@ -4682,13 +4689,13 @@ html {
   width: 46px;
   height: 46px;
   border-radius: 50%;
-  background: linear-gradient(135deg, var(--accent), #a8f030);
+  background: var(--accent);
   color: #000;
   border: none;
   cursor: pointer;
   flex-shrink: 0;
   transition: opacity 0.2s, transform 0.15s, box-shadow 0.2s;
-  box-shadow: 0 2px 16px rgba(255, 255, 255, 0.25), 0 0 40px rgba(255, 255, 255, 0.08);
+  box-shadow: 0 2px 12px rgba(255, 255, 255, 0.2);
 }
 
 .chat-send-btn:disabled {
@@ -5478,12 +5485,12 @@ html {
   display: inline-flex;
   align-items: center;
   gap: 5px;
-  background: rgba(56, 239, 125, 0.12);
+  background: rgba(255, 255, 255, 0.12);
   padding: 3px 9px;
   border-radius: 20px;
   font-size: 11px;
   font-weight: 600;
-  color: #38ef7d;
+  color: #ffffff;
   white-space: nowrap;
 }
 
@@ -5491,7 +5498,7 @@ html {
   width: 7px;
   height: 7px;
   border-radius: 50%;
-  background: #38ef7d;
+  background: #ffffff;
   display: inline-block;
   animation: pulseDot 1.5s ease-in-out infinite;
 }
@@ -5625,11 +5632,11 @@ html {
 
 .geo-granted-badge {
   font-size: 11px;
-  color: #38ef7d;
+  color: #ffffff;
   font-weight: 600;
   padding: 3px 10px;
   border-radius: 12px;
-  background: rgba(56, 239, 125, 0.1);
+  background: rgba(255, 255, 255, 0.1);
 }
 
 /* Mini toggle */
@@ -5852,12 +5859,12 @@ html {
 }
 
 .admin-stat-box.online {
-  background: rgba(56, 239, 125, 0.06);
-  border-color: rgba(56, 239, 125, 0.15);
+  background: rgba(255, 255, 255, 0.06);
+  border-color: rgba(255, 255, 255, 0.15);
 }
 
 .admin-stat-box.online strong {
-  color: #38ef7d;
+  color: #ffffff;
 }
 
 /* Quick stats row */
@@ -5899,12 +5906,12 @@ html {
 }
 
 .admin-qs-item.online {
-  background: rgba(56, 239, 125, 0.06);
-  border-color: rgba(56, 239, 125, 0.12);
+  background: rgba(255, 255, 255, 0.06);
+  border-color: rgba(255, 255, 255, 0.12);
 }
 
 .admin-qs-item.online strong {
-  color: #38ef7d;
+  color: #ffffff;
 }
 
 /* Nav grid — section buttons */
@@ -5921,7 +5928,7 @@ html {
   padding: 12px 14px;
   border-radius: 16px;
   border: 1px solid rgba(255, 255, 255, 0.06);
-  background: rgba(8, 20, 14, 0.88);
+  background: rgba(8, 8, 8, 0.88);
   color: var(--text);
   cursor: pointer;
   transition: all 0.2s;
@@ -5936,7 +5943,7 @@ html {
 
 .admin-nav-btn.active {
   border-color: rgba(255, 255, 255, 0.25);
-  background: linear-gradient(135deg, rgba(255, 255, 255, 0.08), rgba(8, 20, 14, 0.94));
+  background: linear-gradient(135deg, rgba(255, 255, 255, 0.08), rgba(8, 8, 8, 0.94));
 }
 
 .admin-nav-icon {
@@ -5989,7 +5996,7 @@ html {
   padding: 16px;
   border-radius: 20px;
   border: 1px solid rgba(255, 255, 255, 0.1);
-  background: linear-gradient(180deg, rgba(12, 30, 20, 0.96), rgba(6, 16, 11, 0.98));
+  background: linear-gradient(180deg, rgba(10, 10, 10, 0.96), rgba(6, 6, 6, 0.98));
   animation: adminExpandIn 0.3s cubic-bezier(0.16, 1, 0.3, 1) both;
 }
 
@@ -6027,7 +6034,7 @@ html {
   margin-top: 8px;
   border-radius: 18px;
   border: 1px solid rgba(200, 200, 200, 0.12);
-  background: rgba(8, 20, 14, 0.92);
+  background: rgba(8, 8, 8, 0.92);
 }
 
 /* Editor ban/freeze actions row */
@@ -6099,7 +6106,7 @@ html {
 }
 
 .admin-ban-type.chat {
-  color: #ffa726;
+  color: #999999;
 }
 
 .admin-ban-reason {
@@ -6189,7 +6196,7 @@ html {
   width: 340px;
   max-width: calc(100vw - 24px);
   max-height: 70vh;
-  background: linear-gradient(180deg, rgba(12, 30, 20, 0.98), rgba(6, 16, 11, 0.99));
+  background: linear-gradient(180deg, rgba(10, 10, 10, 0.98), rgba(6, 6, 6, 0.99));
   border: 1px solid rgba(255, 255, 255, 0.1);
   border-radius: 20px;
   display: flex;
