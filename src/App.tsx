@@ -468,6 +468,7 @@ function App() {
   const [profileHandle, setProfileHandle] = useState('@regellik')
   const [handleStatus, setHandleStatus] = useState<'idle' | 'checking' | 'available' | 'taken'>('idle')
   const handleCheckTimer = useRef<number | null>(null)
+  const [txSubTab, setTxSubTab] = useState<'balance' | 'history'>('balance')
   const [profileTagline, setProfileTagline] = useState('')
   const [profileBio, setProfileBio] = useState('')
   const [adminDraft, setAdminDraft] = useState<AdminDraft | null>(null)
@@ -2286,9 +2287,9 @@ function App() {
                       </div>
                       {handleStatus !== 'idle' && (
                         <div className={`handle-status ${handleStatus}`}>
-                          {handleStatus === 'checking' && '● проверяю...'}
-                          {handleStatus === 'available' && '● свободен'}
-                          {handleStatus === 'taken' && '● занят'}
+                          {handleStatus === 'checking' && 'проверяю...'}
+                          {handleStatus === 'available' && 'свободен'}
+                          {handleStatus === 'taken' && 'занят'}
                         </div>
                       )}
                     </div>
@@ -2429,6 +2430,27 @@ function App() {
             {activeTab === 'transactions' && (
               <section className="transactions-screen page-transition">
 
+                {/* Подвкладки */}
+                <div className="tx-subtabs">
+                  <button
+                    className={`tx-subtab-btn${txSubTab === 'balance' ? ' active' : ''}`}
+                    onClick={() => setTxSubTab('balance')}
+                  >
+                    <Wallet size={14} />
+                    Баланс
+                  </button>
+                  <button
+                    className={`tx-subtab-btn${txSubTab === 'history' ? ' active' : ''}`}
+                    onClick={() => { setTxSubTab('history'); void loadTransactions() }}
+                  >
+                    <RefreshCw size={14} />
+                    История
+                  </button>
+                </div>
+
+                {/* === ПОДВКЛАДКА: БАЛАНС === */}
+                {txSubTab === 'balance' && (<>
+
                 {/* Баланс */}
                 <article className="panel-card">
                   <div className="panel-head">
@@ -2520,44 +2542,10 @@ function App() {
                   </div>
                 </article>
 
-                {/* Рефералы */}
-                <article className="panel-card">
-                  <div className="panel-head">
-                    <div>
-                      <span className="eyebrow"># рефералы</span>
-                      <h2>Реферальная программа</h2>
-                    </div>
-                    <div className="tx-ref-count">
-                      <Users size={14} />
-                      <span>{viewer?.stats.referrals ?? 0}</span>
-                    </div>
-                  </div>
-                  <p className="tx-ref-desc">Приглашай друзей — за каждого нового пользователя по твоей ссылке ты получишь бонус.</p>
-                  {viewer?.referralCode && (
-                    <div className="tx-ref-code-row">
-                      <span className="tx-ref-code">{viewer.referralCode}</span>
-                      <button className="tx-ref-copy-btn" onClick={() => {
-                        void navigator.clipboard.writeText(viewer.referralCode ?? '')
-                        showToast('Реферальный код скопирован', 'success')
-                      }}>
-                        <Copy size={14} />
-                        Копировать
-                      </button>
-                    </div>
-                  )}
-                  <div className="tx-ref-stats-row">
-                    <div className="tx-ref-stat">
-                      <strong>{viewer?.stats.referrals ?? 0}</strong>
-                      <span>приглашено</span>
-                    </div>
-                    <div className="tx-ref-stat">
-                      <strong>{viewer?.referredBy ? '1' : '—'}</strong>
-                      <span>реферер</span>
-                    </div>
-                  </div>
-                </article>
+                </>)}
 
-                {/* История транзакций */}
+                {/* === ПОДВКЛАДКА: ИСТОРИЯ === */}
+                {txSubTab === 'history' && (
                 <article className="panel-card">
                   <div className="panel-head">
                     <div>
@@ -2619,6 +2607,8 @@ function App() {
                     </div>
                   )}
                 </article>
+                )}
+
               </section>
             )}
 
