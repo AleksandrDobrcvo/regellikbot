@@ -286,6 +286,10 @@ const BADGE_CATALOG: BadgeDef[] = [
 ]
 
 function getBadgeDef(id: string): BadgeDef {
+  if (id.startsWith('CUSTOM|')) {
+    const parts = id.split('|')
+    return { id, icon: parts[1] ?? '◦', label: parts[2] ?? id, cssClass: parts[3] ?? 'badge-default' }
+  }
   return BADGE_CATALOG.find(b => b.id === id) ?? { id, label: id, cssClass: 'badge-default', icon: '◦' }
 }
 
@@ -529,8 +533,12 @@ function App() {
   const [adminConfirmAction, setAdminConfirmAction] = useState<{ label: string; action: () => void } | null>(null)
 
   // Admin section navigation
-  type AdminSectionId = 'none' | 'economy' | 'site' | 'roles' | 'topup' | 'users' | 'bans' | 'audit' | 'broadcast'
+  type AdminSectionId = 'none' | 'economy' | 'site' | 'roles' | 'topup' | 'users' | 'bans' | 'audit' | 'broadcast' | 'badges'
   const [adminSection, setAdminSection] = useState<AdminSectionId>('none')
+  const [adminBadgeTab, setAdminBadgeTab] = useState<'catalog' | 'custom'>('catalog')
+  const [customBadgeIcon, setCustomBadgeIcon] = useState('◆')
+  const [customBadgeLabel, setCustomBadgeLabel] = useState('')
+  const [customBadgeCss, setCustomBadgeCss] = useState('badge-vip')
 
   // Ban management
   const [banUserId, setBanUserId] = useState('')
@@ -2819,6 +2827,7 @@ function App() {
                     { id: 'topup' as const, icon: <Zap size={18} />, label: 'Начисление', desc: 'Top-up баланса' },
                     { id: 'users' as const, icon: <Users size={18} />, label: 'Пользователи', desc: 'Управление' },
                     { id: 'bans' as const, icon: <Ban size={18} />, label: 'Баны', desc: 'Блокировки' },
+                    { id: 'badges' as const, icon: <BadgeCheck size={18} />, label: 'Префиксы', desc: 'Каталог и выдача' },
                     { id: 'audit' as const, icon: <Search size={18} />, label: 'Журнал', desc: 'Audit log' },
                     { id: 'broadcast' as const, icon: <Send size={18} />, label: 'Рассылка', desc: 'Системное сообщение' },
                   ]).map(sec => (
@@ -2951,6 +2960,9 @@ function App() {
                       <span>👥 Пользователи ({adminUsers.length})</span>
                     </div>
 
+                    <div className={`admin-users-layout${adminDraft ? ' has-editor' : ''}`}>
+                      {/* LEFT: Search + list */}
+                      <div className="admin-users-left">
                     {/* Search */}
                     <div className="admin-search-row">
                       <div className="admin-search-input-wrap">
@@ -3004,9 +3016,11 @@ function App() {
                         </button>
                       ))}
                     </div>
+                      </div>
 
-                    {/* User editor */}
+                      {/* RIGHT: User editor */}
                     {adminDraft && (
+                      <div className="admin-users-right">
                       <form className="admin-user-editor" onSubmit={saveAdminUser}>
                         <div className="admin-expand-head">
                           <span># {adminDraft.name}</span>
@@ -3095,28 +3109,127 @@ function App() {
 
                         <div className="input-block">
                           <span>Префиксы / бейджи</span>
-                          <div className="admin-badge-picker">
-                            {BADGE_CATALOG.map(def => {
-                              const active = adminDraft.badges.includes(def.id)
-                              return (
-                                <button
-                                  key={def.id}
-                                  type="button"
-                                  className={`admin-badge-pick-btn${active ? ' active' : ''}`}
-                                  onClick={() => setAdminDraft(c => {
-                                    if (!c) return c
-                                    const next = active
-                                      ? c.badges.filter(x => x !== def.id)
-                                      : [...c.badges, def.id]
-                                    return { ...c, badges: next, badgesText: next.join(', ') }
-                                  })}
-                                  title={active ? `Убрать ${def.label}` : `Добавить ${def.label}`}
-                                >
-                                  <BadgeChip id={def.id} />
-                                </button>
-                              )
-                            })}
+
+                          {/* Active badges */}
+                          {adminDraft.badges.length > 0 && (
+                            <div className="admin-active-badges">
+                              {adminDraft.badges.map(bid => (
+                                <div key={bid} className="admin-active-badge-row">
+                                  <BadgeChip id={bid} />
+                                  <button
+                                    type="button"
+                                    className="admin-badge-remove-btn"
+                                    onClick={() => setAdminDraft(c => c ? { ...c, badges: c.badges.filter(x => x !== bid), badgesText: c.badges.filter(x => x !== bid).join(', ') } : c)}
+                                  >
+                                    <X size={12} />
+                                  </button>
+                                </div>
+                              ))}
+                            </div>
+                          )}
+
+                          {/* Tabs */}
+                          <div className="badge-editor-tabs">
+                            <button type="button" className={`badge-editor-tab${adminBadgeTab === 'catalog' ? ' active' : ''}`} onClick={() => setAdminBadgeTab('catalog')}>
+                              Каталог
+                            </button>
+                            <button type="button" className={`badge-editor-tab${adminBadgeTab === 'custom' ? ' active' : ''}`} onClick={() => setAdminBadgeTab('custom')}>
+                              Создать
+                            </button>
                           </div>
+
+                          {/* Catalog picker */}
+                          {adminBadgeTab === 'catalog' && (
+                            <div className="admin-badge-picker">
+                              {BADGE_CATALOG.map(def => {
+                                const active = adminDraft.badges.includes(def.id)
+                                return (
+                                  <button
+                                    key={def.id}
+                                    type="button"
+                                    className={`admin-badge-pick-btn${active ? ' active' : ''}`}
+                                    onClick={() => setAdminDraft(c => {
+                                      if (!c) return c
+                                      const next = active
+                                        ? c.badges.filter(x => x !== def.id)
+                                        : [...c.badges, def.id]
+                                      return { ...c, badges: next, badgesText: next.join(', ') }
+                                    })}
+                                    title={active ? `Убрать ${def.label}` : `Добавить ${def.label}`}
+                                  >
+                                    <BadgeChip id={def.id} />
+                                  </button>
+                                )
+                              })}
+                            </div>
+                          )}
+
+                          {/* Custom badge builder */}
+                          {adminBadgeTab === 'custom' && (
+                            <div className="custom-badge-builder">
+                              <div className="custom-badge-preview-row">
+                                <span className="custom-badge-preview-label">Превью:</span>
+                                <BadgeChip id={`CUSTOM|${customBadgeIcon}|${customBadgeLabel || 'текст'}|${customBadgeCss}`} />
+                              </div>
+                              <div className="field-grid-2">
+                                <label className="input-block">
+                                  <span>Иконка (emoji/символ)</span>
+                                  <input
+                                    value={customBadgeIcon}
+                                    onChange={e => setCustomBadgeIcon(e.target.value)}
+                                    placeholder="◆"
+                                    maxLength={4}
+                                  />
+                                </label>
+                                <label className="input-block">
+                                  <span>Текст бейджа</span>
+                                  <input
+                                    value={customBadgeLabel}
+                                    onChange={e => setCustomBadgeLabel(e.target.value)}
+                                    placeholder="Мой бейдж"
+                                    maxLength={20}
+                                  />
+                                </label>
+                              </div>
+                              <label className="input-block">
+                                <span>Стиль анимации</span>
+                                <select value={customBadgeCss} onChange={e => setCustomBadgeCss(e.target.value)}>
+                                  {BADGE_CATALOG.map(d => (
+                                    <option key={d.id} value={d.cssClass}>{d.icon} {d.label} ({d.cssClass})</option>
+                                  ))}
+                                  <option value="badge-default">— Без анимации</option>
+                                </select>
+                              </label>
+                              <div className="custom-badge-style-grid">
+                                {BADGE_CATALOG.map(d => (
+                                  <button
+                                    key={d.id}
+                                    type="button"
+                                    className={`custom-badge-style-btn${customBadgeCss === d.cssClass ? ' active' : ''}`}
+                                    onClick={() => setCustomBadgeCss(d.cssClass)}
+                                  >
+                                    <BadgeChip id={d.id} />
+                                  </button>
+                                ))}
+                              </div>
+                              <button
+                                type="button"
+                                className="primary-btn wide"
+                                disabled={!customBadgeLabel.trim()}
+                                onClick={() => {
+                                  const bid = `CUSTOM|${customBadgeIcon || '◆'}|${customBadgeLabel.trim()}|${customBadgeCss}`
+                                  setAdminDraft(c => {
+                                    if (!c) return c
+                                    const next = [...c.badges, bid]
+                                    return { ...c, badges: next, badgesText: next.join(', ') }
+                                  })
+                                  setCustomBadgeLabel('')
+                                }}
+                              >
+                                <Plus size={16} /> Добавить бейдж
+                              </button>
+                            </div>
+                          )}
                         </div>
 
                         <div className="toggle-grid admin-toggle-grid">
@@ -3176,7 +3289,81 @@ function App() {
                           )}
                         </div>
                       </form>
+                      </div>
                     )}
+                    </div>
+                  </div>
+                )}
+
+                {/* Badges / Prefixes */}
+                {adminSection === 'badges' && (
+                  <div className="admin-expand-panel">
+                    <div className="admin-expand-head">
+                      <span>◈ Каталог префиксов</span>
+                    </div>
+                    <p className="admin-badges-desc">
+                      Все доступные префиксы. Для выдачи откройте пользователя в разделе «Пользователи» и используйте вкладку «Создать» в редакторе префиксов.
+                    </p>
+                    <div className="admin-badges-catalog-grid">
+                      {BADGE_CATALOG.map(def => (
+                        <div key={def.id} className="admin-badges-catalog-item">
+                          <BadgeChip id={def.id} />
+                          <div className="admin-badges-catalog-meta">
+                            <span className="admin-badges-catalog-id">{def.id}</span>
+                            <span className="admin-badges-catalog-css">{def.cssClass}</span>
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+
+                    <div className="admin-expand-head" style={{marginTop: 8}}>
+                      <span>Быстрая выдача/отзыв</span>
+                    </div>
+                    <div className="admin-quick-badge-form">
+                      <label className="input-block">
+                        <span>ID или handle пользователя</span>
+                        <input
+                          id="quick-badge-user"
+                          placeholder="@handle или user ID"
+                        />
+                      </label>
+                      <label className="input-block">
+                        <span>Выбери префикс</span>
+                        <div className="admin-badge-picker">
+                          {BADGE_CATALOG.map(def => (
+                            <button
+                              key={def.id}
+                              type="button"
+                              className="admin-badge-pick-btn"
+                              title={def.label}
+                              onClick={() => {
+                                const userInput = (document.getElementById('quick-badge-user') as HTMLInputElement)?.value?.trim()
+                                if (!userInput) { showToast('Введи ID или handle', 'error'); return }
+                                // Find user from list
+                                const found = adminUsers.find(u =>
+                                  u.id === userInput || u.handle === userInput || u.handle === '@' + userInput
+                                )
+                                if (!found) { showToast('Пользователь не найден в загруженном списке', 'error'); return }
+                                const has = found.badges?.includes(def.id)
+                                // Patch via user editor
+                                const newBadges = has
+                                  ? (found.badges ?? []).filter(b => b !== def.id)
+                                  : [...(found.badges ?? []), def.id]
+                                // We'll simulate selecting user and saving
+                                setSelectedAdminUserId(found.id)
+                                setTimeout(() => {
+                                  setAdminDraft(c => c ? { ...c, badges: newBadges, badgesText: newBadges.join(', ') } : c)
+                                  setAdminSection('users')
+                                  showToast(has ? `Префикс ${def.label} убран` : `Префикс ${def.label} добавлен — не забудь сохранить!`, 'info')
+                                }, 100)
+                              }}
+                            >
+                              <BadgeChip id={def.id} />
+                            </button>
+                          ))}
+                        </div>
+                      </label>
+                    </div>
                   </div>
                 )}
 

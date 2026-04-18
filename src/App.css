@@ -1377,6 +1377,9 @@ html {
 .admin-screen {
   display: grid;
   gap: 18px;
+  max-width: 1200px;
+  margin: 0 auto;
+  width: 100%;
 }
 
 .profile-editor-card,
@@ -6826,7 +6829,7 @@ html {
 /* Nav grid — section buttons */
 .admin-nav-grid {
   display: grid;
-  grid-template-columns: 1fr 1fr;
+  grid-template-columns: repeat(3, 1fr);
   gap: 6px;
 }
 
@@ -7065,6 +7068,197 @@ html {
     min-width: 60px;
     padding: 8px 4px;
   }
+}
+
+/* ===== ADMIN 2-COLUMN USER LAYOUT ===== */
+
+.admin-users-layout {
+  display: grid;
+  grid-template-columns: 1fr;
+  gap: 16px;
+}
+
+.admin-users-layout.has-editor {
+  grid-template-columns: 300px 1fr;
+  align-items: start;
+}
+
+.admin-users-left {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  min-width: 0;
+}
+
+.admin-users-right {
+  min-width: 0;
+}
+
+.admin-users-right .admin-user-editor {
+  margin-top: 0;
+}
+
+/* ===== BADGE EDITOR IN ADMIN ===== */
+
+.admin-active-badges {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  margin-bottom: 6px;
+}
+
+.admin-active-badge-row {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  background: rgba(255,255,255,0.04);
+  border-radius: 22px;
+  padding-right: 4px;
+}
+
+.admin-badge-remove-btn {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 18px;
+  height: 18px;
+  border-radius: 50%;
+  border: none;
+  background: rgba(255,80,80,0.15);
+  color: #ff5555;
+  cursor: pointer;
+  flex-shrink: 0;
+  transition: background 0.15s;
+}
+
+.admin-badge-remove-btn:hover {
+  background: rgba(255,80,80,0.3);
+}
+
+.badge-editor-tabs {
+  display: flex;
+  gap: 4px;
+  margin-bottom: 8px;
+  background: rgba(255,255,255,0.04);
+  border-radius: 12px;
+  padding: 3px;
+}
+
+.badge-editor-tab {
+  flex: 1;
+  padding: 6px 12px;
+  border-radius: 9px;
+  border: none;
+  background: transparent;
+  color: var(--muted);
+  font-size: 12px;
+  font-weight: 600;
+  font-family: var(--font-mono);
+  cursor: pointer;
+  transition: all 0.15s;
+}
+
+.badge-editor-tab:hover { color: rgba(255,255,255,0.7); }
+.badge-editor-tab.active {
+  background: rgba(255,255,255,0.1);
+  color: #fff;
+}
+
+/* Custom badge builder */
+.custom-badge-builder {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.custom-badge-preview-row {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 12px 14px;
+  background: rgba(255,255,255,0.03);
+  border-radius: 14px;
+  border: 1px solid rgba(255,255,255,0.06);
+}
+
+.custom-badge-preview-label {
+  font-size: 11px;
+  color: var(--muted);
+  font-family: var(--font-mono);
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+}
+
+.custom-badge-style-grid {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+
+.custom-badge-style-btn {
+  background: none;
+  border: 1px solid transparent;
+  border-radius: 22px;
+  padding: 2px;
+  cursor: pointer;
+  opacity: 0.4;
+  transition: opacity 0.15s, border-color 0.15s, transform 0.15s;
+}
+
+.custom-badge-style-btn:hover { opacity: 0.8; transform: scale(1.05); }
+.custom-badge-style-btn.active {
+  opacity: 1;
+  border-color: rgba(255,255,255,0.3);
+  background: rgba(255,255,255,0.06);
+}
+
+/* Badges catalog overview section */
+.admin-badges-desc {
+  font-size: 12px;
+  color: var(--muted);
+  line-height: 1.5;
+  margin: 0;
+}
+
+.admin-badges-catalog-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));
+  gap: 8px;
+}
+
+.admin-badges-catalog-item {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 10px 12px;
+  border-radius: 14px;
+  background: rgba(255,255,255,0.03);
+  border: 1px solid rgba(255,255,255,0.06);
+}
+
+.admin-badges-catalog-meta {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 0;
+}
+
+.admin-badges-catalog-id {
+  font-size: 11px;
+  font-weight: 700;
+  font-family: var(--font-mono);
+  color: rgba(255,255,255,0.7);
+}
+
+.admin-badges-catalog-css {
+  font-size: 10px;
+  color: var(--muted);
+  font-family: var(--font-mono);
+}
+
+.admin-quick-badge-form {
+  display: grid;
+  gap: 12px;
 }
 
 /* Danger button */
