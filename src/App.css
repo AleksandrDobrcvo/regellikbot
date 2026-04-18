@@ -3878,7 +3878,7 @@ select {
   align-items: center;
   gap: 14px;
   padding: 14px 14px;
-  border: 1px solid rgba(255, 255, 255, 0.05);
+  border: 1px solid transparent;
   border-radius: 18px;
   background: rgba(255, 255, 255, 0.025);
   cursor: pointer;
@@ -3888,17 +3888,17 @@ select {
 }
 
 .conversation-item:hover {
-  background: rgba(185, 255, 59, 0.05);
-  border-color: rgba(185, 255, 59, 0.12);
+  background: rgba(255, 255, 255, 0.05);
+  border-color: rgba(255, 255, 255, 0.08);
   transform: translateX(4px);
-  box-shadow: 0 4px 20px rgba(185, 255, 59, 0.04);
+  box-shadow: 0 4px 20px rgba(0, 0, 0, 0.15);
 }
 
 .conversation-item:active {
   transform: translateX(2px) scale(0.99);
 }
 
-/* New message highlight — flash green border then settle */
+/* New message highlight — green left bar + subtle glow */
 @keyframes newMsgFlash {
   0% {
     border-color: rgba(185, 255, 59, 0.5);
@@ -3906,15 +3906,15 @@ select {
     background: rgba(185, 255, 59, 0.08);
   }
   100% {
-    border-color: rgba(255, 255, 255, 0.05);
+    border-color: rgba(185, 255, 59, 0.15);
     box-shadow: none;
-    background: rgba(255, 255, 255, 0.025);
+    background: rgba(185, 255, 59, 0.03);
   }
 }
 
 .conversation-item.has-unread {
-  border-color: rgba(185, 255, 59, 0.2);
-  background: rgba(185, 255, 59, 0.04);
+  border-left: 3px solid var(--green);
+  background: rgba(185, 255, 59, 0.03);
 }
 
 .convo-avatar {
@@ -3931,7 +3931,7 @@ select {
   font-weight: 700;
   color: var(--green);
   font-family: var(--font-mono);
-  border: 2px solid rgba(185, 255, 59, 0.1);
+  border: none;
   transition: border-color 0.2s;
 }
 
