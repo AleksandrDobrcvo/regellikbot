@@ -7752,9 +7752,72 @@ html {
   animation: zapGlow 2s ease infinite;
 }
 
-.trends-boost-btn.boost-anim svg {
-  animation: boostPop 0.35s ease both;
+/* ===== BOOST BURST PARTICLES ===== */
+
+@keyframes boostRingOut {
+  0%   { transform: scale(0.2); opacity: 0.9; }
+  60%  { opacity: 0.5; }
+  100% { transform: scale(3.5); opacity: 0; }
 }
+
+@keyframes boostRingOut2 {
+  0%   { transform: scale(0.2); opacity: 0.7; }
+  100% { transform: scale(2.4); opacity: 0; }
+}
+
+@keyframes pFly1 { 0% { opacity:1; transform:translate(0,0) scale(1.5) rotate(0deg); }   100% { opacity:0; transform:translate(-28px,-58px) scale(0.3) rotate(-40deg); } }
+@keyframes pFly2 { 0% { opacity:1; transform:translate(0,0) scale(1.6) rotate(0deg); }   100% { opacity:0; transform:translate(2px,-70px) scale(0.25) rotate(20deg); } }
+@keyframes pFly3 { 0% { opacity:1; transform:translate(0,0) scale(1.5) rotate(0deg); }   100% { opacity:0; transform:translate(30px,-55px) scale(0.3) rotate(40deg); } }
+@keyframes pFly4 { 0% { opacity:1; transform:translate(0,0) scale(1.0) rotate(0deg); }   100% { opacity:0; transform:translate(-42px,-38px) scale(0.2) rotate(-60deg); } }
+@keyframes pFly5 { 0% { opacity:1; transform:translate(0,0) scale(1.0) rotate(0deg); }   100% { opacity:0; transform:translate(44px,-35px) scale(0.2) rotate(60deg); } }
+@keyframes pFly6 { 0% { opacity:1; transform:translate(0,0) scale(0.8) rotate(0deg); }   100% { opacity:0; transform:translate(-14px,-82px) scale(0.15) rotate(-20deg); } }
+@keyframes pFly7 { 0% { opacity:1; transform:translate(0,0) scale(0.7) rotate(0deg); }   100% { opacity:0; transform:translate(18px,-78px) scale(0.15) rotate(30deg); } }
+
+.boost-btn-wrap {
+  position: relative;
+  display: inline-flex;
+}
+
+.boost-burst {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.boost-ring {
+  position: absolute;
+  inset: -2px;
+  border-radius: 50%;
+  border: 2px solid #ffc800;
+  animation: boostRingOut 0.6s cubic-bezier(0.15, 0.7, 0.3, 1) both;
+}
+
+.boost-ring.boost-ring-2 {
+  border-color: rgba(255, 180, 0, 0.5);
+  animation: boostRingOut2 0.45s 0.08s cubic-bezier(0.15, 0.7, 0.3, 1) both;
+}
+
+.boost-particle {
+  position: absolute;
+  font-size: 17px;
+  line-height: 1;
+  opacity: 0;
+  animation-duration: 0.72s;
+  animation-fill-mode: both;
+  animation-timing-function: cubic-bezier(0.1, 0.8, 0.28, 1);
+  filter: drop-shadow(0 0 4px #ffc800);
+}
+
+.boost-particle.p1 { animation-name: pFly1; animation-delay: 0.00s; color: #ffc800; font-size: 18px; }
+.boost-particle.p2 { animation-name: pFly2; animation-delay: 0.03s; color: #ffee44; font-size: 20px; }
+.boost-particle.p3 { animation-name: pFly3; animation-delay: 0.01s; color: #ffaa00; font-size: 18px; }
+.boost-particle.p4 { animation-name: pFly4; animation-delay: 0.07s; color: #ffd700; font-size: 14px; }
+.boost-particle.p5 { animation-name: pFly5; animation-delay: 0.06s; color: #ffcc00; font-size: 14px; }
+.boost-particle.p6 { animation-name: pFly6; animation-delay: 0.12s; color: #ffe566; font-size: 12px; }
+.boost-particle.p7 { animation-name: pFly7; animation-delay: 0.10s; color: #ff9900; font-size: 12px; }
 
 .trends-comment-toggle {
   display: flex;

@@ -577,9 +577,8 @@ function App() {
   }
 
   const changeHandle = (value: string) => {
-    const h = normalizeHandle(value)
-    setProfileHandle(h)
-    checkHandleAvailability(h)
+    setProfileHandle(value)
+    checkHandleAvailability(value)
   }
 
   const randomHandle = async () => {
@@ -1253,12 +1252,13 @@ function App() {
     }
   }
 
-  const [boostAnimPosts, setBoostAnimPosts] = useState<Set<string>>(new Set())
+  const [boostBursts, setBoostBursts] = useState<{ id: number; postId: string }[]>([])
 
   const boostPost = async (postId: string) => {
     if (!viewer || !sessionToken) return
-    setBoostAnimPosts(prev => { const s = new Set(prev); s.add(postId); return s })
-    setTimeout(() => setBoostAnimPosts(prev => { const s = new Set(prev); s.delete(postId); return s }), 400)
+    const burstId = Date.now()
+    setBoostBursts(prev => [...prev, { id: burstId, postId }])
+    setTimeout(() => setBoostBursts(prev => prev.filter(b => b.id !== burstId)), 900)
     try {
       const data = await apiRequest<{ post: Post; viewerPowers?: number }>(`/api/posts/${postId}/boost`, {
         method: 'POST',
@@ -2105,14 +2105,25 @@ function App() {
                       <p className="trends-post-text">{post.text}</p>
 
                       <div className="trends-post-actions">
-                        <button
-                          className={`trends-boost-btn${post.boostedByViewer ? ' boosted' : ''}${boostAnimPosts.has(post.id) ? ' boost-anim' : ''}`}
-                          onClick={() => void boostPost(post.id)}
-                          title={post.boostedByViewer ? 'Убрать буст' : 'Бустнуть'}
-                        >
-                          <Zap size={16} />
-                          <span>{post.boosts}</span>
-                        </button>
+                        <div className="boost-btn-wrap">
+                          <button
+                            className={`trends-boost-btn${post.boostedByViewer ? ' boosted' : ''}`}
+                            onClick={() => void boostPost(post.id)}
+                            title={post.boostedByViewer ? 'Убрать буст' : 'Бустнуть'}
+                          >
+                            <Zap size={16} />
+                            <span>{post.boosts}</span>
+                          </button>
+                          {boostBursts.filter(b => b.postId === post.id).map(b => (
+                            <div key={b.id} className="boost-burst">
+                              <div className="boost-ring" />
+                              <div className="boost-ring boost-ring-2" />
+                              {(['p1','p2','p3','p4','p5','p6','p7'] as const).map(p => (
+                                <span key={p} className={`boost-particle ${p}`}>⚡</span>
+                              ))}
+                            </div>
+                          ))}
+                        </div>
                         <button
                           className={expandedPostComments.has(post.id) ? 'trends-comment-toggle active' : 'trends-comment-toggle'}
                           onClick={() => togglePostComments(post.id)}
