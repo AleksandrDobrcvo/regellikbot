@@ -1682,7 +1682,25 @@ app.post('/api/admin/users/update', (request, response) => {
   }
 
   pushAudit(state, 'admin.user.update', viewer.id, target.id, `Обновлён пользователь ${target.handle}.`)
-  sendSystemNotification(state, target.id, 'Ваш профиль был обновлён администратором.')
+
+  // Build detailed notification
+  const changes = []
+  if (payload.name) changes.push(`имя → ${target.name}`)
+  if (payload.handle) changes.push(`хэндл → @${target.handle}`)
+  if ('powers' in payload) changes.push(`энергия → ${target.powers}`)
+  if (payload.city !== undefined) changes.push(`город → ${target.city || '—'}`)
+  if (payload.country !== undefined) changes.push(`страна → ${target.country || '—'}`)
+  if (payload.role) changes.push(`роль → ${target.role}`)
+  if (payload.status) changes.push(`статус → ${target.status}`)
+  if ('isVisible' in payload) changes.push(`видимость → ${target.isVisible ? 'вкл' : 'выкл'}`)
+  if (typeof payload.bio === 'string') changes.push('био обновлено')
+  if (typeof payload.tagline === 'string') changes.push('тэглайн обновлён')
+  if (payload.preferences) changes.push('настройки обновлены')
+
+  const detailText = changes.length > 0
+    ? `Администратор ${viewer.name} (@${viewer.handle}) обновил ваш профиль: ${changes.join(', ')}.`
+    : `Ваш профиль был обновлён администратором ${viewer.name} (@${viewer.handle}).`
+  sendSystemNotification(state, target.id, detailText)
   saveState(state)
   response.json(bootstrapPayload(state, viewer))
 })

@@ -676,16 +676,24 @@ function App() {
     if (data.powerLog) setPowerLog(data.powerLog)
   }
 
-  // Header auto-hide on scroll
+  // Header auto-hide on scroll (with debounce to prevent flicker)
   useEffect(() => {
+    let ticking = false
     const handleScroll = () => {
-      const currentY = window.scrollY
-      if (currentY > lastScrollY.current && currentY > 60) {
-        setHeaderHidden(true)
-      } else {
-        setHeaderHidden(false)
-      }
-      lastScrollY.current = currentY
+      if (ticking) return
+      ticking = true
+      requestAnimationFrame(() => {
+        const currentY = window.scrollY
+        const delta = currentY - lastScrollY.current
+        // Only toggle if scrolled more than 8px to avoid micro-jitter
+        if (delta > 8 && currentY > 80) {
+          setHeaderHidden(true)
+        } else if (delta < -8 || currentY <= 40) {
+          setHeaderHidden(false)
+        }
+        lastScrollY.current = currentY
+        ticking = false
+      })
     }
     window.addEventListener('scroll', handleScroll, { passive: true })
     return () => window.removeEventListener('scroll', handleScroll)
@@ -1761,6 +1769,7 @@ function App() {
                     </button>
                     <button className={activeTab === 'chats' ? 'corner-menu-item active' : 'corner-menu-item'} onClick={() => switchTab('chats', closeMenu)}>
                       <MessageCircle size={16} /> Чаты
+                      {totalUnread > 0 && <span className="menu-badge">{totalUnread}</span>}
                     </button>
                     <button className="corner-menu-item" onClick={() => { switchTab('chats', () => { closeMenu(); setComposeOpen(true) }) }}>
                       <PenSquare size={16} /> Написать
@@ -1770,6 +1779,7 @@ function App() {
                     </button>
                     <button className={activeTab === 'trends' ? 'corner-menu-item active' : 'corner-menu-item'} onClick={() => switchTab('trends', closeMenu)}>
                       <Flame size={16} /> Пульс
+                      {posts.length > 0 && <span className="menu-badge-muted">{posts.length}</span>}
                     </button>
                     <button className={activeTab === 'profile' ? 'corner-menu-item active' : 'corner-menu-item'} onClick={() => switchTab('profile', closeMenu)}>
                       <User size={16} /> Профиль
@@ -3203,12 +3213,11 @@ function App() {
                           {adminBadgeTab === 'custom' && (
                             <div className="custom-badge-builder">
                               <div className="custom-badge-preview-row">
-                                <span className="custom-badge-preview-label">Превью:</span>
                                 <BadgeChip id={`CUSTOM|${customBadgeIcon}|${customBadgeLabel || 'текст'}|${customBadgeCss}`} />
                               </div>
                               <div className="field-grid-2">
-                                <label className="input-block">
-                                  <span>Иконка (emoji/символ)</span>
+                                <label className="input-block compact">
+                                  <span>Иконка</span>
                                   <input
                                     value={customBadgeIcon}
                                     onChange={e => setCustomBadgeIcon(e.target.value)}
@@ -3216,8 +3225,8 @@ function App() {
                                     maxLength={4}
                                   />
                                 </label>
-                                <label className="input-block">
-                                  <span>Текст бейджа</span>
+                                <label className="input-block compact">
+                                  <span>Текст</span>
                                   <input
                                     value={customBadgeLabel}
                                     onChange={e => setCustomBadgeLabel(e.target.value)}
@@ -3226,15 +3235,6 @@ function App() {
                                   />
                                 </label>
                               </div>
-                              <label className="input-block">
-                                <span>Стиль анимации</span>
-                                <select value={customBadgeCss} onChange={e => setCustomBadgeCss(e.target.value)}>
-                                  {BADGE_CATALOG.map(d => (
-                                    <option key={d.id} value={d.cssClass}>{d.icon} {d.label} ({d.cssClass})</option>
-                                  ))}
-                                  <option value="badge-default">— Без анимации</option>
-                                </select>
-                              </label>
                               <div className="custom-badge-style-grid">
                                 {BADGE_CATALOG.map(d => (
                                   <button
@@ -3242,14 +3242,23 @@ function App() {
                                     type="button"
                                     className={`custom-badge-style-btn${customBadgeCss === d.cssClass ? ' active' : ''}`}
                                     onClick={() => setCustomBadgeCss(d.cssClass)}
+                                    title={d.label}
                                   >
                                     <BadgeChip id={d.id} />
                                   </button>
                                 ))}
+                                <button
+                                  type="button"
+                                  className={`custom-badge-style-btn${customBadgeCss === 'badge-default' ? ' active' : ''}`}
+                                  onClick={() => setCustomBadgeCss('badge-default')}
+                                  title="Без анимации"
+                                >
+                                  <span className="profile-badge-chip badge-default"><span className="badge-icon">—</span><span className="badge-label">Без</span></span>
+                                </button>
                               </div>
                               <button
                                 type="button"
-                                className="primary-btn wide"
+                                className="primary-btn compact-btn wide"
                                 disabled={!customBadgeLabel.trim()}
                                 onClick={() => {
                                   const bid = `CUSTOM|${customBadgeIcon || '◆'}|${customBadgeLabel.trim()}|${customBadgeCss}`
@@ -3261,7 +3270,7 @@ function App() {
                                   setCustomBadgeLabel('')
                                 }}
                               >
-                                <Plus size={16} /> Добавить бейдж
+                                <Plus size={14} /> Добавить
                               </button>
                             </div>
                           )}

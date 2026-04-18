@@ -1438,6 +1438,10 @@ html {
   outline: none;
 }
 
+.input-block.compact { gap: 4px; }
+.input-block.compact span { font-size: 10px; }
+.input-block.compact input { padding: 10px 12px; border-radius: 12px; font-size: 13px; }
+
 .input-block textarea {
   min-height: 120px;
   resize: vertical;
@@ -2589,6 +2593,40 @@ html {
   color: #ff6464;
 }
 
+/* Menu notification badges */
+.menu-badge {
+  margin-left: auto;
+  min-width: 20px;
+  height: 20px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 10px;
+  background: #ff4444;
+  color: #fff;
+  font-size: 11px;
+  font-weight: 700;
+  font-family: var(--font-mono);
+  padding: 0 6px;
+  line-height: 1;
+}
+.menu-badge-muted {
+  margin-left: auto;
+  min-width: 20px;
+  height: 20px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 10px;
+  background: rgba(255,255,255,0.08);
+  color: var(--muted);
+  font-size: 11px;
+  font-weight: 600;
+  font-family: var(--font-mono);
+  padding: 0 6px;
+  line-height: 1;
+}
+
 .corner-menu-divider {
   height: 1px;
   background: rgba(255, 255, 255, 0.06);
@@ -3365,9 +3403,6 @@ html {
 
 .page-transition {
   animation: pageIn 0.35s cubic-bezier(0.16, 1, 0.3, 1) both;
-  will-change: transform, opacity;
-  backface-visibility: hidden;
-  -webkit-backface-visibility: hidden;
 }
 
 /* Stagger animation for cards inside pages */
@@ -7177,31 +7212,23 @@ html {
 .custom-badge-builder {
   display: flex;
   flex-direction: column;
-  gap: 12px;
+  gap: 8px;
 }
 
 .custom-badge-preview-row {
   display: flex;
   align-items: center;
-  gap: 10px;
-  padding: 12px 14px;
+  justify-content: center;
+  padding: 8px 10px;
   background: rgba(255,255,255,0.03);
-  border-radius: 14px;
+  border-radius: 12px;
   border: 1px solid rgba(255,255,255,0.06);
-}
-
-.custom-badge-preview-label {
-  font-size: 11px;
-  color: var(--muted);
-  font-family: var(--font-mono);
-  text-transform: uppercase;
-  letter-spacing: 0.06em;
 }
 
 .custom-badge-style-grid {
   display: flex;
   flex-wrap: wrap;
-  gap: 6px;
+  gap: 4px;
 }
 
 .custom-badge-style-btn {
