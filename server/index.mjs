@@ -320,6 +320,41 @@ const defaultState = {
       createdAt: new Date().toISOString(),
     },
   ],
+  posts: [
+    {
+      id: 'post-seed-1',
+      authorId: 'seed-mila',
+      authorName: 'Mila',
+      authorHandle: '@mila',
+      authorAvatarUrl: null,
+      text: 'Привет, Regellik! Это первая запись в ленте — делитесь мыслями и получайте энергию ⚡',
+      createdAt: new Date(Date.now() - 2 * 3600000).toISOString(),
+      boosts: 7,
+      boostedBy: [],
+      comments: [],
+    },
+    {
+      id: 'post-seed-2',
+      authorId: 'seed-sara',
+      authorName: 'Sara',
+      authorHandle: '@sara',
+      authorAvatarUrl: null,
+      text: 'Пишите публично — за каждый буст вы получаете энергию. Чем полезнее пост, тем больше наград.',
+      createdAt: new Date(Date.now() - 5 * 3600000).toISOString(),
+      boosts: 3,
+      boostedBy: [],
+      comments: [
+        {
+          id: 'cmt-seed-1',
+          authorId: 'seed-mila',
+          authorName: 'Mila',
+          authorHandle: '@mila',
+          text: 'Отлично! Буду следить за лентой.',
+          createdAt: new Date(Date.now() - 4 * 3600000).toISOString(),
+        },
+      ],
+    },
+  ],
 }
 
 // --- In-memory state cache (loaded from MongoDB or file on start) ---
@@ -412,6 +447,11 @@ function normalizeState(state) {
   state.conversations = Array.isArray(state.conversations) ? state.conversations : []
   state.chatMessages = Array.isArray(state.chatMessages) ? state.chatMessages : []
   state.sessions = Array.isArray(state.sessions) ? state.sessions : []
+  state.posts = Array.isArray(state.posts) ? state.posts.map(p => ({
+    ...p,
+    boostedBy: Array.isArray(p.boostedBy) ? p.boostedBy : [],
+    comments: Array.isArray(p.comments) ? p.comments : [],
+  })) : []
   return state
 }
 
@@ -790,6 +830,14 @@ function bootstrapPayload(state, viewer) {
     directory: nearbyUsers.map(directoryItem),
     conversations: viewer ? getConversationsForUser(state, viewer.id) : [],
     adminData: viewer?.role === 'admin' ? adminData(state) : null,
+    posts: state.posts
+      .map(p => ({
+        ...p,
+        boostedByViewer: viewer ? p.boostedBy.includes(viewer.id) : false,
+        commentsCount: p.comments.length,
+      }))
+      .sort((a, b) => b.boosts - a.boosts || b.createdAt.localeCompare(a.createdAt))
+      .slice(0, 30),
   }
 }
 
@@ -2179,6 +2227,128 @@ app.post('/api/conversations/:id/messages', (request, response) => {
   // Return updated viewer so client can refresh powers
   const updatedViewer = state.users.find(u => u.id === viewer.id)
   response.json({ message: msg, conversations: getConversationsForUser(state, viewer.id), viewerPowers: updatedViewer?.powers ?? viewer.powers })
+})
+
+// === POSTS / TRENDS API ===
+
+app.get('/api/posts', (request, response) => {
+  const state = readState()
+  const viewer = requireUser(request, response, state)
+  if (!viewer) return
+
+  const sort = String(request.query?.sort || 'top')
+  const mapped = state.posts.map(p => ({
+    ...p,
+    boostedByViewer: p.boostedBy.includes(viewer.id),
+    commentsCount: p.comments.length,
+  }))
+  if (sort === 'new') {
+    mapped.sort((a, b) => b.createdAt.localeCompare(a.createdAt))
+  } else {
+    mapped.sort((a, b) => b.boosts - a.boosts || b.createdAt.localeCompare(a.createdAt))
+  }
+  response.json({ posts: mapped.slice(0, 50) })
+})
+
+app.post('/api/posts', (request, response) => {
+  const state = readState()
+  const viewer = requireUser(request, response, state)
+  if (!viewer) return
+
+  const text = String(request.body?.text || '').trim()
+  if (!text || text.length > 500) {
+    response.status(400).json({ error: 'Текст должен быть от 1 до 500 символов' })
+    return
+  }
+
+  const post = {
+    id: `post-${Date.now()}-${crypto.randomUUID().slice(0, 8)}`,
+    authorId: viewer.id,
+    authorName: viewer.name,
+    authorHandle: viewer.handle,
+    authorAvatarUrl: viewer.avatarUrl || null,
+    text,
+    createdAt: new Date().toISOString(),
+    boosts: 0,
+    boostedBy: [],
+    comments: [],
+  }
+
+  state.posts.unshift(post)
+  if (state.posts.length > 200) state.posts = state.posts.slice(0, 200)
+  saveState(state)
+
+  response.json({ post: { ...post, boostedByViewer: false, commentsCount: 0 } })
+})
+
+app.post('/api/posts/:id/boost', (request, response) => {
+  const state = readState()
+  const viewer = requireUser(request, response, state)
+  if (!viewer) return
+
+  const post = state.posts.find(p => p.id === request.params.id)
+  if (!post) {
+    response.status(404).json({ error: 'Пост не найден' })
+    return
+  }
+
+  if (post.boostedBy.includes(viewer.id)) {
+    post.boostedBy = post.boostedBy.filter(id => id !== viewer.id)
+    post.boosts = Math.max(0, post.boosts - 1)
+    const author = state.users.find(u => u.id === post.authorId)
+    if (author && author.id !== viewer.id) {
+      author.powers = Math.max(0, Math.round((author.powers - 1) * 100) / 100)
+    }
+  } else {
+    post.boostedBy.push(viewer.id)
+    post.boosts++
+    const author = state.users.find(u => u.id === post.authorId)
+    if (author && author.id !== viewer.id) {
+      author.powers = Math.round((author.powers + 1) * 100) / 100
+    }
+  }
+
+  saveState(state)
+  const updatedViewer2 = state.users.find(u => u.id === viewer.id)
+  response.json({
+    post: { ...post, boostedByViewer: post.boostedBy.includes(viewer.id), commentsCount: post.comments.length },
+    viewerPowers: updatedViewer2?.powers ?? viewer.powers,
+  })
+})
+
+app.post('/api/posts/:id/comments', (request, response) => {
+  const state = readState()
+  const viewer = requireUser(request, response, state)
+  if (!viewer) return
+
+  const post = state.posts.find(p => p.id === request.params.id)
+  if (!post) {
+    response.status(404).json({ error: 'Пост не найден' })
+    return
+  }
+
+  const text = String(request.body?.text || '').trim()
+  if (!text || text.length > 300) {
+    response.status(400).json({ error: 'Комментарий должен быть от 1 до 300 символов' })
+    return
+  }
+
+  const comment = {
+    id: `cmt-${Date.now()}-${crypto.randomUUID().slice(0, 8)}`,
+    authorId: viewer.id,
+    authorName: viewer.name,
+    authorHandle: viewer.handle,
+    text,
+    createdAt: new Date().toISOString(),
+  }
+
+  post.comments.push(comment)
+  saveState(state)
+
+  response.json({
+    comment,
+    post: { ...post, boostedByViewer: post.boostedBy.includes(viewer.id), commentsCount: post.comments.length },
+  })
 })
 
 // === RADAR API ===

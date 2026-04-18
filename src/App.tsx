@@ -13,6 +13,7 @@ import {
   DollarSign,
   Eye,
   EyeOff,
+  Flame,
   Hash,
   Home,
   LogOut,
@@ -20,6 +21,7 @@ import {
   MapPin,
   Menu,
   MessageCircle,
+  MessageSquare,
   Monitor,
   PenSquare,
   Plus,
@@ -33,6 +35,7 @@ import {
   Snowflake,
   Sparkles,
   Timer,
+  TrendingUp,
   User,
   UserCog,
   Users,
@@ -42,7 +45,7 @@ import {
 } from 'lucide-react'
 import './App.css'
 
-type TabId = 'feed' | 'home' | 'chats' | 'profile' | 'transactions' | 'admin' | 'radar' | 'settings'
+type TabId = 'feed' | 'home' | 'chats' | 'profile' | 'transactions' | 'admin' | 'radar' | 'settings' | 'trends'
 type AuthProvider = 'email'
 type LocationState = 'idle' | 'loading' | 'granted' | 'denied'
 type ToastTone = 'success' | 'error' | 'info'
@@ -133,6 +136,29 @@ type FeedMessage = {
   longitude: number | null
   text: string
   createdAt: string
+}
+
+type PostComment = {
+  id: string
+  authorId: string
+  authorName: string
+  authorHandle: string
+  text: string
+  createdAt: string
+}
+
+type Post = {
+  id: string
+  authorId: string
+  authorName: string
+  authorHandle: string
+  authorAvatarUrl: string | null
+  text: string
+  createdAt: string
+  boosts: number
+  boostedByViewer: boolean
+  commentsCount: number
+  comments: PostComment[]
 }
 
 type InboxMessage = {
@@ -226,6 +252,7 @@ type BootstrapResponse = {
   conversations: ConversationPreview[]
   siteSettings: SiteSettings
   adminData: AdminData | null
+  posts?: Post[]
 }
 
 type AuthResponse = {
@@ -406,6 +433,14 @@ function App() {
   const [radarUsers, setRadarUsers] = useState<RadarUser[]>([])
   const [isRadarLoading, setIsRadarLoading] = useState(false)
 
+  // Trends / Posts state
+  const [posts, setPosts] = useState<Post[]>([])
+  const [trendsSort, setTrendsSort] = useState<'top' | 'new'>('top')
+  const [newPostText, setNewPostText] = useState('')
+  const [isCreatingPost, setIsCreatingPost] = useState(false)
+  const [expandedPostComments, setExpandedPostComments] = useState<Set<string>>(new Set())
+  const [commentTexts, setCommentTexts] = useState<Record<string, string>>({})
+
   // Top-up modal
   const [topUpOpen, setTopUpOpen] = useState(false)
 
@@ -564,6 +599,7 @@ function App() {
     setSiteSettings(data.siteSettings)
     setAdminUsers(data.adminData?.users ?? [])
     setAuditLog(data.adminData?.auditLog ?? [])
+    if (data.posts) setPosts(data.posts)
   }
 
   // Header auto-hide on scroll
@@ -1169,8 +1205,8 @@ function App() {
     }
   }
 
-  const updateProfile = async (event: FormEvent<HTMLFormElement>) => {
-    event.preventDefault()
+  const updateProfile = async (event?: FormEvent<HTMLFormElement>) => {
+    if (event) event.preventDefault()
 
     if (!viewer || !sessionToken) {
       showToast('Сначала войди в аккаунт', 'info')
@@ -1196,6 +1232,77 @@ function App() {
       setIsSavingProfile(false)
     }
   }
+
+  const saveProfile = () => void updateProfile()
+
+  const createPost = async () => {
+    if (!viewer || !sessionToken || !newPostText.trim()) return
+    setIsCreatingPost(true)
+    try {
+      const data = await apiRequest<{ post: Post }>('/api/posts', {
+        method: 'POST',
+        body: JSON.stringify({ text: newPostText.trim() }),
+      }, sessionToken)
+      setPosts(prev => [data.post, ...prev])
+      setNewPostText('')
+      showToast('Опубликовано!', 'success')
+    } catch (error) {
+      showToast(error instanceof Error ? error.message : 'Не удалось опубликовать', 'error')
+    } finally {
+      setIsCreatingPost(false)
+    }
+  }
+
+  const boostPost = async (postId: string) => {
+    if (!viewer || !sessionToken) return
+    try {
+      const data = await apiRequest<{ post: Post; viewerPowers?: number }>(`/api/posts/${postId}/boost`, {
+        method: 'POST',
+      }, sessionToken)
+      setPosts(prev => prev.map(p => p.id === postId ? { ...p, ...data.post } : p))
+      if (data.viewerPowers !== undefined) {
+        setViewer(prev => prev ? { ...prev, powers: data.viewerPowers! } : prev)
+      }
+    } catch (error) {
+      showToast(error instanceof Error ? error.message : 'Ошибка', 'error')
+    }
+  }
+
+  const addComment = async (postId: string) => {
+    if (!viewer || !sessionToken) return
+    const text = commentTexts[postId]?.trim()
+    if (!text) return
+    try {
+      const data = await apiRequest<{ comment: PostComment; post: Post }>(`/api/posts/${postId}/comments`, {
+        method: 'POST',
+        body: JSON.stringify({ text }),
+      }, sessionToken)
+      setPosts(prev => prev.map(p =>
+        p.id === postId
+          ? { ...p, ...data.post, comments: [...p.comments, data.comment] }
+          : p
+      ))
+      setCommentTexts(prev => ({ ...prev, [postId]: '' }))
+    } catch (error) {
+      showToast(error instanceof Error ? error.message : 'Ошибка', 'error')
+    }
+  }
+
+  const togglePostComments = (postId: string) => {
+    setExpandedPostComments(prev => {
+      const next = new Set(prev)
+      if (next.has(postId)) next.delete(postId)
+      else next.add(postId)
+      return next
+    })
+  }
+
+  const sortedPosts = useMemo(() => {
+    if (trendsSort === 'new') {
+      return [...posts].sort((a, b) => b.createdAt.localeCompare(a.createdAt))
+    }
+    return [...posts].sort((a, b) => b.boosts - a.boosts || b.createdAt.localeCompare(a.createdAt))
+  }, [posts, trendsSort])
 
   const handleAvatarUpload = async (event: React.ChangeEvent<HTMLInputElement>) => {
     const file = event.target.files?.[0]
@@ -1548,6 +1655,9 @@ function App() {
                     <button className={activeTab === 'radar' ? 'corner-menu-item active' : 'corner-menu-item'} onClick={() => switchTab('radar', () => { void loadRadar(); closeMenu() })}>
                       <Radar size={16} /> Радар
                     </button>
+                    <button className={activeTab === 'trends' ? 'corner-menu-item active' : 'corner-menu-item'} onClick={() => switchTab('trends', closeMenu)}>
+                      <Flame size={16} /> Тренды
+                    </button>
                     <button className={activeTab === 'profile' ? 'corner-menu-item active' : 'corner-menu-item'} onClick={() => switchTab('profile', closeMenu)}>
                       <User size={16} /> Профиль
                     </button>
@@ -1664,6 +1774,11 @@ function App() {
                     <MessageCircle size={24} />
                     <strong>Чаты</strong>
                     <span>Сообщения</span>
+                  </button>
+                  <button className="home-nav-btn" onClick={() => switchTab('trends')}>
+                    <Flame size={24} />
+                    <strong>Тренды</strong>
+                    <span>Публичные посты</span>
                   </button>
                   <button className="home-nav-btn" onClick={() => switchTab('radar', () => void loadRadar())}>
                     <Radar size={24} />
@@ -1898,10 +2013,151 @@ function App() {
               </section>
             )}
 
+            {/* --- ТРЕНДЫ --- */}
+            {activeTab === 'trends' && viewer && (
+              <section className="trends-screen page-transition">
+                <div className="trends-header">
+                  <div className="trends-header-left">
+                    <Flame size={20} className="trends-header-icon" />
+                    <h2>Тренды</h2>
+                  </div>
+                  <div className="trends-sort-tabs">
+                    <button
+                      className={trendsSort === 'top' ? 'trends-sort-btn active' : 'trends-sort-btn'}
+                      onClick={() => setTrendsSort('top')}
+                    >
+                      <TrendingUp size={14} /> Топ
+                    </button>
+                    <button
+                      className={trendsSort === 'new' ? 'trends-sort-btn active' : 'trends-sort-btn'}
+                      onClick={() => setTrendsSort('new')}
+                    >
+                      <Zap size={14} /> Новые
+                    </button>
+                  </div>
+                </div>
+
+                {/* Composer */}
+                <div className="trends-composer">
+                  <div className="trends-composer-avatar">
+                    {viewer.avatarUrl
+                      ? <img src={viewer.avatarUrl} alt="" />
+                      : <span>{viewer.name[0]}</span>
+                    }
+                  </div>
+                  <div className="trends-composer-body">
+                    <textarea
+                      className="trends-composer-input"
+                      value={newPostText}
+                      onChange={(e) => setNewPostText(e.target.value)}
+                      placeholder="Поделись мыслью — получи ⚡ за бусты..."
+                      rows={3}
+                      maxLength={500}
+                    />
+                    <div className="trends-composer-footer">
+                      <span className={newPostText.length > 450 ? 'trends-char-counter warn' : 'trends-char-counter'}>
+                        {newPostText.length}/500
+                      </span>
+                      <button
+                        className="primary-btn compact-btn"
+                        onClick={() => void createPost()}
+                        disabled={isCreatingPost || !newPostText.trim()}
+                      >
+                        <Send size={14} />
+                        {isCreatingPost ? '...' : 'Опубликовать'}
+                      </button>
+                    </div>
+                  </div>
+                </div>
+
+                {/* Feed */}
+                <div className="trends-feed">
+                  {sortedPosts.length === 0 && (
+                    <div className="trends-empty">
+                      <Flame size={40} />
+                      <p>Лента пуста</p>
+                      <span>Будь первым — опубликуй пост!</span>
+                    </div>
+                  )}
+                  {sortedPosts.map((post, idx) => (
+                    <article key={post.id} className="trends-post-card">
+                      {trendsSort === 'top' && idx < 3 && (
+                        <div className={`trends-rank rank-${idx + 1}`}>#{idx + 1}</div>
+                      )}
+                      <div className="trends-post-header">
+                        <div className="trends-post-avatar">
+                          {post.authorAvatarUrl
+                            ? <img src={post.authorAvatarUrl} alt="" />
+                            : <span>{post.authorName[0]}</span>
+                          }
+                        </div>
+                        <div className="trends-post-meta">
+                          <strong>{post.authorName}</strong>
+                          <span>{post.authorHandle}</span>
+                        </div>
+                        <small className="trends-post-time">{formatRelativeTime(post.createdAt)}</small>
+                      </div>
+
+                      <p className="trends-post-text">{post.text}</p>
+
+                      <div className="trends-post-actions">
+                        <button
+                          className={post.boostedByViewer ? 'trends-boost-btn boosted' : 'trends-boost-btn'}
+                          onClick={() => void boostPost(post.id)}
+                          title={post.boostedByViewer ? 'Убрать буст' : 'Бустнуть'}
+                        >
+                          <Zap size={16} />
+                          <span>{post.boosts}</span>
+                        </button>
+                        <button
+                          className={expandedPostComments.has(post.id) ? 'trends-comment-toggle active' : 'trends-comment-toggle'}
+                          onClick={() => togglePostComments(post.id)}
+                        >
+                          <MessageSquare size={16} />
+                          <span>{post.commentsCount || post.comments.length}</span>
+                        </button>
+                      </div>
+
+                      {expandedPostComments.has(post.id) && (
+                        <div className="trends-comments-section">
+                          {post.comments.map(cmt => (
+                            <div key={cmt.id} className="trends-comment-item">
+                              <div className="trends-comment-author">
+                                <strong>{cmt.authorName}</strong>
+                                <span>{cmt.authorHandle}</span>
+                                <small>{formatRelativeTime(cmt.createdAt)}</small>
+                              </div>
+                              <p>{cmt.text}</p>
+                            </div>
+                          ))}
+                          <div className="trends-comment-input-row">
+                            <input
+                              value={commentTexts[post.id] || ''}
+                              onChange={(e) => setCommentTexts(prev => ({ ...prev, [post.id]: e.target.value }))}
+                              placeholder="Оставить комментарий..."
+                              maxLength={300}
+                              onKeyDown={(e) => { if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); void addComment(post.id) } }}
+                            />
+                            <button
+                              className="trends-send-comment-btn"
+                              onClick={() => void addComment(post.id)}
+                              disabled={!commentTexts[post.id]?.trim()}
+                            >
+                              <Send size={14} />
+                            </button>
+                          </div>
+                        </div>
+                      )}
+                    </article>
+                  ))}
+                </div>
+              </section>
+            )}
+
             {/* --- ПРОФИЛЬ --- */}
             {activeTab === 'profile' && viewer && (
               <section className="profile-screen deep-profile-screen page-transition">
-                {/* Компактная карточка профиля */}
+                {/* Герой — аватар + inline-редактирование */}
                 <article className="panel-card profile-hero compact-hero">
                   <div className="profile-hero-main">
                     <div className="profile-avatar-large avatar-upload-wrap">
@@ -1916,13 +2172,61 @@ function App() {
                         </button>
                       )}
                     </div>
-                    <div className="profile-hero-info">
-                      <h2>{viewer.name}</h2>
-                      <div className="profile-subline">
-                        <span>{viewer.handle}</span>
+                    <div className="profile-hero-edit">
+                      <input
+                        className="hero-name-input"
+                        value={profileName}
+                        onChange={(e) => setProfileName(e.target.value)}
+                        placeholder="Имя"
+                        disabled={!siteSettings.profileEditEnabled}
+                      />
+                      <div className="hero-handle-row">
+                        <input
+                          className="hero-handle-input"
+                          value={profileHandle}
+                          onChange={(e) => changeHandle(e.target.value)}
+                          placeholder="@handle"
+                          disabled={!siteSettings.profileEditEnabled}
+                        />
+                        <button type="button" className="handle-dice-btn hero-dice" onClick={randomHandle} title="Случайный ник">
+                          <Dices size={14} />
+                        </button>
                       </div>
+                      {handleStatus !== 'idle' && (
+                        <div className={`handle-status ${handleStatus}`}>
+                          {handleStatus === 'checking' && '● проверяю...'}
+                          {handleStatus === 'available' && '● свободен'}
+                          {handleStatus === 'taken' && '● занят'}
+                        </div>
+                      )}
                     </div>
                   </div>
+
+                  <textarea
+                    className="hero-bio-input"
+                    value={profileBio}
+                    onChange={(e) => setProfileBio(e.target.value)}
+                    placeholder="О себе..."
+                    rows={2}
+                    disabled={!siteSettings.profileEditEnabled}
+                  />
+
+                  {(profileName !== viewer.name || profileHandle !== viewer.handle || profileBio !== (viewer.bio || '')) && siteSettings.profileEditEnabled && (
+                    <div className="hero-save-row">
+                      <button className="primary-btn compact-btn" onClick={saveProfile} disabled={isSavingProfile}>
+                        <Save size={14} />
+                        {isSavingProfile ? '...' : 'Сохранить'}
+                      </button>
+                      <button className="secondary-btn compact-btn" type="button" onClick={() => {
+                        setProfileName(viewer.name)
+                        setProfileHandle(viewer.handle)
+                        setProfileBio(viewer.bio || '')
+                      }}>
+                        Отмена
+                      </button>
+                    </div>
+                  )}
+
                   <div className="profile-quick-stats">
                     <div><strong>{viewer.stats.sent}</strong><span>отправлено</span></div>
                     <div><strong>{viewer.stats.received}</strong><span>получено</span></div>
@@ -1982,41 +2286,6 @@ function App() {
                     </div>
                   </div>
                 </article>
-
-                {/* Редактирование профиля */}
-                <form className="panel-card profile-editor-card compact-editor" onSubmit={updateProfile}>
-                  <div className="panel-head compact-head">
-                    <span className="eyebrow"># редактирование</span>
-                    <button className="primary-btn compact-btn" type="submit" disabled={isSavingProfile || !siteSettings.profileEditEnabled}>
-                      <Save size={14} />
-                      {isSavingProfile ? '...' : 'Сохранить'}
-                    </button>
-                  </div>
-                  <div className="field-grid-2">
-                    <label className="input-block">
-                      <span>Имя</span>
-                      <input value={profileName} onChange={(event) => setProfileName(event.target.value)} />
-                    </label>
-                    <div className="input-block handle-block">
-                      <span>Юзернейм</span>
-                      <div className="handle-row">
-                        <input value={profileHandle} onChange={(event) => changeHandle(event.target.value)} />
-                        <button type="button" className="handle-dice-btn" onClick={randomHandle} title="Случайный ник">
-                          <Dices size={16} />
-                        </button>
-                      </div>
-                      <div className={`handle-status ${handleStatus}`}>
-                        {handleStatus === 'checking' && '● проверяю...'}
-                        {handleStatus === 'available' && '● свободен'}
-                        {handleStatus === 'taken' && '● занят'}
-                      </div>
-                    </div>
-                  </div>
-                  <label className="input-block">
-                    <span>О себе</span>
-                    <textarea value={profileBio} onChange={(event) => setProfileBio(event.target.value)} rows={2} />
-                  </label>
-                </form>
 
                 {/* Инфо */}
                 <article className="panel-card profile-meta-card">
