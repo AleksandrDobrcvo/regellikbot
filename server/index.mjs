@@ -742,6 +742,7 @@ function publicUser(user) {
     referredBy: user.referredBy,
     ban: user.ban || null,
     powerLog: Array.isArray(user.powerLog) ? user.powerLog.slice(0, 50) : [],
+    profileViews: user.profileViews || 0,
   }
 }
 
@@ -1940,6 +1941,63 @@ app.post('/api/admin/broadcast', (request, response) => {
   pushAudit(state, 'admin.broadcast', viewer.id, null, `Рассылка "${messageText.slice(0, 60)}..."${targetIds ? ` (выборочно ${sent} из ${targetIds.length})` : ` — ${sent} пользователей`}.`)
   saveState(state)
   response.json({ ok: true, sent })
+})
+
+// --- Admin delete post ---
+app.delete('/api/admin/posts/:postId', (request, response) => {
+  const state = readState()
+  const viewer = requireAdmin(request, response, state)
+  if (!viewer) return
+
+  const { postId } = request.params
+  const idx = state.posts.findIndex(p => p.id === postId)
+  if (idx === -1) {
+    response.status(404).json({ error: 'Пост не найден' })
+    return
+  }
+  const post = state.posts[idx]
+  state.posts.splice(idx, 1)
+  // Remove comments for this post
+  state.chatMessages = (state.chatMessages || []).filter(m => m.conversationId !== postId)
+  pushAudit(state, 'admin.deletePost', viewer.id, post.authorId, `Удалён пост "${(post.text || '').slice(0, 60)}..."`)
+  saveState(state)
+  response.json({ ok: true })
+})
+
+// --- Public user profile ---
+app.get('/api/users/:userId/public', (request, response) => {
+  const state = readState()
+  const token = getBearerToken(request)
+  const session = state.sessions.find(s => s.token === token)
+  if (!session) {
+    response.status(401).json({ error: 'Unauthorized' })
+    return
+  }
+  const target = state.users.find(u => u.id === request.params.userId)
+  if (!target) {
+    response.status(404).json({ error: 'Пользователь не найден' })
+    return
+  }
+  // Increment profile views if not self
+  if (target.id !== session.userId) {
+    target.profileViews = (target.profileViews || 0) + 1
+    saveState(state)
+  }
+  response.json({
+    user: {
+      id: target.id,
+      name: target.name,
+      handle: target.handle,
+      bio: target.bio,
+      avatarUrl: target.avatarUrl,
+      badges: target.badges || [],
+      powers: target.powers,
+      city: target.city,
+      country: target.country,
+      joinedAt: target.joinedAt,
+      profileViews: target.profileViews || 0,
+    }
+  })
 })
 
 app.post('/api/session/logout', (request, response) => {

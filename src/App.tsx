@@ -37,6 +37,7 @@ import {
   Snowflake,
   Sparkles,
   Timer,
+  Trash2,
   TrendingUp,
   User,
   UserCog,
@@ -539,6 +540,10 @@ function App() {
   const [customBadgeIcon, setCustomBadgeIcon] = useState('◆')
   const [customBadgeLabel, setCustomBadgeLabel] = useState('')
   const [customBadgeCss, setCustomBadgeCss] = useState('badge-vip')
+
+  // Profile viewer (for admins)
+  const [viewedProfile, setViewedProfile] = useState<AdminManagedUser | null>(null)
+  const [viewProfileOpen, setViewProfileOpen] = useState(false)
 
   // Ban management
   const [banUserId, setBanUserId] = useState('')
@@ -1355,6 +1360,27 @@ function App() {
     }
   }
 
+  const adminDeletePost = async (postId: string) => {
+    if (!sessionToken) return
+    try {
+      await apiRequest(`/api/admin/posts/${postId}`, { method: 'DELETE' }, sessionToken)
+      setPosts(prev => prev.filter(p => p.id !== postId))
+    } catch (error) {
+      showToast(error instanceof Error ? error.message : 'Ошибка удаления', 'error')
+    }
+  }
+
+  const openUserProfile = async (userId: string) => {
+    if (!sessionToken) return
+    try {
+      const data = await apiRequest<{ user: AdminManagedUser }>(`/api/users/${userId}/public`, {}, sessionToken)
+      setViewedProfile(data.user)
+      setViewProfileOpen(true)
+    } catch (error) {
+      showToast(error instanceof Error ? error.message : 'Ошибка', 'error')
+    }
+  }
+
   const addComment = async (postId: string) => {
     if (!viewer || !sessionToken) return
     const text = commentTexts[postId]?.trim()
@@ -1743,7 +1769,7 @@ function App() {
                       <Radar size={16} /> Радар
                     </button>
                     <button className={activeTab === 'trends' ? 'corner-menu-item active' : 'corner-menu-item'} onClick={() => switchTab('trends', closeMenu)}>
-                      <Flame size={16} /> Тренды
+                      <Flame size={16} /> Пульс
                     </button>
                     <button className={activeTab === 'profile' ? 'corner-menu-item active' : 'corner-menu-item'} onClick={() => switchTab('profile', closeMenu)}>
                       <User size={16} /> Профиль
@@ -1864,7 +1890,7 @@ function App() {
                   </button>
                   <button className="home-nav-btn" onClick={() => switchTab('trends')}>
                     <Flame size={24} />
-                    <strong>Тренды</strong>
+                    <strong>Пульс</strong>
                     <span>Публичные посты</span>
                   </button>
                   <button className="home-nav-btn" onClick={() => switchTab('radar', () => void loadRadar())}>
@@ -2100,13 +2126,13 @@ function App() {
               </section>
             )}
 
-            {/* --- ТРЕНДЫ --- */}
+            {/* --- ПУЛЬС --- */}
             {activeTab === 'trends' && viewer && (
               <section className="trends-screen page-transition">
                 <div className="trends-header">
                   <div className="trends-header-left">
                     <Flame size={20} className="trends-header-icon" />
-                    <h2>Тренды</h2>
+                    <h2>Пульс</h2>
                   </div>
                   <div className="trends-sort-tabs">
                     <button
@@ -2177,7 +2203,10 @@ function App() {
                         </div>
                         <div className="trends-post-meta">
                           <div className="trends-post-name-row">
-                            <strong>{post.authorName}</strong>
+                            <strong
+                              className={isAdmin ? 'clickable-author' : ''}
+                              onClick={isAdmin ? () => void openUserProfile(post.authorId) : undefined}
+                            >{post.authorName}</strong>
                             {post.authorBadges && post.authorBadges.slice(0,2).map(b => <BadgeChip key={b} id={b} />)}
                           </div>
                           <span>{post.authorHandle}</span>
@@ -2217,6 +2246,11 @@ function App() {
                           <MessageSquare size={16} />
                           <span>{post.commentsCount || post.comments.length}</span>
                         </button>
+                        {isAdmin && (
+                          <button className="post-admin-delete-btn" onClick={() => void adminDeletePost(post.id)}>
+                            <Trash2 size={14} /> Удалить
+                          </button>
+                        )}
                       </div>
 
                       {expandedPostComments.has(post.id) && (
@@ -2332,6 +2366,7 @@ function App() {
                     <div><strong>{viewer.stats.sent}</strong><span>отправлено</span></div>
                     <div><strong>{viewer.stats.received}</strong><span>получено</span></div>
                     <div><strong>{viewer.powers}</strong><span>энергия</span></div>
+                    <div><strong><Eye size={12} /> {(viewer as any).profileViews || 0}</strong><span>просмотров</span></div>
                   </div>
 
                   {viewer.badges.length > 0 && (
@@ -3562,6 +3597,43 @@ function App() {
           <span className="dev-dot" />
           <span>DEV TG @PALMARON</span>
         </a>
+      )}
+
+      {/* Profile viewer overlay */}
+      {viewProfileOpen && viewedProfile && (
+        <div className="profile-sheet-overlay" onClick={() => setViewProfileOpen(false)}>
+          <div className="profile-sheet" onClick={e => e.stopPropagation()}>
+            <button className="profile-sheet-close" onClick={() => setViewProfileOpen(false)}>
+              <X size={20} />
+            </button>
+            <div className="profile-sheet-header">
+              <div className="profile-sheet-avatar">
+                {viewedProfile.avatarUrl
+                  ? <img src={viewedProfile.avatarUrl} alt="" />
+                  : <span>{(viewedProfile.name || '?')[0]}</span>
+                }
+              </div>
+              <h3>{viewedProfile.name}</h3>
+              {viewedProfile.handle && <span className="profile-sheet-handle">@{viewedProfile.handle}</span>}
+              {viewedProfile.badges && viewedProfile.badges.length > 0 && (
+                <div className="profile-sheet-badges">
+                  {viewedProfile.badges.map((b: string) => <BadgeChip key={b} id={b} />)}
+                </div>
+              )}
+            </div>
+            {viewedProfile.bio && <p className="profile-sheet-bio">{viewedProfile.bio}</p>}
+            <div className="profile-sheet-stats">
+              {viewedProfile.city && (
+                <div className="profile-sheet-stat"><MapPin size={14} /> {viewedProfile.city}</div>
+              )}
+              <div className="profile-sheet-stat"><Eye size={14} /> {(viewedProfile as any).profileViews || 0} просмотров</div>
+              <div className="profile-sheet-stat"><Zap size={14} /> {viewedProfile.powers ?? 0} Power</div>
+            </div>
+            <button className="profile-sheet-write-btn" disabled>
+              <MessageCircle size={16} /> Написать (бета)
+            </button>
+          </div>
+        </div>
       )}
     </div>
   )
