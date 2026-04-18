@@ -6,6 +6,7 @@ import {
   BadgeCheck,
   Ban,
   Bell,
+  Camera,
   ChevronDown,
   Copy,
   DollarSign,
@@ -331,10 +332,10 @@ function getToastEmoji(tone: ToastTone) {
   }
 
   if (tone === 'error') {
-    return '⚠️'
+    return '!'
   }
 
-  return '💡'
+  return '•'
 }
 
 function getNotifIcon(type: NotificationItem['type']) {
@@ -391,6 +392,7 @@ function App() {
   const [resolvedLocation, setResolvedLocation] = useState<ResolvedLocation | null>(null)
   const [isLoading, setIsLoading] = useState(true)
   const [isSavingProfile, setIsSavingProfile] = useState(false)
+  const [isUploadingAvatar, setIsUploadingAvatar] = useState(false)
   const [isSavingSite, setIsSavingSite] = useState(false)
   const [isSavingAdminUser, setIsSavingAdminUser] = useState(false)
   const [isGrantingAdmin, setIsGrantingAdmin] = useState(false)
@@ -902,7 +904,7 @@ function App() {
     else if (/iphone|ipad/i.test(ua)) os = 'iOS'
     else if (/linux/i.test(ua)) os = 'Linux'
     const prefix = isTelegram ? 'Telegram • ' : ''
-    return `${prefix}${browser}${os ? ' • ' + os : ''}${isMobile ? ' 📱' : ' 🖥️'}`
+    return `${prefix}${browser}${os ? ' • ' + os : ''}${isMobile ? '' : ''}`
   }
 
   // === MESSENGER FUNCTIONS ===
@@ -1125,6 +1127,45 @@ function App() {
       showToast(error instanceof Error ? error.message : 'Не удалось сохранить профиль', 'error')
     } finally {
       setIsSavingProfile(false)
+    }
+  }
+
+  const handleAvatarUpload = async (event: React.ChangeEvent<HTMLInputElement>) => {
+    const file = event.target.files?.[0]
+    if (!file || !sessionToken) return
+
+    if (!file.type.match(/^image\/(png|jpeg|webp|gif)$/)) {
+      showToast('Допускается PNG, JPEG, WebP или GIF', 'error')
+      return
+    }
+    if (file.size > 256 * 1024) {
+      showToast('Файл слишком большой (макс. 256 КБ)', 'error')
+      return
+    }
+
+    setIsUploadingAvatar(true)
+    try {
+      const dataUrl = await new Promise<string>((resolve, reject) => {
+        const reader = new FileReader()
+        reader.onload = () => resolve(reader.result as string)
+        reader.onerror = reject
+        reader.readAsDataURL(file)
+      })
+
+      const result = await apiRequest<{ ok: boolean; avatarUrl: string }>('/api/profile/avatar', {
+        method: 'POST',
+        body: JSON.stringify({ avatar: dataUrl }),
+      }, sessionToken)
+
+      if (result.avatarUrl && viewer) {
+        setViewer({ ...viewer, avatarUrl: result.avatarUrl })
+      }
+      showToast('Аватар обновлён', 'success')
+    } catch (error) {
+      showToast(error instanceof Error ? error.message : 'Не удалось загрузить аватар', 'error')
+    } finally {
+      setIsUploadingAvatar(false)
+      event.target.value = ''
     }
   }
 
@@ -1587,7 +1628,7 @@ function App() {
                   <div className="chats-empty">
                     <MessageCircle size={40} />
                     <p>Пока нет чатов</p>
-                    <span>Нажми кнопку ✏️ чтобы начать разговор</span>
+                    <span>Нажми кнопку нового чата чтобы начать разговор</span>
                   </div>
                 )}
 
@@ -1775,8 +1816,12 @@ function App() {
                 {/* Компактная карточка профиля */}
                 <article className="panel-card profile-hero compact-hero">
                   <div className="profile-hero-main">
-                    <div className="profile-avatar-large">
+                    <div className="profile-avatar-large avatar-upload-wrap">
                       {viewer.avatarUrl ? <img src={viewer.avatarUrl} alt={viewer.name} /> : <span>{viewer.name[0]}</span>}
+                      <label className="avatar-upload-overlay" title="Загрузить аватар">
+                        <Camera size={20} />
+                        <input type="file" accept="image/png,image/jpeg,image/webp,image/gif" onChange={handleAvatarUpload} hidden disabled={isUploadingAvatar} />
+                      </label>
                     </div>
                     <div className="profile-hero-info">
                       <h2>{viewer.name}</h2>
@@ -1856,7 +1901,7 @@ function App() {
                 {/* Редактирование профиля */}
                 <form className="panel-card profile-editor-card compact-editor" onSubmit={updateProfile}>
                   <div className="panel-head compact-head">
-                    <span className="eyebrow">✏️ редактирование</span>
+                    <span className="eyebrow"># редактирование</span>
                     <button className="primary-btn compact-btn" type="submit" disabled={isSavingProfile || !siteSettings.profileEditEnabled}>
                       <Save size={14} />
                       {isSavingProfile ? '...' : 'Сохранить'}
@@ -1885,7 +1930,7 @@ function App() {
                 {/* Рефералы */}
                 <article className="panel-card referral-card compact-referral">
                   <div className="panel-head compact-head">
-                    <span className="eyebrow">🔗 рефералы</span>
+                    <span className="eyebrow"># рефералы</span>
                   </div>
                   <p className="referral-desc">Приглашай друзей — статистика обновляется автоматически.</p>
                   {viewer.referralCode && (
@@ -1943,7 +1988,7 @@ function App() {
                 <article className="panel-card">
                   <div className="panel-head">
                     <div>
-                      <span className="eyebrow">💰 баланс</span>
+                      <span className="eyebrow"># баланс</span>
                       <h2>Энергия ⚡</h2>
                     </div>
                   </div>
@@ -1993,7 +2038,7 @@ function App() {
                         ))}
                       </div>
                       <div className="topup-note">
-                        <span>💡 Оплата скоро станет доступна. Следи за обновлениями!</span>
+                        <span># Оплата скоро станет доступна. Следи за обновлениями!</span>
                       </div>
                     </div>
                   )}
@@ -2169,7 +2214,7 @@ function App() {
                 {/* Информация */}
                 <article className="panel-card settings-card">
                   <div className="panel-head compact-head">
-                    <span className="eyebrow">ℹ️ информация</span>
+                    <span className="eyebrow"># информация</span>
                   </div>
                   <div className="settings-info-rows">
                     <div className="meta-row">
@@ -2255,7 +2300,7 @@ function App() {
                 {adminSection === 'economy' && (
                   <form className="admin-expand-panel" onSubmit={saveSiteSettings}>
                     <div className="admin-expand-head">
-                      <span>💰 Настройки экономики</span>
+                      <span># Настройки экономики</span>
                       <button className="primary-btn compact-btn" type="submit" disabled={isSavingSite}>
                         <Save size={14} /> {isSavingSite ? '...' : 'Сохранить'}
                       </button>
@@ -2281,7 +2326,7 @@ function App() {
                 {adminSection === 'site' && (
                   <form className="admin-expand-panel" onSubmit={saveSiteSettings}>
                     <div className="admin-expand-head">
-                      <span>⚙️ Настройки сайта</span>
+                      <span># Настройки сайта</span>
                       <button className="primary-btn compact-btn" type="submit" disabled={isSavingSite}>
                         <Save size={14} /> {isSavingSite ? '...' : 'Сохранить'}
                       </button>
@@ -2312,7 +2357,7 @@ function App() {
                 {adminSection === 'roles' && (
                   <form className="admin-expand-panel" onSubmit={grantAdmin}>
                     <div className="admin-expand-head">
-                      <span>🛡️ Выдача роли admin</span>
+                      <span># Выдача роли admin</span>
                     </div>
                     <label className="input-block">
                       <span>ID, handle или email</span>
@@ -2421,7 +2466,7 @@ function App() {
                     {adminDraft && (
                       <form className="admin-user-editor" onSubmit={saveAdminUser}>
                         <div className="admin-expand-head">
-                          <span>🛠️ {adminDraft.name}</span>
+                          <span># {adminDraft.name}</span>
                           <button className="primary-btn compact-btn" type="button" onClick={() => {
                             setAdminConfirmAction({
                               label: `Сохранить изменения для ${adminDraft.name}`,
@@ -2689,7 +2734,7 @@ function App() {
                     <div className="compose-modal-backdrop" onClick={() => setAdminConfirmAction(null)} />
                     <div className="compose-modal-sheet admin-confirm-sheet">
                       <div className="admin-confirm-content">
-                        <div className="admin-confirm-icon">⚠️</div>
+                        <div className="admin-confirm-icon">!</div>
                         <h3>Подтвердить действие?</h3>
                         <p>{adminConfirmAction.label}</p>
                         <div className="admin-confirm-btns">

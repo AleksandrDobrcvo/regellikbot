@@ -77,6 +77,24 @@ async function sendVerificationEmail(toEmail, code) {
 // MongoDB state – set after connectMongo()
 let mongoCol = null
 
+// --- Haversine distance (meters) ---
+const _toRad = (deg) => (deg * Math.PI) / 180
+function haversineDistance(lat1, lon1, lat2, lon2) {
+  const R = 6371000
+  const dLat = _toRad(lat2 - lat1)
+  const dLon = _toRad(lon2 - lon1)
+  const a = Math.sin(dLat / 2) ** 2 + Math.cos(_toRad(lat1)) * Math.cos(_toRad(lat2)) * Math.sin(dLon / 2) ** 2
+  return R * 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a))
+}
+
+const MAX_VISIBLE_DISTANCE = 50000 // 50 km
+
+function isWithinRange(viewer, other) {
+  if (!Number.isFinite(viewer?.latitude) || !Number.isFinite(viewer?.longitude)) return true // no geo = show all
+  if (!Number.isFinite(other?.latitude) || !Number.isFinite(other?.longitude)) return false // other has no geo = hide
+  return haversineDistance(viewer.latitude, viewer.longitude, other.latitude, other.longitude) <= MAX_VISIBLE_DISTANCE
+}
+
 // --- Simple in-memory rate limiter ---
 const rateLimitStore = new Map()
 function rateLimit(key, maxAttempts = 8, windowMs = 60000) {
@@ -725,6 +743,11 @@ function adminData(state) {
 function bootstrapPayload(state, viewer) {
   const visibleUsers = state.users.filter((item) => item.isVisible && item.status === 'active')
 
+  // Filter directory by 50km distance (if viewer has geo)
+  const nearbyUsers = viewer
+    ? visibleUsers.filter((u) => u.id === viewer.id || isWithinRange(viewer, u))
+    : visibleUsers
+
   return {
     viewer: viewer ? publicUser(viewer) : null,
     siteSettings: state.siteSettings,
@@ -737,7 +760,7 @@ function bootstrapPayload(state, viewer) {
           .sort((left, right) => right.createdAt.localeCompare(left.createdAt))
           .slice(0, 12)
       : [],
-    directory: visibleUsers.map(directoryItem),
+    directory: nearbyUsers.map(directoryItem),
     conversations: viewer ? getConversationsForUser(state, viewer.id) : [],
     adminData: viewer?.role === 'admin' ? adminData(state) : null,
   }
@@ -834,7 +857,7 @@ app.use((request, response, next) => {
   next()
 })
 
-app.use(express.json())
+app.use(express.json({ limit: '512kb' }))
 
 app.get('/api/health', (_request, response) => {
   response.json({ ok: true })
@@ -1293,6 +1316,39 @@ app.post('/api/profile/update', (request, response) => {
   pushAudit(state, 'profile.update', viewer.id, viewer.id, 'Пользователь обновил профиль.')
   saveState(state)
   response.json(bootstrapPayload(state, viewer))
+})
+
+// Avatar upload (base64 data URL, max 256KB)
+app.post('/api/profile/avatar', (request, response) => {
+  const state = readState()
+  const viewer = requireUser(request, response, state)
+  if (!viewer) return
+
+  const { avatar } = request.body || {}
+  if (!avatar || typeof avatar !== 'string') {
+    response.status(400).json({ error: 'Аватар не указан' })
+    return
+  }
+
+  // Validate data URL format: data:image/(png|jpeg|webp|gif);base64,...
+  const match = avatar.match(/^data:image\/(png|jpeg|webp|gif);base64,/)
+  if (!match) {
+    response.status(400).json({ error: 'Неверный формат. Допускается PNG, JPEG, WebP, GIF' })
+    return
+  }
+
+  // Check size: base64 part only, ~256KB max decoded
+  const base64Part = avatar.slice(avatar.indexOf(',') + 1)
+  const sizeBytes = Math.ceil(base64Part.length * 3 / 4)
+  if (sizeBytes > 256 * 1024) {
+    response.status(400).json({ error: 'Файл слишком большой (макс. 256 КБ)' })
+    return
+  }
+
+  viewer.avatarUrl = avatar
+  pushAudit(state, 'profile.avatar', viewer.id, viewer.id, 'Пользователь обновил аватар.')
+  saveState(state)
+  response.json({ ok: true, avatarUrl: viewer.avatarUrl })
 })
 
 app.post('/api/location', (request, response) => {
@@ -1877,6 +1933,12 @@ app.post('/api/conversations', (request, response) => {
     return
   }
 
+  // 50km distance check
+  if (!isWithinRange(viewer, recipient)) {
+    response.status(403).json({ error: 'Пользователь слишком далеко (>50 км)' })
+    return
+  }
+
   // Check if conversation already exists
   const existing = state.conversations.find(c =>
     c.participants.includes(viewer.id) && c.participants.includes(recipientId)
@@ -2027,15 +2089,6 @@ app.get('/api/radar', (request, response) => {
     return
   }
 
-  const toRad = (deg) => (deg * Math.PI) / 180
-  const haversine = (lat1, lon1, lat2, lon2) => {
-    const R = 6371000
-    const dLat = toRad(lat2 - lat1)
-    const dLon = toRad(lon2 - lon1)
-    const a = Math.sin(dLat / 2) ** 2 + Math.cos(toRad(lat1)) * Math.cos(toRad(lat2)) * Math.sin(dLon / 2) ** 2
-    return R * 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a))
-  }
-
   const nearby = state.users
     .filter(u => u.id !== viewer.id && u.isVisible && u.status === 'active' && Number.isFinite(u.latitude) && Number.isFinite(u.longitude))
     .map(u => ({
@@ -2045,9 +2098,9 @@ app.get('/api/radar', (request, response) => {
       avatarUrl: u.avatarUrl,
       city: u.city,
       tagline: u.tagline,
-      distance: haversine(viewer.latitude, viewer.longitude, u.latitude, u.longitude),
+      distance: haversineDistance(viewer.latitude, viewer.longitude, u.latitude, u.longitude),
     }))
-    .filter(u => u.distance <= 50000) // 50km
+    .filter(u => u.distance <= MAX_VISIBLE_DISTANCE)
     .sort((a, b) => a.distance - b.distance)
     .slice(0, 30)
 
