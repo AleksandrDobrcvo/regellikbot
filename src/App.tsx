@@ -22,10 +22,12 @@ import {
   Menu,
   MessageCircle,
   MessageSquare,
+  Minus,
   Monitor,
   PenSquare,
   Plus,
   Radar,
+  RefreshCw,
   Save,
   Search,
   Send,
@@ -244,6 +246,18 @@ type NotificationItem = {
   createdAt: string
 }
 
+type TxType = 'message_sent' | 'message_received' | 'topup' | 'deduct' | 'boost_received' | 'boost_removed' | 'referral'
+
+type Transaction = {
+  id: string
+  type: TxType
+  delta: number
+  description: string
+  balanceAfter: number
+  meta: Record<string, string> | null
+  createdAt: string
+}
+
 type BootstrapResponse = {
   viewer: SessionUser | null
   publicFeed: FeedMessage[]
@@ -253,6 +267,7 @@ type BootstrapResponse = {
   siteSettings: SiteSettings
   adminData: AdminData | null
   posts?: Post[]
+  powerLog?: Transaction[]
 }
 
 type AuthResponse = {
@@ -441,6 +456,10 @@ function App() {
   const [expandedPostComments, setExpandedPostComments] = useState<Set<string>>(new Set())
   const [commentTexts, setCommentTexts] = useState<Record<string, string>>({})
 
+  // Transactions / Power log
+  const [powerLog, setPowerLog] = useState<Transaction[]>([])
+  const [txLoading, setTxLoading] = useState(false)
+
   // Top-up modal
   const [topUpOpen, setTopUpOpen] = useState(false)
 
@@ -599,6 +618,7 @@ function App() {
     setAdminUsers(data.adminData?.users ?? [])
     setAuditLog(data.adminData?.auditLog ?? [])
     if (data.posts) setPosts(data.posts)
+    if (data.powerLog) setPowerLog(data.powerLog)
   }
 
   // Header auto-hide on scroll
@@ -1233,6 +1253,19 @@ function App() {
   }
 
   const saveProfile = () => void updateProfile()
+
+  const loadTransactions = async () => {
+    if (!viewer || !sessionToken) return
+    setTxLoading(true)
+    try {
+      const data = await apiRequest<{ powerLog: Transaction[]; powers: number; stats: typeof viewer.stats }>('/api/transactions')
+      setPowerLog(data.powerLog)
+    } catch {
+      // ignore
+    } finally {
+      setTxLoading(false)
+    }
+  }
 
   const createPost = async () => {
     if (!viewer || !sessionToken || !newPostText.trim()) return
@@ -2345,6 +2378,8 @@ function App() {
             {/* --- ТРАНЗАКЦИИ --- */}
             {activeTab === 'transactions' && (
               <section className="transactions-screen page-transition">
+
+                {/* Баланс */}
                 <article className="panel-card">
                   <div className="panel-head">
                     <div>
@@ -2382,7 +2417,6 @@ function App() {
                     {topUpOpen ? 'Скрыть' : 'Пополнить баланс'}
                   </button>
 
-                  {/* Inline top-up options */}
                   {topUpOpen && (
                     <div className="topup-inline">
                       <p className="topup-desc">Выбери сумму пополнения ⚡</p>
@@ -2404,6 +2438,7 @@ function App() {
                   )}
                 </article>
 
+                {/* Статистика активности */}
                 <article className="panel-card">
                   <div className="panel-head">
                     <div>
@@ -2411,20 +2446,128 @@ function App() {
                       <h2>Активность</h2>
                     </div>
                   </div>
-                  <div className="stats-mini-grid">
-                    <div className="stats-mini-item">
+                  <div className="tx-stats-grid">
+                    <div className="tx-stat-item">
+                      <div className="tx-stat-icon tx-stat-out"><Send size={15} /></div>
                       <strong>{viewer?.stats.sent ?? 0}</strong>
                       <span>отправлено</span>
                     </div>
-                    <div className="stats-mini-item">
+                    <div className="tx-stat-item">
+                      <div className="tx-stat-icon tx-stat-in"><MessageCircle size={15} /></div>
                       <strong>{viewer?.stats.received ?? 0}</strong>
                       <span>получено</span>
                     </div>
-                    <div className="stats-mini-item">
-                      <strong>{viewer?.stats.referrals ?? 0}</strong>
-                      <span>рефералов</span>
+                    <div className="tx-stat-item">
+                      <div className="tx-stat-icon tx-stat-boost"><Zap size={15} /></div>
+                      <strong>{powerLog.filter(t => t.type === 'boost_received').length}</strong>
+                      <span>бустов</span>
+                    </div>
+                    <div className="tx-stat-item">
+                      <div className="tx-stat-icon tx-stat-topup"><Plus size={15} /></div>
+                      <strong>{powerLog.filter(t => t.type === 'topup').length}</strong>
+                      <span>пополнений</span>
                     </div>
                   </div>
+                </article>
+
+                {/* Рефералы */}
+                <article className="panel-card">
+                  <div className="panel-head">
+                    <div>
+                      <span className="eyebrow"># рефералы</span>
+                      <h2>Реферальная программа</h2>
+                    </div>
+                    <div className="tx-ref-count">
+                      <Users size={14} />
+                      <span>{viewer?.stats.referrals ?? 0}</span>
+                    </div>
+                  </div>
+                  <p className="tx-ref-desc">Приглашай друзей — за каждого нового пользователя по твоей ссылке ты получишь бонус.</p>
+                  {viewer?.referralCode && (
+                    <div className="tx-ref-code-row">
+                      <span className="tx-ref-code">{viewer.referralCode}</span>
+                      <button className="tx-ref-copy-btn" onClick={() => {
+                        void navigator.clipboard.writeText(viewer.referralCode ?? '')
+                        showToast('Реферальный код скопирован', 'success')
+                      }}>
+                        <Copy size={14} />
+                        Копировать
+                      </button>
+                    </div>
+                  )}
+                  <div className="tx-ref-stats-row">
+                    <div className="tx-ref-stat">
+                      <strong>{viewer?.stats.referrals ?? 0}</strong>
+                      <span>приглашено</span>
+                    </div>
+                    <div className="tx-ref-stat">
+                      <strong>{viewer?.referredBy ? '1' : '—'}</strong>
+                      <span>реферер</span>
+                    </div>
+                  </div>
+                </article>
+
+                {/* История транзакций */}
+                <article className="panel-card">
+                  <div className="panel-head">
+                    <div>
+                      <span className="eyebrow"># история</span>
+                      <h2>Все транзакции</h2>
+                    </div>
+                    <button className="tx-refresh-btn" onClick={() => void loadTransactions()} disabled={txLoading}>
+                      {txLoading ? '...' : <RefreshCw size={15} />}
+                    </button>
+                  </div>
+
+                  {powerLog.length === 0 ? (
+                    <div className="tx-empty">
+                      <Zap size={28} />
+                      <p>Транзакций пока нет</p>
+                      <span>Отправляй сообщения, получай бусты — и они появятся здесь</span>
+                    </div>
+                  ) : (
+                    <div className="tx-list">
+                      {powerLog.map(tx => {
+                        const isPositive = tx.delta > 0
+                        const txLabel: Record<TxType, string> = {
+                          message_sent: 'Отправка сообщения',
+                          message_received: 'Входящее сообщение',
+                          topup: 'Пополнение баланса',
+                          deduct: 'Списание',
+                          boost_received: 'Буст за публикацию',
+                          boost_removed: 'Буст отозван',
+                          referral: 'Реферальный бонус',
+                        }
+                        const txIcon: Record<TxType, React.ReactNode> = {
+                          message_sent: <Send size={14} />,
+                          message_received: <MessageCircle size={14} />,
+                          topup: <Plus size={14} />,
+                          deduct: <Minus size={14} />,
+                          boost_received: <Zap size={14} />,
+                          boost_removed: <Zap size={14} />,
+                          referral: <Users size={14} />,
+                        }
+                        return (
+                          <div key={tx.id} className={`tx-item${isPositive ? ' tx-positive' : ' tx-negative'}`}>
+                            <div className={`tx-icon${isPositive ? ' tx-icon-in' : ' tx-icon-out'}`}>
+                              {txIcon[tx.type]}
+                            </div>
+                            <div className="tx-info">
+                              <strong>{txLabel[tx.type] || tx.description}</strong>
+                              <span>{tx.description !== txLabel[tx.type] ? tx.description : formatRelativeTime(tx.createdAt)}</span>
+                              <small>{formatRelativeTime(tx.createdAt)}</small>
+                            </div>
+                            <div className="tx-amount">
+                              <span className={isPositive ? 'tx-plus' : 'tx-minus'}>
+                                {isPositive ? '+' : ''}{tx.delta}⚡
+                              </span>
+                              <small className="tx-balance-after">{tx.balanceAfter}⚡</small>
+                            </div>
+                          </div>
+                        )
+                      })}
+                    </div>
+                  )}
                 </article>
               </section>
             )}

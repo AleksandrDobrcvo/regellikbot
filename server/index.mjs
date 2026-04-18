@@ -195,6 +195,7 @@ function createSeedUser(data) {
     badges: [],
     preferences: { ...defaultPreferences },
     powers: 0,
+    powerLog: [],
     stats: { sent: 0, received: 0, opened: 0, referrals: 0 },
     joinedAt: new Date().toISOString(),
     telegramMeta: null,
@@ -408,6 +409,7 @@ function normalizeState(state) {
           ...user,
           preferences: { ...defaultPreferences, ...(user.preferences || {}) },
           badges: Array.isArray(user.badges) ? user.badges : [],
+          powerLog: Array.isArray(user.powerLog) ? user.powerLog.slice(0, 120) : [],
         }
 
         if (nextUser.id === 'seed-regellik' && !user.role) {
@@ -658,6 +660,20 @@ function ensureUniqueHandle(state, desiredHandle, currentUserId = null) {
   return candidate
 }
 
+function pushPowerLog(user, type, delta, description, meta) {
+  if (!Array.isArray(user.powerLog)) user.powerLog = []
+  user.powerLog.unshift({
+    id: createToken(),
+    type,
+    delta: Math.round(delta * 100) / 100,
+    description,
+    meta: meta || null,
+    balanceAfter: Math.round((user.powers) * 100) / 100,
+    createdAt: new Date().toISOString(),
+  })
+  user.powerLog = user.powerLog.slice(0, 120)
+}
+
 function pushAudit(state, action, actorId, targetId, details) {
   state.auditLog.unshift({
     id: createToken(),
@@ -725,6 +741,7 @@ function publicUser(user) {
     referralCode: user.referralCode,
     referredBy: user.referredBy,
     ban: user.ban || null,
+    powerLog: Array.isArray(user.powerLog) ? user.powerLog.slice(0, 50) : [],
   }
 }
 
@@ -1838,6 +1855,7 @@ app.post('/api/admin/topup', (request, response) => {
   const oldPowers = target.powers
   target.powers = Math.round((target.powers + numAmount) * 100) / 100
   if (target.powers < 0) target.powers = 0
+  pushPowerLog(target, numAmount > 0 ? 'topup' : 'deduct', numAmount, reason || (numAmount > 0 ? 'Пополнение от администратора' : 'Списание администратором'))
 
   pushAudit(state, numAmount > 0 ? 'admin.topup' : 'admin.deduct', viewer.id, target.id, `${numAmount > 0 ? '+' : ''}${numAmount}⚡ пользователю ${target.handle} (было ${oldPowers}, стало ${target.powers}). ${reason ? 'Причина: ' + reason : ''}`)
   sendSystemNotification(state, target.id, numAmount > 0
@@ -2193,6 +2211,7 @@ app.post('/api/conversations/:id/messages', (request, response) => {
   // Economy: deduct from sender
   if (messageCost > 0) {
     viewer.powers = Math.round((viewer.powers - messageCost) * 100) / 100
+    pushPowerLog(viewer, 'message_sent', -messageCost, 'Отправка сообщения')
   }
 
   const recipientId = convo.participants.find(p => p !== viewer.id)
@@ -2203,6 +2222,7 @@ app.post('/api/conversations/:id/messages', (request, response) => {
     const messageEarn = Number(state.siteSettings.messageEarn ?? 0.05)
     if (messageEarn > 0) {
       recipient.powers = Math.round((recipient.powers + messageEarn) * 100) / 100
+      pushPowerLog(recipient, 'message_received', +messageEarn, 'Получено сообщение')
     }
   }
 
@@ -2298,6 +2318,7 @@ app.post('/api/posts/:id/boost', (request, response) => {
     const author = state.users.find(u => u.id === post.authorId)
     if (author && author.id !== viewer.id) {
       author.powers = Math.max(0, Math.round((author.powers - 1) * 100) / 100)
+      pushPowerLog(author, 'boost_removed', -1, 'Буст отозван', { postId: post.id })
     }
   } else {
     post.boostedBy.push(viewer.id)
@@ -2305,6 +2326,7 @@ app.post('/api/posts/:id/boost', (request, response) => {
     const author = state.users.find(u => u.id === post.authorId)
     if (author && author.id !== viewer.id) {
       author.powers = Math.round((author.powers + 1) * 100) / 100
+      pushPowerLog(author, 'boost_received', +1, 'Буст за публикацию', { postId: post.id })
     }
   }
 
@@ -2348,6 +2370,19 @@ app.post('/api/posts/:id/comments', (request, response) => {
   response.json({
     comment,
     post: { ...post, boostedByViewer: post.boostedBy.includes(viewer.id), commentsCount: post.comments.length },
+  })
+})
+
+// === TRANSACTIONS / POWER LOG ===
+
+app.get('/api/transactions', (request, response) => {
+  const state = readState()
+  const viewer = requireUser(request, response, state)
+  if (!viewer) return
+  response.json({
+    powerLog: Array.isArray(viewer.powerLog) ? viewer.powerLog.slice(0, 80) : [],
+    powers: viewer.powers,
+    stats: viewer.stats,
   })
 })
 
