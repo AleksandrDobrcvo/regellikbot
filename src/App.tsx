@@ -239,11 +239,6 @@ type ResolvedLocation = {
   longitude: number
 }
 
-type ToastState = {
-  message: string
-  tone: ToastTone
-}
-
 type AdminDraft = AdminManagedUser & {
   badgesText: string
 }
@@ -326,18 +321,6 @@ function getStoredSessionToken() {
   return window.localStorage.getItem(SESSION_KEY) || ''
 }
 
-function getToastEmoji(tone: ToastTone) {
-  if (tone === 'success') {
-    return '✅'
-  }
-
-  if (tone === 'error') {
-    return '!'
-  }
-
-  return '•'
-}
-
 function getNotifIcon(type: NotificationItem['type']) {
   if (type === 'system') return '🤖'
   if (type === 'inbox') return '→'
@@ -396,7 +379,6 @@ function App() {
   const [isSavingSite, setIsSavingSite] = useState(false)
   const [isSavingAdminUser, setIsSavingAdminUser] = useState(false)
   const [isGrantingAdmin, setIsGrantingAdmin] = useState(false)
-  const [toast, setToast] = useState<ToastState | null>(null)
   const [profileName, setProfileName] = useState('')
   const [profileHandle, setProfileHandle] = useState('@regellik')
   const [profileTagline, setProfileTagline] = useState('')
@@ -507,8 +489,8 @@ function App() {
 
   const totalUnread = useMemo(() => conversations.reduce((sum, c) => sum + c.unreadCount, 0), [conversations])
 
-  const showToast = (message: string, tone: ToastTone) => {
-    setToast({ message, tone })
+  const showToast = (_message: string, _tone: ToastTone) => {
+    try { navigator.vibrate?.(80) } catch { /* ignore */ }
   }
 
   const applyBootstrap = (data: BootstrapResponse) => {
@@ -655,15 +637,6 @@ function App() {
 
     return () => { socket.close(); wsRef.current = null }
   }, [sessionToken])
-
-  useEffect(() => {
-    if (!toast) {
-      return undefined
-    }
-
-    const timeout = window.setTimeout(() => setToast(null), 2200)
-    return () => window.clearTimeout(timeout)
-  }, [toast])
 
   useEffect(() => {
     if (!viewer || resolvedLocation === null || viewer.geoAllowed || geoUserDisabled.current) {
@@ -1298,18 +1271,7 @@ function App() {
       <div className="ambient ambient-b" />
       <div className="ambient ambient-c" />
 
-      {toast && (
-        <div className={`toast-box ${toast.tone}`}>
-          <div className="toast-icon" aria-hidden="true">
-            {getToastEmoji(toast.tone)}
-          </div>
-          <div className="toast-content">
-            <div className="toast-label">уведомление</div>
-            <div className="toast-message">{toast.message}</div>
-          </div>
-          <div className="toast-progress" aria-hidden="true" />
-        </div>
-      )}
+
 
       {authOpen && (
         <div className="auth-layer">
