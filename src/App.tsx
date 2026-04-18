@@ -605,22 +605,71 @@ function App() {
     }
   }, [sessionToken])
 
+  // WebSocket ref for real-time messages
+  const wsRef = useRef<WebSocket | null>(null)
+
   useEffect(() => {
     const socket = new WebSocket(resolveWsUrl())
+    wsRef.current = socket
+
+    socket.addEventListener('open', () => {
+      // Authenticate so server knows who we are
+      if (sessionToken) {
+        socket.send(JSON.stringify({ type: 'auth', token: sessionToken }))
+      }
+    })
 
     socket.addEventListener('message', (event) => {
       try {
-        const payload = JSON.parse(event.data) as { type: string; count?: number }
+        const payload = JSON.parse(event.data) as {
+          type: string;
+          count?: number;
+          conversationId?: string;
+          message?: { id: string; text: string; senderId: string; senderName: string; createdAt: string };
+          conversations?: ConversationPreview[];
+        }
+
         if (payload.type === 'online') {
           setOnlineCount(payload.count ?? 0)
+        }
+
+        if (payload.type === 'new_message' && payload.message && payload.conversations) {
+          // Update conversations list (already sorted by server, newest first)
+          setConversations(payload.conversations)
+
+          // If we're currently viewing this chat, add the message
+          if (payload.conversationId) {
+            setOpenConvoId(prev => {
+              if (prev === payload.conversationId) {
+                setChatMessages(msgs => {
+                  if (msgs.some(m => m.id === payload.message!.id)) return msgs
+                  return [...msgs, {
+                    id: payload.message!.id,
+                    conversationId: payload.conversationId!,
+                    senderId: payload.message!.senderId,
+                    text: payload.message!.text,
+                    createdAt: payload.message!.createdAt,
+                  }]
+                })
+              }
+              return prev
+            })
+          }
+
+          // Show toast notification if not viewing this chat
+          const senderName = payload.message.senderName || 'Кто-то'
+          const preview = payload.message.text.length > 40
+            ? payload.message.text.slice(0, 40) + '...'
+            : payload.message.text
+          showToast(`💬 ${senderName}: ${preview}`, 'info')
         }
       } catch {
         // ignore malformed payloads
       }
     })
 
-    return () => socket.close()
-  }, [])
+    return () => { socket.close(); wsRef.current = null }
+  }, [sessionToken])
 
   useEffect(() => {
     if (!toast) {
@@ -1595,7 +1644,7 @@ function App() {
 
                 <div className="conversation-list">
                   {conversations.map((convo) => (
-                    <button key={convo.id} className="conversation-item" onClick={() => openConversation(convo.id)}>
+                    <button key={convo.id} className={`conversation-item${convo.unreadCount > 0 ? ' has-unread' : ''}`} onClick={() => openConversation(convo.id)}>
                       <div className="convo-avatar">
                         {convo.isSystem ? (
                           <span className="convo-avatar-system">&gt;]</span>

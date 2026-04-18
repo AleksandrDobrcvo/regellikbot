@@ -1467,6 +1467,21 @@ app.post('/api/admin/broadcast', (request, response) => {
       text: messageText,
       createdAt: new Date().toISOString(),
     })
+
+    // Real-time WS notification to recipient
+    sendToUser(user.id, {
+      type: 'new_message',
+      conversationId: convo.id,
+      message: {
+        id: state.chatMessages[state.chatMessages.length - 1].id,
+        text: messageText,
+        senderId: regellikId,
+        senderName: 'Regellik',
+        createdAt: state.chatMessages[state.chatMessages.length - 1].createdAt,
+      },
+      conversations: getConversationsForUser(state, user.id),
+    })
+
     sent++
   }
 
@@ -1718,6 +1733,23 @@ app.post('/api/conversations/:id/messages', (request, response) => {
   }
 
   saveState(state)
+
+  // Real-time notification to recipient
+  if (recipientId) {
+    sendToUser(recipientId, {
+      type: 'new_message',
+      conversationId: convo.id,
+      message: {
+        id: msg.id,
+        text: msg.text,
+        senderId: msg.senderId,
+        senderName: viewer.name,
+        createdAt: msg.createdAt,
+      },
+      conversations: getConversationsForUser(state, recipientId),
+    })
+  }
+
   // Return updated viewer so client can refresh powers
   const updatedViewer = state.users.find(u => u.id === viewer.id)
   response.json({ message: msg, conversations: getConversationsForUser(state, viewer.id), viewerPowers: updatedViewer?.powers ?? viewer.powers })
@@ -1784,9 +1816,33 @@ function broadcastOnline() {
   }
 }
 
+/** Send a message to a specific user by their userId */
+function sendToUser(userId, data) {
+  const payload = JSON.stringify(data)
+  for (const client of wss.clients) {
+    if (client.readyState === 1 && client._userId === userId) {
+      client.send(payload)
+    }
+  }
+}
+
 wss.on('connection', (socket) => {
   socket.send(JSON.stringify({ type: 'online', count: wss.clients.size }))
   broadcastOnline()
+
+  socket.on('message', (raw) => {
+    try {
+      const msg = JSON.parse(raw)
+      if (msg.type === 'auth' && typeof msg.token === 'string') {
+        const state = readState()
+        const sess = state.sessions?.find(s => s.token === msg.token)
+        if (sess) {
+          socket._userId = sess.userId
+        }
+      }
+    } catch { /* ignore */ }
+  })
+
   socket.on('close', () => {
     broadcastOnline()
   })

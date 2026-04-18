@@ -3252,23 +3252,25 @@ select {
   animation: shimmer 3s linear infinite;
 }
 
-/* Compose FAB — enhanced with rotating glow ring */
+/* Compose FAB — subtle glow aura (no spinning) */
 .compose-fab::before {
   content: '';
   position: absolute;
-  inset: -3px;
+  inset: -4px;
   border-radius: 999px;
-  background: conic-gradient(
-    from 0deg,
-    rgba(185, 255, 59, 0.6),
-    rgba(111, 230, 255, 0.4),
-    rgba(185, 255, 59, 0.6),
-    rgba(111, 230, 255, 0.4),
-    rgba(185, 255, 59, 0.6)
+  background: linear-gradient(135deg,
+    rgba(185, 255, 59, 0.5),
+    rgba(111, 230, 255, 0.35),
+    rgba(185, 255, 59, 0.5)
   );
-  animation: rotateBorder 3s linear infinite;
   z-index: -1;
-  opacity: 0.7;
+  opacity: 0;
+  filter: blur(8px);
+  transition: opacity 0.3s;
+}
+
+.compose-fab:hover::before {
+  opacity: 1;
 }
 
 /* Profile avatar — glow ring */
@@ -3894,6 +3896,25 @@ select {
 
 .conversation-item:active {
   transform: translateX(2px) scale(0.99);
+}
+
+/* New message highlight — flash green border then settle */
+@keyframes newMsgFlash {
+  0% {
+    border-color: rgba(185, 255, 59, 0.5);
+    box-shadow: 0 0 16px rgba(185, 255, 59, 0.2);
+    background: rgba(185, 255, 59, 0.08);
+  }
+  100% {
+    border-color: rgba(255, 255, 255, 0.05);
+    box-shadow: none;
+    background: rgba(255, 255, 255, 0.025);
+  }
+}
+
+.conversation-item.has-unread {
+  border-color: rgba(185, 255, 59, 0.2);
+  background: rgba(185, 255, 59, 0.04);
 }
 
 .convo-avatar {
