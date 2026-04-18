@@ -155,6 +155,7 @@ type Post = {
   authorName: string
   authorHandle: string
   authorAvatarUrl: string | null
+  authorBadges?: string[]
   text: string
   createdAt: string
   boosts: number
@@ -256,6 +257,36 @@ type Transaction = {
   balanceAfter: number
   meta: Record<string, string> | null
   createdAt: string
+}
+
+// ======= BADGE / PREFIX SYSTEM =======
+type BadgeDef = {
+  id: string         // e.g. 'ADMIN', 'VIP', 'GHOST', etc.
+  label: string      // displayed text
+  cssClass: string   // CSS class for animation style
+  icon: string       // emoji prefix
+}
+
+const BADGE_CATALOG: BadgeDef[] = [
+  { id: 'ADMIN',   label: 'Admin',   cssClass: 'badge-admin',   icon: '⚙' },
+  { id: 'CORE',    label: 'Core',    cssClass: 'badge-core',    icon: '◈' },
+  { id: 'VIP',     label: 'VIP',     cssClass: 'badge-vip',     icon: '♛' },
+  { id: 'TOP',     label: 'Top',     cssClass: 'badge-top',     icon: '▲' },
+  { id: 'LIVE',    label: 'Live',    cssClass: 'badge-live',    icon: '●' },
+  { id: 'NEW',     label: 'New',     cssClass: 'badge-new',     icon: '✦' },
+  { id: 'GHOST',   label: 'Ghost',   cssClass: 'badge-ghost',   icon: '◌' },
+  { id: 'LEGEND',  label: 'Legend',  cssClass: 'badge-legend',  icon: '★' },
+  { id: 'HACKER',  label: 'Hacker',  cssClass: 'badge-hacker',  icon: '⌨' },
+  { id: 'NEON',    label: 'Neon',    cssClass: 'badge-neon',    icon: '◉' },
+  { id: 'ROYAL',   label: 'Royal',   cssClass: 'badge-royal',   icon: '♜' },
+  { id: 'SHADOW',  label: 'Shadow',  cssClass: 'badge-shadow',  icon: '▪' },
+  { id: 'FIRE',    label: 'Fire',    cssClass: 'badge-fire',    icon: '◆' },
+  { id: 'ICE',     label: 'Ice',     cssClass: 'badge-ice',     icon: '❄' },
+  { id: 'VERIFIED',label: 'Verified',cssClass: 'badge-verified',icon: '✓' },
+]
+
+function getBadgeDef(id: string): BadgeDef {
+  return BADGE_CATALOG.find(b => b.id === id) ?? { id, label: id, cssClass: 'badge-default', icon: '◦' }
 }
 
 type BootstrapResponse = {
@@ -392,6 +423,16 @@ async function apiRequest<T>(path: string, init?: RequestInit, token?: string) {
   }
 
   return (await response.json()) as T
+}
+
+function BadgeChip({ id }: { id: string }) {
+  const def = getBadgeDef(id)
+  return (
+    <span className={`profile-badge-chip ${def.cssClass}`}>
+      <span className="badge-icon">{def.icon}</span>
+      <span className="badge-label">{def.label}</span>
+    </span>
+  )
 }
 
 function App() {
@@ -2126,7 +2167,10 @@ function App() {
                           }
                         </div>
                         <div className="trends-post-meta">
-                          <strong>{post.authorName}</strong>
+                          <div className="trends-post-name-row">
+                            <strong>{post.authorName}</strong>
+                            {post.authorBadges && post.authorBadges.slice(0,2).map(b => <BadgeChip key={b} id={b} />)}
+                          </div>
                           <span>{post.authorHandle}</span>
                         </div>
                         <small className="trends-post-time">{formatRelativeTime(post.createdAt)}</small>
@@ -2151,8 +2195,8 @@ function App() {
                             <div key={b.id} className="boost-burst">
                               <div className="boost-ring" />
                               <div className="boost-ring boost-ring-2" />
-                              {(['p1','p2','p3','p4','p5','p6','p7'] as const).map(p => (
-                                <span key={p} className={`boost-particle ${p}`}>⚡</span>
+                              {([0,1,2,3,4,5,6,7] as const).map(i => (
+                                <div key={i} className="bsp" style={{ '--ba': `${i * 45}deg` } as React.CSSProperties} />
                               ))}
                             </div>
                           ))}
@@ -2280,6 +2324,12 @@ function App() {
                     <div><strong>{viewer.stats.received}</strong><span>получено</span></div>
                     <div><strong>{viewer.powers}</strong><span>энергия</span></div>
                   </div>
+
+                  {viewer.badges.length > 0 && (
+                    <div className="profile-badges-row">
+                      {viewer.badges.map(b => <BadgeChip key={b} id={b} />)}
+                    </div>
+                  )}
                 </article>
 
                 {/* Геолокация */}
@@ -3053,10 +3103,31 @@ function App() {
                           <textarea value={adminDraft.bio} onChange={e => setAdminDraft(c => c ? { ...c, bio: e.target.value } : c)} />
                         </label>
 
-                        <label className="input-block">
-                          <span>Бейджи</span>
-                          <input value={adminDraft.badgesText} onChange={e => setAdminDraft(c => c ? { ...c, badgesText: e.target.value } : c)} />
-                        </label>
+                        <div className="input-block">
+                          <span>Префиксы / бейджи</span>
+                          <div className="admin-badge-picker">
+                            {BADGE_CATALOG.map(def => {
+                              const active = adminDraft.badges.includes(def.id)
+                              return (
+                                <button
+                                  key={def.id}
+                                  type="button"
+                                  className={`admin-badge-pick-btn${active ? ' active' : ''}`}
+                                  onClick={() => setAdminDraft(c => {
+                                    if (!c) return c
+                                    const next = active
+                                      ? c.badges.filter(x => x !== def.id)
+                                      : [...c.badges, def.id]
+                                    return { ...c, badges: next, badgesText: next.join(', ') }
+                                  })}
+                                  title={active ? `Убрать ${def.label}` : `Добавить ${def.label}`}
+                                >
+                                  <BadgeChip id={def.id} />
+                                </button>
+                              )
+                            })}
+                          </div>
+                        </div>
 
                         <div className="toggle-grid admin-toggle-grid">
                           <button className={adminDraft.isVisible ? 'toggle-card active' : 'toggle-card danger'} type="button" onClick={() => setAdminDraft(c => c ? { ...c, isVisible: !c.isVisible } : c)}>

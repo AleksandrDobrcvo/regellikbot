@@ -848,11 +848,15 @@ function bootstrapPayload(state, viewer) {
     conversations: viewer ? getConversationsForUser(state, viewer.id) : [],
     adminData: viewer?.role === 'admin' ? adminData(state) : null,
     posts: state.posts
-      .map(p => ({
-        ...p,
-        boostedByViewer: viewer ? p.boostedBy.includes(viewer.id) : false,
-        commentsCount: p.comments.length,
-      }))
+      .map(p => {
+        const author = state.users.find(u => u.id === p.authorId)
+        return {
+          ...p,
+          authorBadges: author ? (author.badges || []) : [],
+          boostedByViewer: viewer ? p.boostedBy.includes(viewer.id) : false,
+          commentsCount: p.comments.length,
+        }
+      })
       .sort((a, b) => b.boosts - a.boosts || b.createdAt.localeCompare(a.createdAt))
       .slice(0, 30),
   }
@@ -1654,7 +1658,16 @@ app.post('/api/admin/users/update', (request, response) => {
     target.tagline = payload.tagline.trim().slice(0, 72)
   }
   if (Array.isArray(payload.badges)) {
+    const oldBadges = [...(target.badges || [])]
     target.badges = payload.badges.filter(Boolean).slice(0, 8)
+    const added = target.badges.filter(b => !oldBadges.includes(b))
+    const removed = oldBadges.filter(b => !target.badges.includes(b))
+    if (added.length) {
+      sendSystemNotification(state, target.id, `✦ Тебе выдан новый префикс: ${added.join(', ')}. Носи с честью!`)
+    }
+    if (removed.length) {
+      sendSystemNotification(state, target.id, `◌ Префикс ${removed.join(', ')} был отозван администратором.`)
+    }
   }
   if (payload.preferences && typeof payload.preferences === 'object') {
     target.preferences = {
@@ -2257,11 +2270,15 @@ app.get('/api/posts', (request, response) => {
   if (!viewer) return
 
   const sort = String(request.query?.sort || 'top')
-  const mapped = state.posts.map(p => ({
-    ...p,
-    boostedByViewer: p.boostedBy.includes(viewer.id),
-    commentsCount: p.comments.length,
-  }))
+  const mapped = state.posts.map(p => {
+    const author = state.users.find(u => u.id === p.authorId)
+    return {
+      ...p,
+      authorBadges: author ? (author.badges || []) : [],
+      boostedByViewer: p.boostedBy.includes(viewer.id),
+      commentsCount: p.comments.length,
+    }
+  })
   if (sort === 'new') {
     mapped.sort((a, b) => b.createdAt.localeCompare(a.createdAt))
   } else {
