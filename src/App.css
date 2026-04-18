@@ -5758,6 +5758,297 @@ select {
   color: #38ef7d;
 }
 
+/* Quick stats row */
+.admin-quick-stats {
+  display: flex;
+  gap: 6px;
+  flex-wrap: wrap;
+}
+
+.admin-qs-item {
+  flex: 1 1 0;
+  min-width: 70px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 2px;
+  padding: 10px 6px;
+  border-radius: 14px;
+  background: rgba(255, 255, 255, 0.03);
+  border: 1px solid rgba(255, 255, 255, 0.05);
+}
+
+.admin-qs-item strong {
+  font-size: 17px;
+  font-weight: 800;
+  color: #fff;
+  font-family: var(--font-mono);
+}
+
+.admin-qs-item span {
+  font-size: 9px;
+  color: rgba(255, 255, 255, 0.35);
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+}
+
+.admin-qs-item svg {
+  color: var(--muted);
+}
+
+.admin-qs-item.online {
+  background: rgba(56, 239, 125, 0.06);
+  border-color: rgba(56, 239, 125, 0.12);
+}
+
+.admin-qs-item.online strong {
+  color: #38ef7d;
+}
+
+/* Nav grid — section buttons */
+.admin-nav-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 6px;
+}
+
+.admin-nav-btn {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 12px 14px;
+  border-radius: 16px;
+  border: 1px solid rgba(255, 255, 255, 0.06);
+  background: rgba(8, 20, 14, 0.88);
+  color: var(--text);
+  cursor: pointer;
+  transition: all 0.2s;
+  text-align: left;
+  width: 100%;
+}
+
+.admin-nav-btn:hover {
+  background: rgba(255, 255, 255, 0.04);
+  border-color: rgba(255, 255, 255, 0.1);
+}
+
+.admin-nav-btn.active {
+  border-color: rgba(185, 255, 59, 0.25);
+  background: linear-gradient(135deg, rgba(185, 255, 59, 0.08), rgba(8, 20, 14, 0.94));
+}
+
+.admin-nav-icon {
+  width: 36px;
+  height: 36px;
+  border-radius: 10px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: rgba(255, 255, 255, 0.04);
+  flex-shrink: 0;
+}
+
+.admin-nav-btn.active .admin-nav-icon {
+  background: rgba(185, 255, 59, 0.12);
+  color: var(--green);
+}
+
+.admin-nav-text {
+  flex: 1;
+  min-width: 0;
+}
+
+.admin-nav-text strong {
+  display: block;
+  font-size: 13px;
+  font-weight: 700;
+}
+
+.admin-nav-text span {
+  font-size: 10px;
+  color: var(--muted);
+}
+
+.admin-nav-chevron {
+  color: var(--muted);
+  flex-shrink: 0;
+  transition: transform 0.25s;
+}
+
+.admin-nav-chevron.open {
+  transform: rotate(180deg);
+  color: var(--green);
+}
+
+/* Expand panel — content container */
+.admin-expand-panel {
+  display: grid;
+  gap: 12px;
+  padding: 16px;
+  border-radius: 20px;
+  border: 1px solid rgba(185, 255, 59, 0.1);
+  background: linear-gradient(180deg, rgba(12, 30, 20, 0.96), rgba(6, 16, 11, 0.98));
+  animation: adminExpandIn 0.3s cubic-bezier(0.16, 1, 0.3, 1) both;
+}
+
+@keyframes adminExpandIn {
+  from {
+    opacity: 0;
+    transform: translateY(-8px);
+    max-height: 0;
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+    max-height: 2000px;
+  }
+}
+
+.admin-expand-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+}
+
+.admin-expand-head span {
+  font-size: 15px;
+  font-weight: 800;
+  color: var(--text);
+}
+
+/* User editor inside users section */
+.admin-user-editor {
+  display: grid;
+  gap: 12px;
+  padding: 16px;
+  margin-top: 8px;
+  border-radius: 18px;
+  border: 1px solid rgba(111, 230, 255, 0.12);
+  background: rgba(8, 20, 14, 0.92);
+}
+
+/* Editor ban/freeze actions row */
+.admin-editor-actions {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 8px;
+  margin-top: 4px;
+}
+
+/* Ban form */
+.admin-ban-form {
+  display: grid;
+  gap: 10px;
+}
+
+.admin-ban-presets {
+  display: flex;
+  gap: 6px;
+  flex-wrap: wrap;
+}
+
+.admin-ban-presets .secondary-btn {
+  font-size: 11px;
+  padding: 6px 10px;
+}
+
+/* Active bans list */
+.admin-bans-list {
+  display: grid;
+  gap: 4px;
+}
+
+.admin-ban-item {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  padding: 10px 12px;
+  border-radius: 12px;
+  border: 1px solid rgba(255, 80, 80, 0.12);
+  background: rgba(255, 80, 80, 0.04);
+}
+
+.admin-ban-info {
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+  min-width: 0;
+}
+
+.admin-ban-info strong {
+  font-size: 14px;
+  color: var(--text);
+}
+
+.admin-ban-handle {
+  font-size: 11px;
+  color: var(--muted);
+}
+
+.admin-ban-type {
+  font-size: 11px;
+  font-weight: 700;
+}
+
+.admin-ban-type.global {
+  color: #ff5050;
+}
+
+.admin-ban-type.chat {
+  color: #ffa726;
+}
+
+.admin-ban-reason {
+  font-size: 11px;
+  color: rgba(255, 255, 255, 0.45);
+}
+
+.admin-ban-until {
+  font-size: 10px;
+  color: var(--muted);
+  display: flex;
+  align-items: center;
+  gap: 4px;
+}
+
+/* Ban pill in user list */
+.admin-ban-pill {
+  display: flex;
+  align-items: center;
+  gap: 3px;
+  padding: 2px 7px;
+  border-radius: 5px;
+  font-size: 10px;
+  font-weight: 700;
+  background: rgba(255, 80, 80, 0.12);
+  color: #ff5050;
+}
+
+.admin-user-item.banned {
+  border-color: rgba(255, 80, 80, 0.15);
+}
+
+@media (max-width: 480px) {
+  .admin-nav-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .admin-editor-actions {
+    grid-template-columns: 1fr;
+  }
+
+  .admin-quick-stats {
+    gap: 4px;
+  }
+
+  .admin-qs-item {
+    min-width: 60px;
+    padding: 8px 4px;
+  }
+}
+
 /* Danger button */
 .secondary-btn.danger {
   border-color: rgba(255, 80, 80, 0.3);

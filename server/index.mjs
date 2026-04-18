@@ -128,6 +128,7 @@ function createSeedUser(data) {
     stats: { sent: 0, received: 0, opened: 0, referrals: 0 },
     joinedAt: new Date().toISOString(),
     telegramMeta: null,
+    ban: null, // { type: 'global'|'chat', reason: string, until: ISO|null, createdAt: ISO, adminId: string }
     passwordHash: null,
     passwordSalt: null,
     latitude: null,
@@ -586,6 +587,7 @@ function publicUser(user) {
     stats: user.stats,
     referralCode: user.referralCode,
     referredBy: user.referredBy,
+    ban: user.ban || null,
   }
 }
 
@@ -594,6 +596,7 @@ function publicUserForAdmin(user) {
     ...publicUser(user),
     providerId: user.providerId,
     isVisible: user.isVisible,
+    ban: user.ban || null,
   }
 }
 
@@ -702,6 +705,20 @@ function requireUser(request, response, state) {
   if (viewer.status !== 'active') {
     response.status(403).json({ error: 'Аккаунт отключён администратором' })
     return null
+  }
+
+  // Check global ban
+  if (viewer.ban) {
+    if (viewer.ban.until && new Date(viewer.ban.until) < new Date()) {
+      viewer.ban = null // expired
+      saveState(state)
+    } else if (viewer.ban.type === 'global') {
+      const msg = viewer.ban.until
+        ? `Вы заблокированы до ${new Date(viewer.ban.until).toLocaleString('ru')}. Причина: ${viewer.ban.reason || 'не указана'}`
+        : `Вы заблокированы навсегда. Причина: ${viewer.ban.reason || 'не указана'}`
+      response.status(403).json({ error: msg })
+      return null
+    }
   }
 
   return viewer
@@ -1365,6 +1382,91 @@ app.post('/api/admin/grant', (request, response) => {
   response.json(bootstrapPayload(state, viewer))
 })
 
+// Admin: ban/unban user
+app.post('/api/admin/ban', (request, response) => {
+  const state = readState()
+  const viewer = requireAdmin(request, response, state)
+  if (!viewer) return
+
+  const { userId, type, reason, duration } = request.body || {}
+  const target = state.users.find(u => u.id === userId)
+  if (!target) {
+    response.status(404).json({ error: 'Пользователь не найден' })
+    return
+  }
+  if (target.role === 'admin') {
+    response.status(400).json({ error: 'Нельзя забанить администратора' })
+    return
+  }
+
+  const banType = type === 'chat' ? 'chat' : 'global'
+  const until = duration ? new Date(Date.now() + Number(duration) * 60000).toISOString() : null
+
+  target.ban = {
+    type: banType,
+    reason: String(reason || '').trim() || 'Не указана',
+    until,
+    createdAt: new Date().toISOString(),
+    adminId: viewer.id,
+  }
+
+  // Global ban: kill sessions
+  if (banType === 'global') {
+    state.sessions = state.sessions.filter(s => s.userId !== target.id)
+  }
+
+  const durationText = until ? `на ${duration} мин` : 'навсегда'
+  pushAudit(state, `admin.ban.${banType}`, viewer.id, target.id, `${banType === 'global' ? 'Глобальный бан' : 'Бан чата'} ${target.handle} ${durationText}. Причина: ${target.ban.reason}`)
+  saveState(state)
+  response.json(bootstrapPayload(state, viewer))
+})
+
+// Admin: unban user
+app.post('/api/admin/unban', (request, response) => {
+  const state = readState()
+  const viewer = requireAdmin(request, response, state)
+  if (!viewer) return
+
+  const { userId } = request.body || {}
+  const target = state.users.find(u => u.id === userId)
+  if (!target) {
+    response.status(404).json({ error: 'Пользователь не найден' })
+    return
+  }
+
+  const hadBan = target.ban
+  target.ban = null
+  pushAudit(state, 'admin.unban', viewer.id, target.id, `Разбан ${target.handle}${hadBan ? ` (был: ${hadBan.type})` : ''}.`)
+  saveState(state)
+  response.json(bootstrapPayload(state, viewer))
+})
+
+// Admin: freeze user (set status suspended + kill sessions)
+app.post('/api/admin/freeze', (request, response) => {
+  const state = readState()
+  const viewer = requireAdmin(request, response, state)
+  if (!viewer) return
+
+  const { userId, frozen } = request.body || {}
+  const target = state.users.find(u => u.id === userId)
+  if (!target) {
+    response.status(404).json({ error: 'Пользователь не найден' })
+    return
+  }
+
+  if (frozen) {
+    target.status = 'suspended'
+    state.sessions = state.sessions.filter(s => s.userId !== target.id)
+    pushAudit(state, 'admin.freeze', viewer.id, target.id, `Заморозка аккаунта ${target.handle}.`)
+  } else {
+    target.status = 'active'
+    pushAudit(state, 'admin.unfreeze', viewer.id, target.id, `Разморозка аккаунта ${target.handle}.`)
+  }
+
+  saveState(state)
+  response.json(bootstrapPayload(state, viewer))
+})
+
 // Admin: search user by id/handle/email/numericId
 app.get('/api/admin/users/search', (request, response) => {
   const state = readState()
@@ -1619,6 +1721,17 @@ app.post('/api/conversations', (request, response) => {
   const viewer = requireUser(request, response, state)
   if (!viewer) return
 
+  // Chat ban check on conversation creation
+  if (viewer.ban) {
+    if (viewer.ban.until && new Date(viewer.ban.until) < new Date()) {
+      viewer.ban = null
+      saveState(state)
+    } else if (viewer.ban.type === 'chat' || viewer.ban.type === 'global') {
+      response.status(403).json({ error: 'Вы не можете создавать чаты — ваш аккаунт заблокирован' })
+      return
+    }
+  }
+
   const { recipientId } = request.body || {}
   if (!recipientId) {
     response.status(400).json({ error: 'Укажи получателя' })
@@ -1686,6 +1799,20 @@ app.post('/api/conversations/:id/messages', (request, response) => {
   const state = readState()
   const viewer = requireUser(request, response, state)
   if (!viewer) return
+
+  // Chat ban check
+  if (viewer.ban && viewer.ban.type === 'chat') {
+    if (viewer.ban.until && new Date(viewer.ban.until) < new Date()) {
+      viewer.ban = null
+      saveState(state)
+    } else {
+      const msg = viewer.ban.until
+        ? `Чат заблокирован до ${new Date(viewer.ban.until).toLocaleString('ru')}. Причина: ${viewer.ban.reason || 'не указана'}`
+        : `Чат заблокирован. Причина: ${viewer.ban.reason || 'не указана'}`
+      response.status(403).json({ error: msg })
+      return
+    }
+  }
 
   const convo = state.conversations.find(c => c.id === request.params.id)
   if (!convo || !convo.participants.includes(viewer.id)) {

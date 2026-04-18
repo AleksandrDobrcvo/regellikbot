@@ -4,7 +4,9 @@ import { createPortal } from 'react-dom'
 import {
   ArrowLeft,
   BadgeCheck,
+  Ban,
   Bell,
+  ChevronDown,
   ChevronRight,
   Copy,
   DollarSign,
@@ -27,7 +29,9 @@ import {
   Settings2,
   ShieldCheck,
   Smartphone,
+  Snowflake,
   Sparkles,
+  Timer,
   User,
   UserCog,
   Users,
@@ -44,6 +48,15 @@ type LocationState = 'idle' | 'loading' | 'granted' | 'denied'
 type ToastTone = 'success' | 'error' | 'info'
 type UserRole = 'user' | 'admin'
 type UserStatus = 'active' | 'suspended'
+type BanType = 'global' | 'chat'
+
+type BanInfo = {
+  type: BanType
+  reason: string
+  until: string | null
+  createdAt: string
+  adminId: string
+}
 
 type UserPreferences = {
   showCity: boolean
@@ -86,6 +99,7 @@ type SessionUser = {
   stats: UserStats
   referralCode: string | null
   referredBy: string | null
+  ban: BanInfo | null
 }
 
 type DirectoryProfile = {
@@ -426,6 +440,17 @@ function App() {
   const [adminTopUpAmount, setAdminTopUpAmount] = useState('')
   const [adminTopUpReason, setAdminTopUpReason] = useState('')
   const [adminConfirmAction, setAdminConfirmAction] = useState<{ label: string; action: () => void } | null>(null)
+
+  // Admin section navigation
+  type AdminSectionId = 'none' | 'economy' | 'site' | 'roles' | 'topup' | 'users' | 'bans' | 'audit' | 'broadcast'
+  const [adminSection, setAdminSection] = useState<AdminSectionId>('none')
+
+  // Ban management
+  const [banUserId, setBanUserId] = useState('')
+  const [banType, setBanType] = useState<BanType>('global')
+  const [banDuration, setBanDuration] = useState('')
+  const [banReason, setBanReason] = useState('')
+  const [isBanning, setIsBanning] = useState(false)
 
   // Sessions
   type SessionInfo = { id: string; isCurrent: boolean; createdAt: string | null; userAgent: string }
@@ -1144,6 +1169,57 @@ function App() {
       setAdminTopUpUserId('')
       setAdminTopUpAmount('')
       setAdminTopUpReason('')
+    } catch (error) {
+      showToast(error instanceof Error ? error.message : 'Ошибка', 'error')
+    }
+  }
+
+  // Admin ban user
+  const adminBan = async () => {
+    if (!banUserId || !sessionToken) return
+    setIsBanning(true)
+    try {
+      const data = await apiRequest<BootstrapResponse>('/api/admin/ban', {
+        method: 'POST',
+        body: JSON.stringify({ userId: banUserId, type: banType, reason: banReason, duration: banDuration ? Number(banDuration) : undefined }),
+      }, sessionToken)
+      applyBootstrap(data)
+      showToast('Бан выдан', 'success')
+      setBanUserId('')
+      setBanReason('')
+      setBanDuration('')
+    } catch (error) {
+      showToast(error instanceof Error ? error.message : 'Ошибка бана', 'error')
+    } finally {
+      setIsBanning(false)
+    }
+  }
+
+  // Admin unban user
+  const adminUnban = async (userId: string) => {
+    if (!sessionToken) return
+    try {
+      const data = await apiRequest<BootstrapResponse>('/api/admin/unban', {
+        method: 'POST',
+        body: JSON.stringify({ userId }),
+      }, sessionToken)
+      applyBootstrap(data)
+      showToast('Бан снят', 'success')
+    } catch (error) {
+      showToast(error instanceof Error ? error.message : 'Ошибка', 'error')
+    }
+  }
+
+  // Admin freeze/unfreeze user
+  const adminFreeze = async (userId: string, frozen: boolean) => {
+    if (!sessionToken) return
+    try {
+      const data = await apiRequest<BootstrapResponse>('/api/admin/freeze', {
+        method: 'POST',
+        body: JSON.stringify({ userId, frozen }),
+      }, sessionToken)
+      applyBootstrap(data)
+      showToast(frozen ? 'Аккаунт заморожен' : 'Аккаунт разморожен', 'success')
     } catch (error) {
       showToast(error instanceof Error ? error.message : 'Ошибка', 'error')
     }
@@ -2249,316 +2325,241 @@ function App() {
                   <h2 className="admin-top-title"><ShieldCheck size={20} /> Панель администратора</h2>
                 </div>
 
-                {/* Статистика сайта */}
-                <article className="panel-card admin-stats-card">
-                  <div className="panel-head compact-head">
-                    <span className="eyebrow">📊 статистика сайта</span>
+                {/* Quick stats row */}
+                <div className="admin-quick-stats">
+                  <div className="admin-qs-item">
+                    <Users size={14} />
+                    <strong>{adminUsers.length}</strong>
+                    <span>всего</span>
                   </div>
-                  <div className="admin-stats-grid">
-                    <div className="admin-stat-box">
-                      <Users size={18} />
-                      <strong>{adminUsers.length}</strong>
-                      <span>пользователей</span>
-                    </div>
-                    <div className="admin-stat-box online">
-                      <span className="online-dot" />
-                      <strong>{onlineCount}</strong>
-                      <span>онлайн</span>
-                    </div>
-                    <div className="admin-stat-box">
-                      <MessageCircle size={18} />
-                      <strong>{publicFeed.length}</strong>
-                      <span>в ленте</span>
-                    </div>
-                    <div className="admin-stat-box">
-                      <Zap size={18} />
-                      <strong>{adminUsers.reduce((sum, u) => sum + u.powers, 0).toFixed(0)}</strong>
-                      <span>⚡ всего</span>
-                    </div>
-                    <div className="admin-stat-box">
-                      <ShieldCheck size={18} />
-                      <strong>{adminUsers.filter(u => u.role === 'admin').length}</strong>
-                      <span>админов</span>
-                    </div>
-                    <div className="admin-stat-box">
-                      <User size={18} />
-                      <strong>{adminUsers.filter(u => u.status === 'active').length}</strong>
-                      <span>активных</span>
-                    </div>
+                  <div className="admin-qs-item online">
+                    <span className="online-dot" />
+                    <strong>{onlineCount}</strong>
+                    <span>онлайн</span>
                   </div>
-                </article>
+                  <div className="admin-qs-item">
+                    <Zap size={14} />
+                    <strong>{adminUsers.reduce((s, u) => s + u.powers, 0).toFixed(0)}</strong>
+                    <span>⚡</span>
+                  </div>
+                  <div className="admin-qs-item">
+                    <Ban size={14} />
+                    <strong>{adminUsers.filter(u => u.ban).length}</strong>
+                    <span>бан</span>
+                  </div>
+                </div>
 
-                {/* Рассылка от системы */}
-                <article className="panel-card admin-broadcast-card">
-                  <div className="panel-head compact-head">
-                    <span className="eyebrow">📢 системное сообщение</span>
-                  </div>
-                  <p className="broadcast-desc">Отправить от имени {'>]Regellik'} всем пользователям</p>
-                  <div className="broadcast-input-row">
-                    <textarea
-                      className="broadcast-input"
-                      value={broadcastText}
-                      onChange={e => setBroadcastText(e.target.value)}
-                      placeholder="Текст рассылки..."
-                      rows={2}
-                    />
-                    <button className="primary-btn compact-btn" onClick={() => void sendBroadcast()} disabled={isBroadcasting || !broadcastText.trim()}>
-                      <Send size={14} />
-                      {isBroadcasting ? '...' : 'Отправить'}
+                {/* Section buttons grid */}
+                <div className="admin-nav-grid">
+                  {([
+                    { id: 'economy' as const, icon: <DollarSign size={18} />, label: 'Экономика', desc: 'Стоимость и заработок' },
+                    { id: 'site' as const, icon: <Settings2 size={18} />, label: 'Настройки', desc: 'Тумблеры сайта' },
+                    { id: 'roles' as const, icon: <ShieldCheck size={18} />, label: 'Роли', desc: 'Выдача прав' },
+                    { id: 'topup' as const, icon: <Zap size={18} />, label: 'Начисление', desc: 'Top-up баланса' },
+                    { id: 'users' as const, icon: <Users size={18} />, label: 'Пользователи', desc: 'Управление' },
+                    { id: 'bans' as const, icon: <Ban size={18} />, label: 'Баны', desc: 'Блокировки' },
+                    { id: 'audit' as const, icon: <Search size={18} />, label: 'Журнал', desc: 'Audit log' },
+                    { id: 'broadcast' as const, icon: <Send size={18} />, label: 'Рассылка', desc: 'Системное сообщение' },
+                  ]).map(sec => (
+                    <button
+                      key={sec.id}
+                      className={`admin-nav-btn${adminSection === sec.id ? ' active' : ''}`}
+                      onClick={() => setAdminSection(adminSection === sec.id ? 'none' : sec.id)}
+                    >
+                      <div className="admin-nav-icon">{sec.icon}</div>
+                      <div className="admin-nav-text">
+                        <strong>{sec.label}</strong>
+                        <span>{sec.desc}</span>
+                      </div>
+                      <ChevronDown size={16} className={`admin-nav-chevron${adminSection === sec.id ? ' open' : ''}`} />
                     </button>
-                  </div>
-                </article>
+                  ))}
+                </div>
 
-                {/* Quick search */}
-                <article className="panel-card admin-search-card">
-                  <div className="panel-head">
-                    <div>
-                      <span className="eyebrow">🔍 поиск</span>
-                      <h2>Найти пользователя</h2>
+                {/* === Expandable sections === */}
+
+                {/* Economy */}
+                {adminSection === 'economy' && (
+                  <form className="admin-expand-panel" onSubmit={saveSiteSettings}>
+                    <div className="admin-expand-head">
+                      <span>💰 Настройки экономики</span>
+                      <button className="primary-btn compact-btn" type="submit" disabled={isSavingSite}>
+                        <Save size={14} /> {isSavingSite ? '...' : 'Сохранить'}
+                      </button>
                     </div>
-                  </div>
-                  <div className="admin-search-row">
-                    <div className="admin-search-input-wrap">
-                      <Hash size={15} />
-                      <input
-                        value={adminSearchQ}
-                        onChange={e => setAdminSearchQ(e.target.value)}
-                        placeholder="ID, handle, email, имя..."
-                        onKeyDown={e => { if (e.key === 'Enter') void adminSearchUsers() }}
-                      />
+                    <div className="field-grid-2">
+                      <label className="input-block">
+                        <span>Стоимость сообщения ⚡</span>
+                        <input type="number" step="0.01" min="0" value={siteSettings.messageCost} onChange={e => setSiteSettings(s => ({ ...s, messageCost: Number(e.target.value) || 0 }))} />
+                      </label>
+                      <label className="input-block">
+                        <span>Заработок за сообщение ⚡</span>
+                        <input type="number" step="0.01" min="0" value={siteSettings.messageEarn} onChange={e => setSiteSettings(s => ({ ...s, messageEarn: Number(e.target.value) || 0 }))} />
+                      </label>
                     </div>
-                    <button className="primary-btn" onClick={() => void adminSearchUsers()} disabled={adminSearching}>
-                      <Search size={16} />
-                      {adminSearching ? '...' : 'Найти'}
-                    </button>
-                  </div>
-                  {adminSearchResults.length > 0 && (
-                    <div className="admin-search-results">
-                      {adminSearchResults.map(u => (
-                        <button key={u.id} className={selectedAdminUserId === u.id ? 'admin-search-result-item active' : 'admin-search-result-item'} onClick={() => setSelectedAdminUserId(u.id)}>
-                          <div className="admin-sr-left">
-                            <strong>{u.name}</strong>
-                            <span>{u.handle}</span>
-                          </div>
-                          <div className="admin-sr-right">
-                            <span className={`admin-sr-badge ${u.role}`}>{u.role}</span>
-                            <span className="admin-sr-powers"><Zap size={12} /> {u.powers}</span>
-                          </div>
+                    <label className="input-block">
+                      <span>Суммы пополнения (через запятую)</span>
+                      <input value={(siteSettings.topUpOptions || []).join(', ')} onChange={e => setSiteSettings(s => ({ ...s, topUpOptions: e.target.value.split(',').map(v => Number(v.trim())).filter(v => v > 0) }))} />
+                    </label>
+                  </form>
+                )}
+
+                {/* Site settings */}
+                {adminSection === 'site' && (
+                  <form className="admin-expand-panel" onSubmit={saveSiteSettings}>
+                    <div className="admin-expand-head">
+                      <span>⚙️ Настройки сайта</span>
+                      <button className="primary-btn compact-btn" type="submit" disabled={isSavingSite}>
+                        <Save size={14} /> {isSavingSite ? '...' : 'Сохранить'}
+                      </button>
+                    </div>
+                    <div className="toggle-grid admin-toggle-grid">
+                      {([
+                        { key: 'telegramAuthEnabled' as const, icon: <ShieldCheck size={16} />, label: 'TG auth' },
+                        { key: 'emailAuthEnabled' as const, icon: <Mail size={16} />, label: 'Email' },
+                        { key: 'geoRequiredForSend' as const, icon: <MapPin size={16} />, label: 'Geo req' },
+                        { key: 'registrationsOpen' as const, icon: <Users size={16} />, label: 'Регистрация' },
+                        { key: 'maintenanceMode' as const, icon: <Settings2 size={16} />, label: 'Тех. работы', danger: true },
+                        { key: 'onlineCounterVisible' as const, icon: <Zap size={16} />, label: 'Онлайн' },
+                        { key: 'publicFeedVisible' as const, icon: <MessageCircle size={16} />, label: 'Лента' },
+                        { key: 'inboxEnabled' as const, icon: <Mail size={16} />, label: 'Личка' },
+                        { key: 'devBadgeVisible' as const, icon: <BadgeCheck size={16} />, label: 'DEV badge' },
+                        { key: 'profileEditEnabled' as const, icon: <User size={16} />, label: 'Редактирование' },
+                      ] as const).map(t => (
+                        <button key={t.key} className={siteSettings[t.key] ? `toggle-card active${'danger' in t && t.danger ? ' danger' : ''}` : 'toggle-card'} type="button" onClick={() => toggleSiteSetting(t.key)}>
+                          {t.icon}
+                          <span>{t.label}</span>
                         </button>
                       ))}
                     </div>
-                  )}
-                </article>
+                  </form>
+                )}
 
-                <div className="admin-grid">
-                  <div className="admin-left-column">
+                {/* Roles */}
+                {adminSection === 'roles' && (
+                  <form className="admin-expand-panel" onSubmit={grantAdmin}>
+                    <div className="admin-expand-head">
+                      <span>🛡️ Выдача роли admin</span>
+                    </div>
+                    <label className="input-block">
+                      <span>ID, handle или email</span>
+                      <input value={grantIdentifier} onChange={e => setGrantIdentifier(e.target.value)} placeholder="@user или email" />
+                    </label>
+                    <button className="primary-btn wide" type="submit" disabled={isGrantingAdmin}>
+                      <ShieldCheck size={16} />
+                      {isGrantingAdmin ? 'Выдаю...' : 'Выдать admin'}
+                    </button>
+                  </form>
+                )}
 
-                    {/* Economy settings */}
-                    <form className="panel-card admin-economy-card" onSubmit={saveSiteSettings}>
-                      <div className="panel-head">
-                        <div>
-                          <span className="eyebrow">💰 экономика</span>
-                          <h2>Настройки экономики</h2>
-                        </div>
-                        <button className="primary-btn" type="submit" disabled={isSavingSite}>
-                          <Save size={16} />
-                          {isSavingSite ? '...' : 'Сохранить'}
-                        </button>
-                      </div>
-                      <div className="field-grid-2">
-                        <label className="input-block">
-                          <span>Стоимость сообщения ⚡</span>
-                          <input type="number" step="0.01" min="0" value={siteSettings.messageCost} onChange={e => setSiteSettings(s => ({ ...s, messageCost: Number(e.target.value) || 0 }))} />
-                        </label>
-                        <label className="input-block">
-                          <span>Заработок за сообщение ⚡</span>
-                          <input type="number" step="0.01" min="0" value={siteSettings.messageEarn} onChange={e => setSiteSettings(s => ({ ...s, messageEarn: Number(e.target.value) || 0 }))} />
-                        </label>
-                      </div>
+                {/* Top-up */}
+                {adminSection === 'topup' && (
+                  <div className="admin-expand-panel">
+                    <div className="admin-expand-head">
+                      <span>⚡ Top-up пользователю</span>
+                    </div>
+                    <label className="input-block">
+                      <span>User ID</span>
+                      <input value={adminTopUpUserId} onChange={e => setAdminTopUpUserId(e.target.value)} placeholder="id пользователя" />
+                    </label>
+                    <div className="field-grid-2">
                       <label className="input-block">
-                        <span>Суммы пополнения (через запятую)</span>
-                        <input value={(siteSettings.topUpOptions || []).join(', ')} onChange={e => setSiteSettings(s => ({ ...s, topUpOptions: e.target.value.split(',').map(v => Number(v.trim())).filter(v => v > 0) }))} />
+                        <span>Сумма ⚡</span>
+                        <input type="number" step="0.01" value={adminTopUpAmount} onChange={e => setAdminTopUpAmount(e.target.value)} placeholder="+100 или -50" />
                       </label>
-                    </form>
-
-                    {/* Site settings */}
-                    <form className="panel-card admin-settings-card" onSubmit={saveSiteSettings}>
-                      <div className="panel-head">
-                        <div>
-                          <span className="eyebrow">⚙️ сайт</span>
-                          <h2>Настройки</h2>
-                        </div>
-                        <button className="primary-btn" type="submit" disabled={isSavingSite}>
-                          <Save size={16} />
-                          {isSavingSite ? '...' : 'Сохранить'}
-                        </button>
-                      </div>
-                      <div className="toggle-grid admin-toggle-grid">
-                        <button className={siteSettings.telegramAuthEnabled ? 'toggle-card active' : 'toggle-card'} type="button" onClick={() => toggleSiteSetting('telegramAuthEnabled')}>
-                          <ShieldCheck size={16} />
-                          <span>TG auth</span>
-                        </button>
-                        <button className={siteSettings.emailAuthEnabled ? 'toggle-card active' : 'toggle-card'} type="button" onClick={() => toggleSiteSetting('emailAuthEnabled')}>
-                          <Mail size={16} />
-                          <span>Email</span>
-                        </button>
-                        <button className={siteSettings.geoRequiredForSend ? 'toggle-card active' : 'toggle-card'} type="button" onClick={() => toggleSiteSetting('geoRequiredForSend')}>
-                          <MapPin size={16} />
-                          <span>Geo req</span>
-                        </button>
-                        <button className={siteSettings.registrationsOpen ? 'toggle-card active' : 'toggle-card'} type="button" onClick={() => toggleSiteSetting('registrationsOpen')}>
-                          <Users size={16} />
-                          <span>Регистрация</span>
-                        </button>
-                        <button className={siteSettings.maintenanceMode ? 'toggle-card active danger' : 'toggle-card'} type="button" onClick={() => toggleSiteSetting('maintenanceMode')}>
-                          <Settings2 size={16} />
-                          <span>Тех. работы</span>
-                        </button>
-                        <button className={siteSettings.onlineCounterVisible ? 'toggle-card active' : 'toggle-card'} type="button" onClick={() => toggleSiteSetting('onlineCounterVisible')}>
-                          <Zap size={16} />
-                          <span>Онлайн</span>
-                        </button>
-                        <button className={siteSettings.publicFeedVisible ? 'toggle-card active' : 'toggle-card'} type="button" onClick={() => toggleSiteSetting('publicFeedVisible')}>
-                          <MessageCircle size={16} />
-                          <span>Лента</span>
-                        </button>
-                        <button className={siteSettings.inboxEnabled ? 'toggle-card active' : 'toggle-card'} type="button" onClick={() => toggleSiteSetting('inboxEnabled')}>
-                          <Mail size={16} />
-                          <span>Личка</span>
-                        </button>
-                        <button className={siteSettings.devBadgeVisible ? 'toggle-card active' : 'toggle-card'} type="button" onClick={() => toggleSiteSetting('devBadgeVisible')}>
-                          <BadgeCheck size={16} />
-                          <span>DEV badge</span>
-                        </button>
-                        <button className={siteSettings.profileEditEnabled ? 'toggle-card active' : 'toggle-card'} type="button" onClick={() => toggleSiteSetting('profileEditEnabled')}>
-                          <User size={16} />
-                          <span>Редактирование</span>
-                        </button>
-                      </div>
-                    </form>
-
-                    {/* Grant admin */}
-                    <form className="panel-card admin-grant-card" onSubmit={grantAdmin}>
-                      <div className="panel-head">
-                        <div>
-                          <span className="eyebrow">🛡️ выдача</span>
-                          <h2>Роль admin</h2>
-                        </div>
-                      </div>
                       <label className="input-block">
-                        <span>ID, handle или email</span>
-                        <input value={grantIdentifier} onChange={(event) => setGrantIdentifier(event.target.value)} placeholder="@user или email" />
+                        <span>Причина</span>
+                        <input value={adminTopUpReason} onChange={e => setAdminTopUpReason(e.target.value)} placeholder="опционально" />
                       </label>
-                      <button className="primary-btn wide" type="submit" disabled={isGrantingAdmin} onClick={() => setAdminConfirmAction(null)}>
-                        <ShieldCheck size={16} />
-                        {isGrantingAdmin ? 'Выдаю...' : 'Выдать admin'}
-                      </button>
-                    </form>
-
-                    {/* Admin top-up */}
-                    <article className="panel-card admin-topup-card">
-                      <div className="panel-head">
-                        <div>
-                          <span className="eyebrow">⚡ начисление</span>
-                          <h2>Top-up пользователю</h2>
-                        </div>
-                      </div>
-                      <label className="input-block">
-                        <span>User ID</span>
-                        <input value={adminTopUpUserId} onChange={e => setAdminTopUpUserId(e.target.value)} placeholder="id пользователя" />
-                      </label>
-                      <div className="field-grid-2">
-                        <label className="input-block">
-                          <span>Сумма ⚡</span>
-                          <input type="number" step="0.01" value={adminTopUpAmount} onChange={e => setAdminTopUpAmount(e.target.value)} placeholder="+100 или -50" />
-                        </label>
-                        <label className="input-block">
-                          <span>Причина</span>
-                          <input value={adminTopUpReason} onChange={e => setAdminTopUpReason(e.target.value)} placeholder="опционально" />
-                        </label>
-                      </div>
-                      <button className="primary-btn wide" type="button" onClick={() => {
-                        setAdminConfirmAction({
-                          label: `${Number(adminTopUpAmount) > 0 ? '+' : ''}${adminTopUpAmount}⚡ пользователю ${adminTopUpUserId}`,
-                          action: () => { void adminTopUp(); setAdminConfirmAction(null) }
-                        })
-                      }} disabled={!adminTopUpUserId || !adminTopUpAmount}>
-                        <DollarSign size={16} />
-                        Начислить
-                      </button>
-                    </article>
-
-                    {/* Audit log */}
-                    <article className="panel-card audit-card">
-                      <div className="panel-head">
-                        <div>
-                          <span className="eyebrow">📜 журнал</span>
-                          <h2>Audit log</h2>
-                        </div>
-                      </div>
-                      <div className="audit-list">
-                        {auditLog.slice(0, 30).map((item) => (
-                          <div key={item.id} className="audit-item">
-                            <strong>{item.action}</strong>
-                            <span>{item.details}</span>
-                            <small>{formatRelativeTime(item.createdAt)}</small>
-                          </div>
-                        ))}
-                        {auditLog.length === 0 && <div className="chats-empty" style={{padding: '20px'}}><p>Лог пуст</p></div>}
-                      </div>
-                    </article>
+                    </div>
+                    <button className="primary-btn wide" type="button" onClick={() => {
+                      setAdminConfirmAction({
+                        label: `${Number(adminTopUpAmount) > 0 ? '+' : ''}${adminTopUpAmount}⚡ пользователю ${adminTopUpUserId}`,
+                        action: () => { void adminTopUp(); setAdminConfirmAction(null) }
+                      })
+                    }} disabled={!adminTopUpUserId || !adminTopUpAmount}>
+                      <DollarSign size={16} /> Начислить
+                    </button>
                   </div>
+                )}
 
-                  <div className="admin-right-column">
-                    {/* Users list */}
-                    <article className="panel-card admin-users-card">
-                      <div className="panel-head">
-                        <div>
-                          <span className="eyebrow">👥 пользователи ({adminUsers.length})</span>
-                          <h2>Управление</h2>
-                        </div>
+                {/* Users */}
+                {adminSection === 'users' && (
+                  <div className="admin-expand-panel admin-users-section">
+                    <div className="admin-expand-head">
+                      <span>👥 Пользователи ({adminUsers.length})</span>
+                    </div>
+
+                    {/* Search */}
+                    <div className="admin-search-row">
+                      <div className="admin-search-input-wrap">
+                        <Hash size={15} />
+                        <input
+                          value={adminSearchQ}
+                          onChange={e => setAdminSearchQ(e.target.value)}
+                          placeholder="ID, handle, email, имя..."
+                          onKeyDown={e => { if (e.key === 'Enter') void adminSearchUsers() }}
+                        />
                       </div>
-                      <div className="admin-user-list">
-                        {adminUsers.map((item) => (
-                          <button
-                            key={item.id}
-                            className={selectedAdminUserId === item.id ? 'admin-user-item active' : 'admin-user-item'}
-                            onClick={() => setSelectedAdminUserId(item.id)}
-                          >
-                            <div className="admin-user-left">
-                              <strong>{item.name}</strong>
-                              <span className="admin-user-handle">{item.handle}</span>
+                      <button className="primary-btn compact-btn" onClick={() => void adminSearchUsers()} disabled={adminSearching}>
+                        <Search size={14} /> {adminSearching ? '...' : 'Найти'}
+                      </button>
+                    </div>
+                    {adminSearchResults.length > 0 && (
+                      <div className="admin-search-results">
+                        {adminSearchResults.map(u => (
+                          <button key={u.id} className={selectedAdminUserId === u.id ? 'admin-search-result-item active' : 'admin-search-result-item'} onClick={() => setSelectedAdminUserId(u.id)}>
+                            <div className="admin-sr-left">
+                              <strong>{u.name}</strong>
+                              <span>{u.handle}</span>
                             </div>
-                            <div className="admin-user-meta">
-                              <span className={`admin-role-pill ${item.role}`}>{item.role}</span>
-                              <span className={`admin-status-pill ${item.status}`}>{item.status}</span>
-                              <span className="admin-powers-pill"><Zap size={11} /> {item.powers}</span>
+                            <div className="admin-sr-right">
+                              <span className={`admin-sr-badge ${u.role}`}>{u.role}</span>
+                              <span className="admin-sr-powers"><Zap size={12} /> {u.powers}</span>
                             </div>
                           </button>
                         ))}
                       </div>
-                    </article>
+                    )}
+
+                    {/* User list */}
+                    <div className="admin-user-list">
+                      {adminUsers.map(item => (
+                        <button
+                          key={item.id}
+                          className={`admin-user-item${selectedAdminUserId === item.id ? ' active' : ''}${item.ban ? ' banned' : ''}`}
+                          onClick={() => setSelectedAdminUserId(item.id)}
+                        >
+                          <div className="admin-user-left">
+                            <strong>{item.name}</strong>
+                            <span className="admin-user-handle">{item.handle}</span>
+                          </div>
+                          <div className="admin-user-meta">
+                            <span className={`admin-role-pill ${item.role}`}>{item.role}</span>
+                            {item.ban && <span className="admin-ban-pill"><Ban size={10} /> {item.ban.type}</span>}
+                            {item.status === 'suspended' && <span className="admin-status-pill suspended"><Snowflake size={10} /></span>}
+                            <span className="admin-powers-pill"><Zap size={11} /> {item.powers}</span>
+                          </div>
+                        </button>
+                      ))}
+                    </div>
 
                     {/* User editor */}
                     {adminDraft && (
-                      <form className="panel-card admin-editor-card" onSubmit={saveAdminUser}>
-                        <div className="panel-head">
-                          <div>
-                            <span className="eyebrow">🛠️ редактор</span>
-                            <h2>{adminDraft.name}</h2>
-                          </div>
-                          <button className="primary-btn" type="button" onClick={() => {
+                      <form className="admin-user-editor" onSubmit={saveAdminUser}>
+                        <div className="admin-expand-head">
+                          <span>🛠️ {adminDraft.name}</span>
+                          <button className="primary-btn compact-btn" type="button" onClick={() => {
                             setAdminConfirmAction({
                               label: `Сохранить изменения для ${adminDraft.name}`,
                               action: () => {
-                                const form = document.querySelector<HTMLFormElement>('.admin-editor-card')
+                                const form = document.querySelector<HTMLFormElement>('.admin-user-editor')
                                 if (form) form.requestSubmit()
                                 setAdminConfirmAction(null)
                               }
                             })
                           }} disabled={isSavingAdminUser}>
-                            <Save size={16} />
-                            {isSavingAdminUser ? '...' : 'Сохранить'}
+                            <Save size={14} /> {isSavingAdminUser ? '...' : 'Сохранить'}
                           </button>
                         </div>
 
@@ -2573,15 +2574,15 @@ function App() {
                         <div className="field-grid-3">
                           <label className="input-block">
                             <span>Имя</span>
-                            <input value={adminDraft.name} onChange={(event) => setAdminDraft((current) => (current ? { ...current, name: event.target.value } : current))} />
+                            <input value={adminDraft.name} onChange={e => setAdminDraft(c => c ? { ...c, name: e.target.value } : c)} />
                           </label>
                           <label className="input-block">
                             <span>Handle</span>
-                            <input value={adminDraft.handle} onChange={(event) => setAdminDraft((current) => (current ? { ...current, handle: event.target.value } : current))} />
+                            <input value={adminDraft.handle} onChange={e => setAdminDraft(c => c ? { ...c, handle: e.target.value } : c)} />
                           </label>
                           <label className="input-block">
                             <span>Баланс ⚡</span>
-                            <input type="number" value={adminDraft.powers} onChange={(event) => setAdminDraft((current) => (current ? { ...current, powers: Number(event.target.value) || 0 } : current))} />
+                            <input type="number" value={adminDraft.powers} onChange={e => setAdminDraft(c => c ? { ...c, powers: Number(e.target.value) || 0 } : c)} />
                           </label>
                         </div>
 
@@ -2596,25 +2597,25 @@ function App() {
                         <div className="field-grid-2">
                           <label className="input-block">
                             <span>Город</span>
-                            <input value={adminDraft.city || ''} onChange={(event) => setAdminDraft((current) => (current ? { ...current, city: event.target.value } : current))} />
+                            <input value={adminDraft.city || ''} onChange={e => setAdminDraft(c => c ? { ...c, city: e.target.value } : c)} />
                           </label>
                           <label className="input-block">
                             <span>Страна</span>
-                            <input value={adminDraft.country || ''} onChange={(event) => setAdminDraft((current) => (current ? { ...current, country: event.target.value } : current))} />
+                            <input value={adminDraft.country || ''} onChange={e => setAdminDraft(c => c ? { ...c, country: e.target.value } : c)} />
                           </label>
                         </div>
 
                         <div className="field-grid-2">
                           <label className="input-block">
                             <span>Роль</span>
-                            <select value={adminDraft.role} onChange={(event) => setAdminDraft((current) => (current ? { ...current, role: event.target.value as UserRole } : current))}>
+                            <select value={adminDraft.role} onChange={e => setAdminDraft(c => c ? { ...c, role: e.target.value as UserRole } : c)}>
                               <option value="user">user</option>
                               <option value="admin">admin</option>
                             </select>
                           </label>
                           <label className="input-block">
                             <span>Статус</span>
-                            <select value={adminDraft.status} onChange={(event) => setAdminDraft((current) => (current ? { ...current, status: event.target.value as UserStatus } : current))}>
+                            <select value={adminDraft.status} onChange={e => setAdminDraft(c => c ? { ...c, status: e.target.value as UserStatus } : c)}>
                               <option value="active">active</option>
                               <option value="suspended">suspended</option>
                             </select>
@@ -2623,25 +2624,25 @@ function App() {
 
                         <label className="input-block">
                           <span>Tagline</span>
-                          <input value={adminDraft.tagline} onChange={(event) => setAdminDraft((current) => (current ? { ...current, tagline: event.target.value } : current))} />
+                          <input value={adminDraft.tagline} onChange={e => setAdminDraft(c => c ? { ...c, tagline: e.target.value } : c)} />
                         </label>
 
                         <label className="input-block">
                           <span>Bio</span>
-                          <textarea value={adminDraft.bio} onChange={(event) => setAdminDraft((current) => (current ? { ...current, bio: event.target.value } : current))} />
+                          <textarea value={adminDraft.bio} onChange={e => setAdminDraft(c => c ? { ...c, bio: e.target.value } : c)} />
                         </label>
 
                         <label className="input-block">
                           <span>Бейджи</span>
-                          <input value={adminDraft.badgesText} onChange={(event) => setAdminDraft((current) => (current ? { ...current, badgesText: event.target.value } : current))} />
+                          <input value={adminDraft.badgesText} onChange={e => setAdminDraft(c => c ? { ...c, badgesText: e.target.value } : c)} />
                         </label>
 
                         <div className="toggle-grid admin-toggle-grid">
-                          <button className={adminDraft.isVisible ? 'toggle-card active' : 'toggle-card danger'} type="button" onClick={() => setAdminDraft((current) => (current ? { ...current, isVisible: !current.isVisible } : current))}>
+                          <button className={adminDraft.isVisible ? 'toggle-card active' : 'toggle-card danger'} type="button" onClick={() => setAdminDraft(c => c ? { ...c, isVisible: !c.isVisible } : c)}>
                             {adminDraft.isVisible ? <Eye size={16} /> : <EyeOff size={16} />}
                             <span>Видимость</span>
                           </button>
-                          <button className={adminDraft.geoAllowed ? 'toggle-card active' : 'toggle-card danger'} type="button" onClick={() => setAdminDraft((current) => (current ? { ...current, geoAllowed: !current.geoAllowed } : current))}>
+                          <button className={adminDraft.geoAllowed ? 'toggle-card active' : 'toggle-card danger'} type="button" onClick={() => setAdminDraft(c => c ? { ...c, geoAllowed: !c.geoAllowed } : c)}>
                             <MapPin size={16} />
                             <span>Гео</span>
                           </button>
@@ -2662,10 +2663,152 @@ function App() {
                             <span>Email alerts</span>
                           </button>
                         </div>
+
+                        {/* Inline ban/freeze controls in editor */}
+                        <div className="admin-editor-actions">
+                          {adminDraft.ban ? (
+                            <button type="button" className="secondary-btn wide" onClick={() => void adminUnban(adminDraft.id)}>
+                              <Ban size={14} /> Снять бан ({adminDraft.ban.type})
+                            </button>
+                          ) : (
+                            <button type="button" className="secondary-btn danger wide" onClick={() => {
+                              setBanUserId(adminDraft.id)
+                              setAdminSection('bans')
+                            }}>
+                              <Ban size={14} /> Забанить
+                            </button>
+                          )}
+                          {adminDraft.status === 'suspended' ? (
+                            <button type="button" className="secondary-btn wide" onClick={() => void adminFreeze(adminDraft.id, false)}>
+                              <Snowflake size={14} /> Разморозить
+                            </button>
+                          ) : (
+                            <button type="button" className="secondary-btn danger wide" onClick={() => {
+                              setAdminConfirmAction({
+                                label: `Заморозить аккаунт ${adminDraft.name}?`,
+                                action: () => { void adminFreeze(adminDraft.id, true); setAdminConfirmAction(null) }
+                              })
+                            }}>
+                              <Snowflake size={14} /> Заморозить
+                            </button>
+                          )}
+                        </div>
                       </form>
                     )}
                   </div>
-                </div>
+                )}
+
+                {/* Bans */}
+                {adminSection === 'bans' && (
+                  <div className="admin-expand-panel">
+                    <div className="admin-expand-head">
+                      <span>🚫 Управление банами</span>
+                    </div>
+
+                    {/* Issue ban form */}
+                    <div className="admin-ban-form">
+                      <label className="input-block">
+                        <span>User ID</span>
+                        <input value={banUserId} onChange={e => setBanUserId(e.target.value)} placeholder="id пользователя" />
+                      </label>
+                      <div className="field-grid-2">
+                        <label className="input-block">
+                          <span>Тип бана</span>
+                          <select value={banType} onChange={e => setBanType(e.target.value as BanType)}>
+                            <option value="global">Глобальный</option>
+                            <option value="chat">Бан чата</option>
+                          </select>
+                        </label>
+                        <label className="input-block">
+                          <span>Длительность (мин)</span>
+                          <input type="number" min="0" value={banDuration} onChange={e => setBanDuration(e.target.value)} placeholder="пусто = навсегда" />
+                        </label>
+                      </div>
+                      <label className="input-block">
+                        <span>Причина</span>
+                        <input value={banReason} onChange={e => setBanReason(e.target.value)} placeholder="Причина блокировки" />
+                      </label>
+                      <div className="admin-ban-presets">
+                        <button type="button" className="secondary-btn compact-btn" onClick={() => setBanDuration('30')}><Timer size={12} /> 30 мин</button>
+                        <button type="button" className="secondary-btn compact-btn" onClick={() => setBanDuration('60')}><Timer size={12} /> 1 час</button>
+                        <button type="button" className="secondary-btn compact-btn" onClick={() => setBanDuration('1440')}><Timer size={12} /> 1 день</button>
+                        <button type="button" className="secondary-btn compact-btn" onClick={() => setBanDuration('10080')}><Timer size={12} /> 7 дней</button>
+                        <button type="button" className="secondary-btn compact-btn danger" onClick={() => setBanDuration('')}><Ban size={12} /> Навсегда</button>
+                      </div>
+                      <button className="primary-btn wide" onClick={() => {
+                        setAdminConfirmAction({
+                          label: `Забанить ${banUserId} (${banType}, ${banDuration ? banDuration + ' мин' : 'навсегда'})`,
+                          action: () => { void adminBan(); setAdminConfirmAction(null) }
+                        })
+                      }} disabled={!banUserId || isBanning}>
+                        <Ban size={16} /> {isBanning ? 'Баню...' : 'Выдать бан'}
+                      </button>
+                    </div>
+
+                    {/* Active bans list */}
+                    <div className="admin-bans-list">
+                      <div className="admin-expand-head" style={{marginTop: 12}}>
+                        <span>Активные баны</span>
+                      </div>
+                      {adminUsers.filter(u => u.ban).length === 0 && (
+                        <div className="chats-empty" style={{padding: '16px'}}><p>Нет активных банов</p></div>
+                      )}
+                      {adminUsers.filter(u => u.ban).map(u => (
+                        <div key={u.id} className="admin-ban-item">
+                          <div className="admin-ban-info">
+                            <strong>{u.name}</strong>
+                            <span className="admin-ban-handle">{u.handle}</span>
+                            <span className={`admin-ban-type ${u.ban!.type}`}>{u.ban!.type === 'global' ? '🌐 Глобальный' : '💬 Чат'}</span>
+                            <span className="admin-ban-reason">{u.ban!.reason}</span>
+                            {u.ban!.until && <span className="admin-ban-until"><Timer size={11} /> до {new Date(u.ban!.until).toLocaleString('ru')}</span>}
+                          </div>
+                          <button className="secondary-btn compact-btn" onClick={() => void adminUnban(u.id)}>Разбан</button>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                )}
+
+                {/* Audit log */}
+                {adminSection === 'audit' && (
+                  <div className="admin-expand-panel">
+                    <div className="admin-expand-head">
+                      <span>📜 Журнал — Audit log</span>
+                    </div>
+                    <div className="audit-list">
+                      {auditLog.slice(0, 50).map(item => (
+                        <div key={item.id} className="audit-item">
+                          <strong>{item.action}</strong>
+                          <span>{item.details}</span>
+                          <small>{formatRelativeTime(item.createdAt)}</small>
+                        </div>
+                      ))}
+                      {auditLog.length === 0 && <div className="chats-empty" style={{padding: '20px'}}><p>Лог пуст</p></div>}
+                    </div>
+                  </div>
+                )}
+
+                {/* Broadcast */}
+                {adminSection === 'broadcast' && (
+                  <div className="admin-expand-panel">
+                    <div className="admin-expand-head">
+                      <span>📢 Системное сообщение</span>
+                    </div>
+                    <p className="broadcast-desc">Отправить от имени {'>]Regellik'} всем пользователям</p>
+                    <div className="broadcast-input-row">
+                      <textarea
+                        className="broadcast-input"
+                        value={broadcastText}
+                        onChange={e => setBroadcastText(e.target.value)}
+                        placeholder="Текст рассылки..."
+                        rows={2}
+                      />
+                      <button className="primary-btn compact-btn" onClick={() => void sendBroadcast()} disabled={isBroadcasting || !broadcastText.trim()}>
+                        <Send size={14} /> {isBroadcasting ? '...' : 'Отправить'}
+                      </button>
+                    </div>
+                  </div>
+                )}
 
                 {/* Confirmation modal */}
                 {adminConfirmAction && (
