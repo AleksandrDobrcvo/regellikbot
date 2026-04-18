@@ -1152,12 +1152,24 @@ app.post('/api/location', (request, response) => {
     return
   }
 
-  viewer.city = request.body?.city || viewer.city
-  viewer.country = request.body?.country || viewer.country
-  viewer.latitude = Number.isFinite(request.body?.latitude) ? Number(request.body.latitude) : viewer.latitude
-  viewer.longitude = Number.isFinite(request.body?.longitude) ? Number(request.body.longitude) : viewer.longitude
-  applyCoordinates(viewer)
-  viewer.geoAllowed = Boolean(viewer.city)
+  const body = request.body || {}
+
+  // Allow explicit clearing with null
+  if (body.city === null) {
+    viewer.city = ''
+    viewer.country = ''
+    viewer.latitude = 0
+    viewer.longitude = 0
+    viewer.geoAllowed = false
+  } else {
+    viewer.city = body.city || viewer.city
+    viewer.country = body.country || viewer.country
+    viewer.latitude = Number.isFinite(body.latitude) ? Number(body.latitude) : viewer.latitude
+    viewer.longitude = Number.isFinite(body.longitude) ? Number(body.longitude) : viewer.longitude
+    applyCoordinates(viewer)
+    viewer.geoAllowed = Boolean(viewer.city)
+  }
+
   pushAudit(state, 'profile.location', viewer.id, viewer.id, 'Обновлена геолокация профиля.')
   saveState(state)
   response.json({ viewer: publicUser(viewer) })

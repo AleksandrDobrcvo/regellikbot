@@ -17,7 +17,7 @@
   --accent: #b9ff3b;
   --font-ui: 'Segoe UI', 'Trebuchet MS', sans-serif;
   --font-mono: 'JetBrains Mono', 'Segoe UI', monospace;
-  --shadow: 0 24px 80px rgba(0, 0, 0, 0.4);
+  --shadow: 0 12px 40px rgba(0, 0, 0, 0.3), 0 2px 8px rgba(0, 0, 0, 0.15);
 }
 
 * {
@@ -891,7 +891,7 @@ select {
 
 .panel-card {
   padding: 22px;
-  border-radius: 30px;
+  border-radius: 24px;
   border: 1px solid var(--line);
   background: var(--panel);
   backdrop-filter: blur(18px);
@@ -2991,8 +2991,8 @@ select {
 @keyframes pageIn {
   from {
     opacity: 0;
-    transform: translateY(18px) scale(0.98);
-    filter: blur(4px);
+    transform: translateY(24px) scale(0.97);
+    filter: blur(6px);
   }
   to {
     opacity: 1;
@@ -3002,7 +3002,31 @@ select {
 }
 
 .page-transition {
-  animation: pageIn 0.4s cubic-bezier(0.16, 1, 0.3, 1) both;
+  animation: pageIn 0.45s cubic-bezier(0.16, 1, 0.3, 1) both;
+}
+
+/* Stagger animation for cards inside pages */
+.page-transition > .panel-card,
+.page-transition > article,
+.page-transition > form {
+  animation: cardFadeIn 0.4s cubic-bezier(0.16, 1, 0.3, 1) both;
+}
+.page-transition > :nth-child(1) { animation-delay: 0.05s; }
+.page-transition > :nth-child(2) { animation-delay: 0.1s; }
+.page-transition > :nth-child(3) { animation-delay: 0.15s; }
+.page-transition > :nth-child(4) { animation-delay: 0.2s; }
+.page-transition > :nth-child(5) { animation-delay: 0.25s; }
+.page-transition > :nth-child(6) { animation-delay: 0.3s; }
+
+@keyframes cardFadeIn {
+  from {
+    opacity: 0;
+    transform: translateY(16px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
 }
 
 /* === Chats screen compact === */
@@ -3621,7 +3645,7 @@ select {
   position: relative;
   width: 100%;
   max-width: 500px;
-  max-height: 85vh;
+  max-height: calc(85vh - env(safe-area-inset-top, 0px));
   background:
     radial-gradient(ellipse at 20% 0%, rgba(185, 255, 59, 0.04) 0%, transparent 50%),
     linear-gradient(180deg, rgba(10, 28, 16, 0.99), rgba(4, 14, 8, 0.99));
@@ -4383,8 +4407,8 @@ select {
   display: flex;
   align-items: center;
   gap: 12px;
-  padding: 12px 14px;
-  border-radius: 12px;
+  padding: 14px 16px;
+  border-radius: 18px;
   background: rgba(255, 255, 255, 0.03);
   border: 1px solid rgba(255, 255, 255, 0.06);
 }
@@ -4419,7 +4443,7 @@ select {
   gap: 8px;
   width: 100%;
   padding: 14px;
-  border-radius: 14px;
+  border-radius: 18px;
   background: linear-gradient(135deg, var(--green), #8ce62e);
   color: #000;
   font-size: 15px;
@@ -5608,6 +5632,53 @@ select {
     padding: 0 14px;
     font-size: 12px;
   }
+}
+
+/* ===== INNER FOOTER (logged-in) ===== */
+.app-footer-inner {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 12px;
+  padding: 32px 20px 80px;
+  margin-top: 24px;
+  border-top: 1px solid rgba(185, 255, 59, 0.06);
+  text-align: center;
+}
+
+.footer-brand {
+  font-size: 18px;
+  font-weight: 800;
+  font-family: var(--font-mono);
+  background: linear-gradient(135deg, var(--green), var(--cyan));
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+  background-clip: text;
+  letter-spacing: 1px;
+}
+
+.footer-links {
+  display: flex;
+  gap: 16px;
+  flex-wrap: wrap;
+  justify-content: center;
+}
+
+.footer-links span {
+  font-size: 13px;
+  color: rgba(255, 255, 255, 0.35);
+  cursor: pointer;
+  transition: color 0.2s;
+}
+
+.footer-links span:hover {
+  color: var(--green);
+}
+
+.footer-copy {
+  font-size: 11px;
+  color: rgba(255, 255, 255, 0.2);
+  letter-spacing: 0.3px;
 }
 
 /* ===== HOME SCREEN (authorized) ===== */

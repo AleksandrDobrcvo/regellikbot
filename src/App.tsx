@@ -1795,23 +1795,21 @@ function App() {
                       <button
                         className={viewer.geoAllowed ? 'toggle-mini active' : 'toggle-mini'}
                         onClick={async () => {
+                          const newGeoAllowed = !viewer.geoAllowed
                           try {
-                            await apiRequest<{ viewer: SessionUser }>('/api/profile/update', {
+                            const data = await apiRequest<{ viewer: SessionUser }>('/api/location', {
                               method: 'POST',
-                              body: JSON.stringify({ preferences: { ...viewer.preferences, showCity: !viewer.geoAllowed } }),
-                            }, sessionToken)
-                            // Also toggle geoAllowed on server
-                            await apiRequest('/api/location', {
-                              method: 'POST',
-                              body: JSON.stringify({
-                                city: viewer.geoAllowed ? null : viewer.city,
-                                country: viewer.geoAllowed ? null : viewer.country,
-                                latitude: viewer.geoAllowed ? null : viewer.latitude,
-                                longitude: viewer.geoAllowed ? null : viewer.longitude,
+                              body: JSON.stringify(newGeoAllowed ? {
+                                city: viewer.city || resolvedLocation?.city,
+                                country: viewer.country || resolvedLocation?.country,
+                                latitude: viewer.latitude || resolvedLocation?.latitude,
+                                longitude: viewer.longitude || resolvedLocation?.longitude,
+                              } : {
+                                city: null,
                               }),
                             }, sessionToken)
-                            setViewer(prev => prev ? { ...prev, geoAllowed: !prev.geoAllowed } : prev)
-                            showToast(viewer.geoAllowed ? 'Геолокация скрыта' : 'Геолокация показана', 'success')
+                            setViewer(prev => prev ? { ...prev, ...data.viewer } : prev)
+                            showToast(newGeoAllowed ? 'Геолокация показана' : 'Геолокация скрыта', 'success')
                           } catch {
                             showToast('Не удалось изменить настройку', 'error')
                           }
@@ -2616,6 +2614,15 @@ function App() {
               </section>
             )}
           </main>
+          <footer className="app-footer-inner">
+            <div className="footer-brand">&gt;]Regellik</div>
+            <div className="footer-links">
+              <span>Нормативы</span>
+              <span>О нас</span>
+              <span>FAQ</span>
+            </div>
+            <div className="footer-copy">© 2026 Regellik. Все права защищены.</div>
+          </footer>
         </>
       )}
 
