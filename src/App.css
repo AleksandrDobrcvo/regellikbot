@@ -99,7 +99,7 @@ html {
   min-height: 100dvh;
   display: flex;
   flex-direction: column;
-  padding: 20px 20px 112px;
+  padding: 20px 12px 112px;
   overflow: hidden;
 }
 
@@ -1695,7 +1695,7 @@ html {
 
 @media (max-width: 480px) {
   .app-shell {
-    padding: 10px 10px 96px;
+    padding: 10px 4px 96px;
   }
 
   .app-shell.has-header {
