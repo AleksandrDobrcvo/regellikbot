@@ -1253,8 +1253,12 @@ function App() {
     }
   }
 
+  const [boostAnimPosts, setBoostAnimPosts] = useState<Set<string>>(new Set())
+
   const boostPost = async (postId: string) => {
     if (!viewer || !sessionToken) return
+    setBoostAnimPosts(prev => { const s = new Set(prev); s.add(postId); return s })
+    setTimeout(() => setBoostAnimPosts(prev => { const s = new Set(prev); s.delete(postId); return s }), 400)
     try {
       const data = await apiRequest<{ post: Post; viewerPowers?: number }>(`/api/posts/${postId}/boost`, {
         method: 'POST',
@@ -2081,9 +2085,6 @@ function App() {
                   )}
                   {sortedPosts.map((post, idx) => (
                     <article key={post.id} className="trends-post-card">
-                      {trendsSort === 'top' && idx < 3 && (
-                        <div className={`trends-rank rank-${idx + 1}`}>#{idx + 1}</div>
-                      )}
                       <div className="trends-post-header">
                         <div className="trends-post-avatar">
                           {post.authorAvatarUrl
@@ -2096,13 +2097,16 @@ function App() {
                           <span>{post.authorHandle}</span>
                         </div>
                         <small className="trends-post-time">{formatRelativeTime(post.createdAt)}</small>
+                        {trendsSort === 'top' && idx < 3 && (
+                          <div className={`trends-rank rank-${idx + 1}`}>#{idx + 1}</div>
+                        )}
                       </div>
 
                       <p className="trends-post-text">{post.text}</p>
 
                       <div className="trends-post-actions">
                         <button
-                          className={post.boostedByViewer ? 'trends-boost-btn boosted' : 'trends-boost-btn'}
+                          className={`trends-boost-btn${post.boostedByViewer ? ' boosted' : ''}${boostAnimPosts.has(post.id) ? ' boost-anim' : ''}`}
                           onClick={() => void boostPost(post.id)}
                           title={post.boostedByViewer ? 'Убрать буст' : 'Бустнуть'}
                         >

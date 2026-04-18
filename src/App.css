@@ -7304,11 +7304,13 @@ html {
   font-family: var(--font-mono);
   padding: 2px 0 4px;
   outline: none;
-  transition: border-color 0.2s;
+  transition: border-color 0.22s;
+  position: relative;
 }
 
 .hero-name-input:focus {
-  border-bottom-color: rgba(255, 255, 255, 0.4);
+  border-bottom-color: rgba(255, 255, 255, 0.5);
+  box-shadow: 0 1px 0 0 rgba(255,255,255,0.18);
 }
 
 .hero-name-input:disabled {
@@ -7333,12 +7335,13 @@ html {
   font-family: var(--font-mono);
   padding: 2px 0 3px;
   outline: none;
-  transition: border-color 0.2s;
+  transition: border-color 0.22s, color 0.22s;
 }
 
 .hero-handle-input:focus {
-  border-bottom-color: rgba(255, 255, 255, 0.3);
-  color: rgba(255, 255, 255, 0.8);
+  border-bottom-color: rgba(255, 255, 255, 0.35);
+  color: rgba(255, 255, 255, 0.85);
+  box-shadow: 0 1px 0 0 rgba(255,255,255,0.12);
 }
 
 .hero-handle-input:disabled {
@@ -7460,6 +7463,13 @@ html {
   border: 1px solid rgba(255, 255, 255, 0.08);
   border-radius: 16px;
   padding: 14px;
+  transition: border-color 0.25s, box-shadow 0.25s;
+}
+
+.trends-composer:focus-within {
+  border-color: rgba(255, 255, 255, 0.18);
+  box-shadow: 0 0 0 3px rgba(255, 255, 255, 0.04);
+  animation: composerGlowPulse 2s ease infinite;
 }
 
 .trends-composer-avatar {
@@ -7553,34 +7563,71 @@ html {
   font-size: 13px;
 }
 
+@keyframes trendCardIn {
+  from { opacity: 0; transform: translateY(10px) scale(0.98); }
+  to   { opacity: 1; transform: translateY(0)  scale(1); }
+}
+
+@keyframes boostPop {
+  0%   { transform: scale(1); }
+  40%  { transform: scale(1.28); }
+  70%  { transform: scale(0.92); }
+  100% { transform: scale(1); }
+}
+
+@keyframes zapGlow {
+  0%,100% { filter: drop-shadow(0 0 0px #ffc800); }
+  50%     { filter: drop-shadow(0 0 7px #ffc800); }
+}
+
+@keyframes inputUnderline {
+  from { transform: scaleX(0); }
+  to   { transform: scaleX(1); }
+}
+
+@keyframes composerGlowPulse {
+  0%,100% { box-shadow: 0 0 0 0 rgba(255,255,255,0.06); }
+  50%     { box-shadow: 0 0 0 3px rgba(255,255,255,0.09); }
+}
+
+.trends-feed > .trends-post-card:nth-child(1)  { animation: trendCardIn 0.32s ease both; }
+.trends-feed > .trends-post-card:nth-child(2)  { animation: trendCardIn 0.32s 0.05s ease both; }
+.trends-feed > .trends-post-card:nth-child(3)  { animation: trendCardIn 0.32s 0.10s ease both; }
+.trends-feed > .trends-post-card:nth-child(4)  { animation: trendCardIn 0.32s 0.14s ease both; }
+.trends-feed > .trends-post-card:nth-child(5)  { animation: trendCardIn 0.32s 0.18s ease both; }
+.trends-feed > .trends-post-card:nth-child(n+6){ animation: trendCardIn 0.32s 0.22s ease both; }
+
 .trends-post-card {
-  position: relative;
   background: rgba(255, 255, 255, 0.04);
   border: 1px solid rgba(255, 255, 255, 0.08);
   border-radius: 16px;
   padding: 16px;
-  transition: border-color 0.2s;
+  transition: border-color 0.22s, box-shadow 0.22s;
 }
 
 .trends-post-card:hover {
-  border-color: rgba(255, 255, 255, 0.14);
+  border-color: rgba(255, 255, 255, 0.15);
+  box-shadow: 0 2px 18px rgba(0,0,0,0.25);
 }
 
+/* Rank badge — in-flow inside header, no absolute overlap */
 .trends-rank {
-  position: absolute;
-  top: 14px;
-  right: 14px;
+  display: inline-flex;
+  align-items: center;
   font-size: 11px;
   font-weight: 800;
   font-family: var(--font-mono);
   padding: 2px 8px;
   border-radius: 8px;
+  flex-shrink: 0;
+  margin-left: auto;
 }
 
 .trends-rank.rank-1 {
   background: rgba(255, 200, 0, 0.12);
   color: #ffc800;
   border: 1px solid rgba(255, 200, 0, 0.25);
+  animation: zapGlow 2s ease infinite;
 }
 
 .trends-rank.rank-2 {
@@ -7651,6 +7698,7 @@ html {
   color: rgba(255, 255, 255, 0.3);
   white-space: nowrap;
   flex-shrink: 0;
+  /* rank badge now sits after time via margin-left: auto, no overlap */
 }
 
 .trends-post-text {
@@ -7681,13 +7729,17 @@ html {
   font-weight: 600;
   font-family: var(--font-mono);
   cursor: pointer;
-  transition: all 0.18s;
+  transition: background 0.18s, border-color 0.18s, color 0.18s, transform 0.12s;
 }
 
 .trends-boost-btn:hover {
   border-color: rgba(255, 180, 0, 0.4);
   color: #ffc800;
   background: rgba(255, 180, 0, 0.06);
+}
+
+.trends-boost-btn:active {
+  transform: scale(0.93);
 }
 
 .trends-boost-btn.boosted {
@@ -7697,7 +7749,11 @@ html {
 }
 
 .trends-boost-btn.boosted svg {
-  filter: drop-shadow(0 0 4px #ffc800);
+  animation: zapGlow 2s ease infinite;
+}
+
+.trends-boost-btn.boost-anim svg {
+  animation: boostPop 0.35s ease both;
 }
 
 .trends-comment-toggle {
