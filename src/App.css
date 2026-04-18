@@ -3739,10 +3739,19 @@ select {
   display: flex;
   align-items: center;
   gap: 10px;
-  padding: 12px 20px;
-  border-bottom: 1px solid rgba(255, 255, 255, 0.04);
+  padding: 10px 20px;
+  margin: 0 12px;
+  border-radius: 16px;
+  background: rgba(255, 255, 255, 0.04);
+  border: 1px solid rgba(255, 255, 255, 0.06);
   color: var(--muted);
   flex-shrink: 0;
+  transition: border-color 0.2s;
+}
+
+.compose-search-row:focus-within {
+  border-color: rgba(185, 255, 59, 0.2);
+  background: rgba(255, 255, 255, 0.06);
 }
 
 .compose-search-row input {
@@ -3750,9 +3759,10 @@ select {
   background: transparent;
   border: none;
   color: var(--text);
-  font-size: 15px;
+  font-size: 14px;
   outline: none;
   font-family: var(--font-ui);
+  padding: 4px 0;
 }
 
 .compose-search-row input::placeholder {
@@ -4498,62 +4508,90 @@ select {
 /* Top-up sheet */
 .topup-sheet {
   max-height: 70vh;
-  padding-bottom: env(safe-area-inset-bottom, 12px);
+  padding: 0 20px env(safe-area-inset-bottom, 16px);
 }
 
 .topup-desc {
-  font-size: 13px;
+  font-size: 14px;
   color: var(--muted);
-  margin: 0 0 16px;
+  margin: 4px 0 20px;
   text-align: center;
 }
 
 .topup-options-grid {
   display: grid;
   grid-template-columns: repeat(3, 1fr);
-  gap: 8px;
-  margin-bottom: 16px;
+  gap: 10px;
+  margin-bottom: 20px;
 }
 
 .topup-option-btn {
   display: flex;
   flex-direction: column;
   align-items: center;
-  gap: 6px;
-  padding: 18px 8px;
-  border-radius: 18px;
-  background: rgba(185, 255, 59, 0.06);
-  border: 1px solid rgba(185, 255, 59, 0.12);
-  color: var(--green);
-  font-size: 18px;
+  justify-content: center;
+  gap: 4px;
+  padding: 20px 8px;
+  border-radius: 20px;
+  background: rgba(255, 255, 255, 0.04);
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  color: var(--text);
+  font-size: 20px;
   font-weight: 800;
   font-family: var(--font-mono);
   cursor: pointer;
-  transition: all 0.15s;
+  transition: all 0.2s cubic-bezier(0.16, 1, 0.3, 1);
+  position: relative;
+  overflow: hidden;
+}
+
+.topup-option-btn::before {
+  content: '';
+  position: absolute;
+  inset: 0;
+  border-radius: 20px;
+  background: linear-gradient(135deg, rgba(185, 255, 59, 0.12), rgba(111, 230, 255, 0.08));
+  opacity: 0;
+  transition: opacity 0.2s;
+}
+
+.topup-option-btn:hover::before,
+.topup-option-btn:active::before {
+  opacity: 1;
 }
 
 .topup-option-btn:hover {
-  background: rgba(185, 255, 59, 0.12);
-  border-color: rgba(185, 255, 59, 0.25);
-  transform: scale(1.03);
+  border-color: rgba(185, 255, 59, 0.2);
+  transform: translateY(-2px);
+  box-shadow: 0 8px 24px rgba(185, 255, 59, 0.1);
 }
 
 .topup-option-btn:active {
-  transform: scale(0.97);
+  transform: scale(0.96);
+  box-shadow: none;
 }
 
 .topup-option-btn svg {
   color: var(--green);
-  opacity: 0.6;
+  opacity: 0.5;
+  position: relative;
+  z-index: 1;
+}
+
+.topup-option-btn span {
+  position: relative;
+  z-index: 1;
 }
 
 .topup-note {
   text-align: center;
   font-size: 12px;
   color: var(--muted);
-  padding: 12px;
-  border-radius: 10px;
+  padding: 14px 16px;
+  border-radius: 16px;
   background: rgba(255, 255, 255, 0.03);
+  border: 1px solid rgba(255, 255, 255, 0.04);
+  margin-bottom: 4px;
 }
 
 /* ========== ADMIN REDESIGN ========== */

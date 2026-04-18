@@ -529,8 +529,11 @@ function App() {
     }
   }, [])
 
+  // Track if user explicitly disabled geo (don't auto-re-enable)
+  const geoUserDisabled = useRef(false)
+
   useEffect(() => {
-    if (locationState === 'idle') {
+    if (locationState === 'idle' && !geoUserDisabled.current) {
       requestLocation()
     }
   }, [locationState])
@@ -603,7 +606,7 @@ function App() {
   }, [toast])
 
   useEffect(() => {
-    if (!viewer || resolvedLocation === null || viewer.geoAllowed) {
+    if (!viewer || resolvedLocation === null || viewer.geoAllowed || geoUserDisabled.current) {
       return
     }
 
@@ -733,7 +736,7 @@ function App() {
     setEmailPassword('')
     showToast(`Вход выполнен: ${data.viewer.name}`, 'success')
 
-    if (resolvedLocation && !data.viewer.geoAllowed) {
+    if (resolvedLocation && !data.viewer.geoAllowed && !geoUserDisabled.current) {
       await syncLocation(resolvedLocation)
     }
   }
@@ -1796,6 +1799,11 @@ function App() {
                         className={viewer.geoAllowed ? 'toggle-mini active' : 'toggle-mini'}
                         onClick={async () => {
                           const newGeoAllowed = !viewer.geoAllowed
+                          if (!newGeoAllowed) {
+                            geoUserDisabled.current = true
+                          } else {
+                            geoUserDisabled.current = false
+                          }
                           try {
                             const data = await apiRequest<{ viewer: SessionUser }>('/api/location', {
                               method: 'POST',
