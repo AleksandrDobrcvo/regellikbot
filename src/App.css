@@ -2690,13 +2690,14 @@ html {
   background: rgba(8, 8, 8, 0.92);
   border-bottom: 1px solid rgba(255, 255, 255, 0.06);
   padding-top: env(safe-area-inset-top, 0px);
-  transition: opacity 0.2s ease, transform 0.2s ease;
+  transition: transform 0.3s cubic-bezier(0.16, 1, 0.3, 1), opacity 0.3s ease;
+  will-change: transform;
 }
 
 .top-header-bar.hidden {
+  transform: translateY(-100%);
   opacity: 0;
   pointer-events: none;
-  transform: translateY(-100%);
 }
 
 .header-row-main {
@@ -6253,6 +6254,26 @@ html {
   gap: 14px;
 }
 
+/* Badges inline next to name */
+.profile-name-badges-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+.profile-name-badges-row .hero-name-input {
+  flex: 1;
+  min-width: 100px;
+}
+
+.profile-badges-inline {
+  display: flex;
+  gap: 4px;
+  flex-wrap: wrap;
+  align-items: center;
+}
+
 .profile-hero-info {
   flex: 1;
   min-width: 0;
@@ -6539,6 +6560,10 @@ html {
   margin-top: 14px;
   padding-top: 14px;
   border-top: 1px solid rgba(255, 255, 255, 0.06);
+}
+
+.profile-quick-stats.four-col {
+  grid-template-columns: repeat(4, 1fr);
 }
 
 .profile-quick-stats div {
@@ -8918,6 +8943,24 @@ html {
   gap: 8px;
   margin-bottom: 16px;
 }
+
+.profile-sheet-name-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+  justify-content: center;
+}
+
+.profile-sheet-name-row h3 {
+  font-size: 20px;
+  font-weight: 700;
+  margin: 0;
+}
+
+.profile-sheet-name-row .profile-sheet-badges {
+  margin: 0;
+}
 .profile-sheet-avatar {
   width: 72px;
   height: 72px;
@@ -8936,7 +8979,7 @@ html {
   height: 100%;
   object-fit: cover;
 }
-.profile-sheet-header h3 {
+.profile-sheet-header > h3 {
   font-size: 20px;
   font-weight: 700;
   margin: 0;
@@ -8987,6 +9030,26 @@ html {
   background: rgba(255,255,255,0.04);
   color: var(--muted);
   font-size: 14px;
+  font-family: var(--font-mono);
   cursor: not-allowed;
   opacity: 0.5;
+}
+
+.profile-sheet-write-btn.active {
+  opacity: 1;
+  cursor: pointer;
+  background: var(--accent);
+  color: var(--bg);
+  border-color: var(--accent);
+  font-weight: 600;
+  transition: background 0.15s, transform 0.1s;
+}
+
+.profile-sheet-write-btn.active:active {
+  transform: scale(0.97);
+}
+
+.profile-sheet-stat strong {
+  font-weight: 700;
+  color: var(--text);
 }

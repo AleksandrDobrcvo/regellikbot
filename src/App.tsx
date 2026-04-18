@@ -675,23 +675,37 @@ function App() {
     if (data.powerLog) setPowerLog(data.powerLog)
   }
 
-  // Header auto-hide on scroll (with debounce to prevent flicker)
+  // Header auto-hide on scroll — smooth, no flicker
+  const scrollAccum = useRef(0)
   useEffect(() => {
     let ticking = false
+    const THRESHOLD = 30 // px of consistent scroll before toggling
     const handleScroll = () => {
       if (ticking) return
       ticking = true
       requestAnimationFrame(() => {
         const currentY = window.scrollY
         const delta = currentY - lastScrollY.current
-        // Only toggle if scrolled more than 8px to avoid micro-jitter
-        if (delta > 8 && currentY > 80) {
-          setHeaderHidden(true)
-        } else if (delta < -8 || currentY <= 40) {
-          setHeaderHidden(false)
-        }
         lastScrollY.current = currentY
         ticking = false
+        // At very top — always show
+        if (currentY <= 20) {
+          scrollAccum.current = 0
+          setHeaderHidden(false)
+          return
+        }
+        // Accumulate scroll direction; reset if direction changes
+        if ((delta > 0 && scrollAccum.current < 0) || (delta < 0 && scrollAccum.current > 0)) {
+          scrollAccum.current = 0
+        }
+        scrollAccum.current += delta
+        if (scrollAccum.current > THRESHOLD) {
+          setHeaderHidden(true)
+          scrollAccum.current = 0
+        } else if (scrollAccum.current < -THRESHOLD) {
+          setHeaderHidden(false)
+          scrollAccum.current = 0
+        }
       })
     }
     window.addEventListener('scroll', handleScroll, { passive: true })
@@ -2317,13 +2331,20 @@ function App() {
                       )}
                     </div>
                     <div className="profile-hero-edit">
-                      <input
-                        className="hero-name-input"
-                        value={profileName}
-                        onChange={(e) => setProfileName(e.target.value)}
-                        placeholder="Имя"
-                        disabled={!siteSettings.profileEditEnabled}
-                      />
+                      <div className="profile-name-badges-row">
+                        <input
+                          className="hero-name-input"
+                          value={profileName}
+                          onChange={(e) => setProfileName(e.target.value)}
+                          placeholder="Имя"
+                          disabled={!siteSettings.profileEditEnabled}
+                        />
+                        {viewer.badges.length > 0 && (
+                          <div className="profile-badges-inline">
+                            {viewer.badges.map(b => <BadgeChip key={b} id={b} />)}
+                          </div>
+                        )}
+                      </div>
                       <div className="hero-handle-row">
                         <input
                           className="hero-handle-input"
@@ -2371,18 +2392,12 @@ function App() {
                     </div>
                   )}
 
-                  <div className="profile-quick-stats">
+                  <div className="profile-quick-stats four-col">
                     <div><strong>{viewer.stats.sent}</strong><span>отправлено</span></div>
                     <div><strong>{viewer.stats.received}</strong><span>получено</span></div>
                     <div><strong>{viewer.powers}</strong><span>энергия</span></div>
-                    <div><strong><Eye size={12} /> {(viewer as any).profileViews || 0}</strong><span>просмотров</span></div>
+                    <div><strong>{(viewer as any).profileViews || 0}</strong><span>просмотров</span></div>
                   </div>
-
-                  {viewer.badges.length > 0 && (
-                    <div className="profile-badges-row">
-                      {viewer.badges.map(b => <BadgeChip key={b} id={b} />)}
-                    </div>
-                  )}
                 </article>
 
                 {/* Геолокация */}
@@ -3636,25 +3651,36 @@ function App() {
                   : <span>{(viewedProfile.name || '?')[0]}</span>
                 }
               </div>
-              <h3>{viewedProfile.name}</h3>
+              <div className="profile-sheet-name-row">
+                <h3>{viewedProfile.name}</h3>
+                {viewedProfile.badges && viewedProfile.badges.length > 0 && (
+                  <div className="profile-sheet-badges">
+                    {viewedProfile.badges.map((b: string) => <BadgeChip key={b} id={b} />)}
+                  </div>
+                )}
+              </div>
               {viewedProfile.handle && <span className="profile-sheet-handle">@{viewedProfile.handle}</span>}
-              {viewedProfile.badges && viewedProfile.badges.length > 0 && (
-                <div className="profile-sheet-badges">
-                  {viewedProfile.badges.map((b: string) => <BadgeChip key={b} id={b} />)}
-                </div>
-              )}
             </div>
             {viewedProfile.bio && <p className="profile-sheet-bio">{viewedProfile.bio}</p>}
             <div className="profile-sheet-stats">
+              <div className="profile-sheet-stat"><Eye size={14} /> <strong>{(viewedProfile as any).profileViews || 0}</strong> просмотров</div>
+              <div className="profile-sheet-stat"><Zap size={14} /> <strong>{viewedProfile.powers ?? 0}</strong> Power</div>
               {viewedProfile.city && (
                 <div className="profile-sheet-stat"><MapPin size={14} /> {viewedProfile.city}</div>
               )}
-              <div className="profile-sheet-stat"><Eye size={14} /> {(viewedProfile as any).profileViews || 0} просмотров</div>
-              <div className="profile-sheet-stat"><Zap size={14} /> {viewedProfile.powers ?? 0} Power</div>
             </div>
-            <button className="profile-sheet-write-btn" disabled>
-              <MessageCircle size={16} /> Написать (бета)
-            </button>
+            {viewer?.role === 'admin' ? (
+              <button className="profile-sheet-write-btn active" onClick={() => {
+                setViewProfileOpen(false)
+                void startConversation((viewedProfile as any).id)
+              }}>
+                <MessageCircle size={16} /> Написать
+              </button>
+            ) : (
+              <button className="profile-sheet-write-btn" disabled>
+                <MessageCircle size={16} /> Написать (бета)
+              </button>
+            )}
           </div>
         </div>
       )}
