@@ -3631,9 +3631,8 @@ select {
 .compose-modal-backdrop {
   position: absolute;
   inset: 0;
-  background: rgba(2, 8, 4, 0.85);
-  backdrop-filter: blur(20px) saturate(0.6);
-  -webkit-backdrop-filter: blur(20px) saturate(0.6);
+  background: #030a06;
+  opacity: 0.97;
   animation: composeBackdropIn 0.25s ease-out;
 }
 
