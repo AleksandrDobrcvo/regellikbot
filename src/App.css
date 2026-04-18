@@ -3631,9 +3631,10 @@ select {
 .compose-modal-backdrop {
   position: absolute;
   inset: 0;
-  background: rgba(0, 0, 0, 0.6);
-  backdrop-filter: blur(8px);
-  animation: composeBackdropIn 0.2s ease-out;
+  background: rgba(2, 8, 4, 0.85);
+  backdrop-filter: blur(20px) saturate(0.6);
+  -webkit-backdrop-filter: blur(20px) saturate(0.6);
+  animation: composeBackdropIn 0.25s ease-out;
 }
 
 @keyframes composeBackdropIn {
@@ -3646,15 +3647,12 @@ select {
   width: 100%;
   max-width: 500px;
   max-height: calc(85vh - env(safe-area-inset-top, 0px));
-  background:
-    radial-gradient(ellipse at 20% 0%, rgba(185, 255, 59, 0.04) 0%, transparent 50%),
-    linear-gradient(180deg, rgba(10, 28, 16, 0.99), rgba(4, 14, 8, 0.99));
+  background: linear-gradient(180deg, #0c1f14 0%, #061209 100%);
   display: flex;
   flex-direction: column;
   overflow: hidden;
-  border-radius: 24px 24px 0 0;
-  border-top: 1px solid rgba(185, 255, 59, 0.1);
-  box-shadow: 0 -8px 40px rgba(0, 0, 0, 0.4);
+  border-radius: 20px 20px 0 0;
+  box-shadow: 0 -4px 30px rgba(0, 0, 0, 0.5), 0 -1px 0 rgba(185, 255, 59, 0.06);
   animation: composeSheetSlideUp 0.35s cubic-bezier(0.16, 1, 0.3, 1);
 }
 
@@ -3670,9 +3668,9 @@ select {
   .compose-modal-sheet {
     margin: 40px auto;
     max-height: calc(100vh - 80px);
-    border-radius: 24px;
-    border: 1px solid rgba(255, 255, 255, 0.08);
-    box-shadow: 0 20px 60px rgba(0, 0, 0, 0.5);
+    border-radius: 20px;
+    border: 1px solid rgba(255, 255, 255, 0.06);
+    box-shadow: 0 20px 60px rgba(0, 0, 0, 0.6);
   }
 }
 
@@ -3680,8 +3678,8 @@ select {
   display: flex;
   align-items: center;
   justify-content: space-between;
-  padding: 18px 20px 14px;
-  border-bottom: 1px solid rgba(185, 255, 59, 0.08);
+  padding: 20px 20px 14px;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.05);
   flex-shrink: 0;
 }
 
@@ -3691,10 +3689,10 @@ select {
   top: 8px;
   left: 50%;
   transform: translateX(-50%);
-  width: 36px;
+  width: 32px;
   height: 4px;
   border-radius: 2px;
-  background: rgba(255, 255, 255, 0.15);
+  background: rgba(255, 255, 255, 0.12);
 }
 
 @media (min-width: 601px) {
@@ -3704,22 +3702,18 @@ select {
 }
 
 .compose-modal-head h3 {
-  font-size: 18px;
+  font-size: 17px;
   font-weight: 800;
   color: var(--text);
   margin: 0;
   font-family: var(--font-mono);
-  background: linear-gradient(135deg, var(--text), var(--green));
-  -webkit-background-clip: text;
-  -webkit-text-fill-color: transparent;
-  background-clip: text;
 }
 
 .compose-close-btn {
-  width: 36px;
-  height: 36px;
-  border-radius: 12px;
-  border: 1px solid rgba(255, 255, 255, 0.1);
+  width: 34px;
+  height: 34px;
+  border-radius: 50%;
+  border: none;
   background: rgba(255, 255, 255, 0.06);
   color: var(--muted);
   font-size: 18px;
