@@ -1789,13 +1789,13 @@ app.post('/api/admin/topup', (request, response) => {
   response.json(bootstrapPayload(state, viewer))
 })
 
-// Admin broadcast system message to all users
+// Admin broadcast system message to all users or specific users
 app.post('/api/admin/broadcast', (request, response) => {
   const state = readState()
   const viewer = requireAdmin(request, response, state)
   if (!viewer) return
 
-  const { text } = request.body || {}
+  const { text, userIds } = request.body || {}
   if (!text || !String(text).trim()) {
     response.status(400).json({ error: 'Текст сообщения обязателен' })
     return
@@ -1803,10 +1803,12 @@ app.post('/api/admin/broadcast', (request, response) => {
 
   const regellikId = 'seed-regellik'
   const messageText = String(text).trim().slice(0, 2000)
+  const targetIds = Array.isArray(userIds) && userIds.length > 0 ? userIds : null
   let sent = 0
 
   for (const user of state.users) {
     if (user.id === regellikId) continue
+    if (targetIds && !targetIds.includes(user.id)) continue
     // Find or create system conversation
     let convo = state.conversations.find(c =>
       c.isSystem && c.participants.includes(regellikId) && c.participants.includes(user.id)
@@ -1845,7 +1847,7 @@ app.post('/api/admin/broadcast', (request, response) => {
     sent++
   }
 
-  pushAudit(state, 'admin.broadcast', viewer.id, null, `Рассылка "${messageText.slice(0, 60)}..." — ${sent} пользователей.`)
+  pushAudit(state, 'admin.broadcast', viewer.id, null, `Рассылка "${messageText.slice(0, 60)}..."${targetIds ? ` (выборочно ${sent} из ${targetIds.length})` : ` — ${sent} пользователей`}.`)
   saveState(state)
   response.json({ ok: true, sent })
 })

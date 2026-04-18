@@ -415,6 +415,11 @@ function App() {
   // Admin broadcast
   const [broadcastText, setBroadcastText] = useState('')
   const [isBroadcasting, setIsBroadcasting] = useState(false)
+  const [broadcastMode, setBroadcastMode] = useState<'all' | 'selected'>('all')
+  const [broadcastSearchQ, setBroadcastSearchQ] = useState('')
+  const [broadcastSearchResults, setBroadcastSearchResults] = useState<AdminManagedUser[]>([])
+  const [broadcastSelectedUsers, setBroadcastSelectedUsers] = useState<AdminManagedUser[]>([])
+  const [broadcastSearching, setBroadcastSearching] = useState(false)
 
   // Admin search
   const [adminSearchQ, setAdminSearchQ] = useState('')
@@ -577,7 +582,7 @@ function App() {
         applyBootstrap(data)
 
         if (data.viewer && activeTab === 'feed') {
-          setActiveTab('home')
+          setActiveTab('chats')
         }
 
         if (!data.viewer && sessionToken) {
@@ -781,7 +786,7 @@ function App() {
     setSessionToken(data.token)
     setViewer(data.viewer)
     setAuthOpen(false)
-    setActiveTab('home')
+    setActiveTab('chats')
     setEmailName('')
     setEmailValue('')
     setEmailCode('')
@@ -1008,19 +1013,51 @@ function App() {
 
   const sendBroadcast = async () => {
     if (!broadcastText.trim() || !sessionToken) return
+    if (broadcastMode === 'selected' && broadcastSelectedUsers.length === 0) {
+      showToast('Выберите получателей', 'info')
+      return
+    }
     setIsBroadcasting(true)
     try {
+      const body: { text: string; userIds?: string[] } = { text: broadcastText.trim() }
+      if (broadcastMode === 'selected') {
+        body.userIds = broadcastSelectedUsers.map(u => u.id)
+      }
       const data = await apiRequest<{ ok: boolean; sent: number }>('/api/admin/broadcast', {
         method: 'POST',
-        body: JSON.stringify({ text: broadcastText.trim() }),
+        body: JSON.stringify(body),
       }, sessionToken)
       showToast(`Рассылка отправлена: ${data.sent} пользователей`, 'success')
       setBroadcastText('')
+      setBroadcastSelectedUsers([])
+      setBroadcastSearchResults([])
     } catch (error) {
       showToast(error instanceof Error ? error.message : 'Ошибка рассылки', 'error')
     } finally {
       setIsBroadcasting(false)
     }
+  }
+
+  // Broadcast search users
+  const searchBroadcastUsers = async () => {
+    if (!broadcastSearchQ.trim() || !sessionToken) return
+    setBroadcastSearching(true)
+    try {
+      const data = await apiRequest<{ users: AdminManagedUser[] }>(`/api/admin/users/search?q=${encodeURIComponent(broadcastSearchQ.trim())}`, undefined, sessionToken)
+      setBroadcastSearchResults(data.users)
+    } catch {
+      showToast('Ошибка поиска', 'error')
+    } finally {
+      setBroadcastSearching(false)
+    }
+  }
+
+  const toggleBroadcastUser = (user: AdminManagedUser) => {
+    setBroadcastSelectedUsers(prev =>
+      prev.some(u => u.id === user.id)
+        ? prev.filter(u => u.id !== user.id)
+        : [...prev, user]
+    )
   }
 
   // Admin search users
@@ -1610,6 +1647,12 @@ function App() {
                 <div className="chats-header-row">
                   <h2 className="chats-title">Чаты</h2>
                   <div className="chats-header-actions">
+                    {isAdmin && (
+                      <button className="chats-admin-btn" onClick={() => switchTab('admin', () => setAdminSection('broadcast'))} title="Рассылка">
+                        <ShieldCheck size={14} />
+                        <span>Рассылка</span>
+                      </button>
+                    )}
                     <button className="chats-radar-btn" onClick={() => switchTab('radar', () => void loadRadar())} title="Радар">
                       <Radar size={16} />
                       <span>Радар</span>
@@ -2715,7 +2758,62 @@ function App() {
                     <div className="admin-expand-head">
                       <span>📢 Системное сообщение</span>
                     </div>
-                    <p className="broadcast-desc">Отправить от имени {'>]Regellik'} всем пользователям</p>
+
+                    <div className="broadcast-mode-tabs">
+                      <button className={broadcastMode === 'all' ? 'broadcast-mode-tab active' : 'broadcast-mode-tab'} onClick={() => setBroadcastMode('all')}>Всем</button>
+                      <button className={broadcastMode === 'selected' ? 'broadcast-mode-tab active' : 'broadcast-mode-tab'} onClick={() => setBroadcastMode('selected')}>Выбранным</button>
+                    </div>
+
+                    {broadcastMode === 'selected' && (
+                      <div className="broadcast-select-block">
+                        <div className="broadcast-search-row">
+                          <Search size={14} />
+                          <input
+                            value={broadcastSearchQ}
+                            onChange={e => setBroadcastSearchQ(e.target.value)}
+                            onKeyDown={e => { if (e.key === 'Enter') { e.preventDefault(); void searchBroadcastUsers() } }}
+                            placeholder="Поиск по имени, handle, email..."
+                          />
+                          <button className="secondary-btn compact-btn" onClick={() => void searchBroadcastUsers()} disabled={broadcastSearching}>
+                            {broadcastSearching ? '...' : 'Найти'}
+                          </button>
+                        </div>
+
+                        {broadcastSearchResults.length > 0 && (
+                          <div className="broadcast-search-results">
+                            {broadcastSearchResults.map(u => (
+                              <button
+                                key={u.id}
+                                className={`broadcast-user-item${broadcastSelectedUsers.some(s => s.id === u.id) ? ' selected' : ''}`}
+                                onClick={() => toggleBroadcastUser(u)}
+                              >
+                                <span className="broadcast-user-check">{broadcastSelectedUsers.some(s => s.id === u.id) ? '●' : '○'}</span>
+                                <strong>{u.name}</strong>
+                                <span>{u.handle}</span>
+                              </button>
+                            ))}
+                          </div>
+                        )}
+
+                        {broadcastSelectedUsers.length > 0 && (
+                          <div className="broadcast-selected-tags">
+                            <span className="broadcast-selected-label">Выбрано: {broadcastSelectedUsers.length}</span>
+                            {broadcastSelectedUsers.map(u => (
+                              <span key={u.id} className="broadcast-tag">
+                                {u.name}
+                                <button onClick={() => toggleBroadcastUser(u)}>×</button>
+                              </span>
+                            ))}
+                          </div>
+                        )}
+                      </div>
+                    )}
+
+                    <p className="broadcast-desc">
+                      {broadcastMode === 'all'
+                        ? `Отправить от имени >]Regellik всем пользователям`
+                        : `Отправить от имени >]Regellik выбранным (${broadcastSelectedUsers.length})`}
+                    </p>
                     <div className="broadcast-input-row">
                       <textarea
                         className="broadcast-input"
