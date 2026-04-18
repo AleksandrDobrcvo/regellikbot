@@ -1515,7 +1515,7 @@ function App() {
           </div>
         </div>
 
-        {menuOpen && (
+        {menuOpen && createPortal(
           <>
             <div className={`corner-menu-backdrop${menuExiting ? ' menu-exiting' : ''}`} onClick={closeMenu} />
             <nav className={`corner-menu-dropdown${menuExiting ? ' menu-exiting' : ''}`}>
@@ -1527,48 +1527,62 @@ function App() {
                 </div>
               </div>
 
-              {!isSignedIn && (
-                <button className="corner-menu-item accent-item" onClick={() => { closeMenu(); setAuthOpen(true) }}>
-                  🔽 Зайти в Регель
-                </button>
-              )}
+              <div className="corner-menu-nav">
+                {!isSignedIn && (
+                  <button className="corner-menu-item accent-item" onClick={() => { closeMenu(); setAuthOpen(true) }}>
+                    🔽 Зайти в Регель
+                  </button>
+                )}
 
-              {isSignedIn && (
-                <>
-                  <button className={activeTab === 'home' ? 'corner-menu-item active' : 'corner-menu-item'} onClick={() => switchTab('home', closeMenu)}>
-                    <Home size={16} /> Главная
-                  </button>
-                  <button className={activeTab === 'chats' ? 'corner-menu-item active' : 'corner-menu-item'} onClick={() => switchTab('chats', closeMenu)}>
-                    <MessageCircle size={16} /> Чаты
-                  </button>
-                  <button className="corner-menu-item" onClick={() => { switchTab('chats', () => { closeMenu(); setComposeOpen(true) }) }}>
-                    <PenSquare size={16} /> Написать
-                  </button>
-                  <button className={activeTab === 'radar' ? 'corner-menu-item active' : 'corner-menu-item'} onClick={() => switchTab('radar', () => { void loadRadar(); closeMenu() })}>
-                    <Radar size={16} /> Радар
-                  </button>
-                  <button className={activeTab === 'profile' ? 'corner-menu-item active' : 'corner-menu-item'} onClick={() => switchTab('profile', closeMenu)}>
-                    <User size={16} /> Профиль
-                  </button>
-                  <button className={activeTab === 'transactions' ? 'corner-menu-item active' : 'corner-menu-item'} onClick={() => switchTab('transactions', closeMenu)}>
-                    <Wallet size={16} /> Транзакции
-                  </button>
-                  <button className={activeTab === 'settings' ? 'corner-menu-item active' : 'corner-menu-item'} onClick={() => switchTab('settings', closeMenu)}>
-                    <Settings2 size={16} /> Настройки
-                  </button>
-                  {isAdmin && (
-                    <button className={activeTab === 'admin' ? 'corner-menu-item active' : 'corner-menu-item'} onClick={() => switchTab('admin', closeMenu)}>
-                      <UserCog size={16} /> Админка
+                {isSignedIn && (
+                  <>
+                    <button className={activeTab === 'home' ? 'corner-menu-item active' : 'corner-menu-item'} onClick={() => switchTab('home', closeMenu)}>
+                      <Home size={16} /> Главная
                     </button>
-                  )}
-                  <div className="corner-menu-divider" />
-                  <button className="corner-menu-item danger-item" onClick={() => { closeMenu(); void signOut() }}>
-                    <LogOut size={16} /> Выйти
-                  </button>
-                </>
-              )}
+                    <button className={activeTab === 'chats' ? 'corner-menu-item active' : 'corner-menu-item'} onClick={() => switchTab('chats', closeMenu)}>
+                      <MessageCircle size={16} /> Чаты
+                    </button>
+                    <button className="corner-menu-item" onClick={() => { switchTab('chats', () => { closeMenu(); setComposeOpen(true) }) }}>
+                      <PenSquare size={16} /> Написать
+                    </button>
+                    <button className={activeTab === 'radar' ? 'corner-menu-item active' : 'corner-menu-item'} onClick={() => switchTab('radar', () => { void loadRadar(); closeMenu() })}>
+                      <Radar size={16} /> Радар
+                    </button>
+                    <button className={activeTab === 'profile' ? 'corner-menu-item active' : 'corner-menu-item'} onClick={() => switchTab('profile', closeMenu)}>
+                      <User size={16} /> Профиль
+                    </button>
+                    <button className={activeTab === 'transactions' ? 'corner-menu-item active' : 'corner-menu-item'} onClick={() => switchTab('transactions', closeMenu)}>
+                      <Wallet size={16} /> Транзакции
+                    </button>
+                    <button className={activeTab === 'settings' ? 'corner-menu-item active' : 'corner-menu-item'} onClick={() => switchTab('settings', closeMenu)}>
+                      <Settings2 size={16} /> Настройки
+                    </button>
+                    {isAdmin && (
+                      <button className={activeTab === 'admin' ? 'corner-menu-item active' : 'corner-menu-item'} onClick={() => switchTab('admin', closeMenu)}>
+                        <UserCog size={16} /> Админка
+                      </button>
+                    )}
+                    <div className="corner-menu-divider" />
+                    <button className="corner-menu-item danger-item" onClick={() => { closeMenu(); void signOut() }}>
+                      <LogOut size={16} /> Выйти
+                    </button>
+                  </>
+                )}
+              </div>
+
+              <div className="corner-menu-footer">
+                <div className="corner-menu-footer-brand">&gt;]Regellik</div>
+                <div className="corner-menu-footer-links">
+                  <span>Нормативы</span>
+                  <span>О нас</span>
+                  <span>FAQ</span>
+                  <span>Связаться</span>
+                </div>
+                <div className="corner-menu-footer-copy">© 2026 Regellik</div>
+              </div>
             </nav>
-          </>
+          </>,
+          document.body
         )}
       </header>
       )}
