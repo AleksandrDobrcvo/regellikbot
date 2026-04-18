@@ -432,6 +432,32 @@ function App() {
   const [userSessions, setUserSessions] = useState<SessionInfo[]>([])
   const [sessionsLoading, setSessionsLoading] = useState(false)
 
+  // Animation state for page transitions
+  const [pageExiting, setPageExiting] = useState(false)
+  const [composeExiting, setComposeExiting] = useState(false)
+  const [menuExiting, setMenuExiting] = useState(false)
+
+  const switchTab = (newTab: TabId, cb?: () => void) => {
+    if (newTab === activeTab && !openConvoId) return
+    setPageExiting(true)
+    setTimeout(() => {
+      setPageExiting(false)
+      setActiveTab(newTab)
+      setOpenConvoId(null)
+      cb?.()
+    }, 250)
+  }
+
+  const closeCompose = () => {
+    setComposeExiting(true)
+    setTimeout(() => { setComposeExiting(false); setComposeOpen(false); setComposeSearch('') }, 250)
+  }
+
+  const closeMenu = () => {
+    setMenuExiting(true)
+    setTimeout(() => { setMenuExiting(false); setMenuOpen(false) }, 200)
+  }
+
   // Header auto-hide
   const [headerHidden, setHeaderHidden] = useState(false)
   const lastScrollY = useRef(0)
@@ -1369,7 +1395,7 @@ function App() {
             <button className="header-hamburger" onClick={() => setMenuOpen(!menuOpen)}>
               {menuOpen ? <X size={20} /> : <Menu size={20} />}
             </button>
-            <span className="header-brand" onClick={() => { setActiveTab('home'); setOpenConvoId(null); setMenuOpen(false); }} style={{cursor:'pointer'}}>
+            <span className="header-brand" onClick={() => { switchTab('home'); closeMenu(); }} style={{cursor:'pointer'}}>
               <span className="header-brand-icon">&gt;]</span>Regellik
             </span>
           </div>
@@ -1380,7 +1406,7 @@ function App() {
                 <span>{onlineCount}</span>
               </div>
             )}
-            <div className="header-powers" onClick={() => { setActiveTab('transactions'); setMenuOpen(false); }} style={{cursor:'pointer'}}>
+            <div className="header-powers" onClick={() => { switchTab('transactions'); closeMenu(); }} style={{cursor:'pointer'}}>
               <Zap size={14} />
               <span>{viewer?.powers ?? 0}</span>
             </div>
@@ -1388,7 +1414,7 @@ function App() {
               <Bell size={17} />
               {totalUnread > 0 && <span className="header-badge">{totalUnread}</span>}
             </button>
-            <button className="header-profile-btn" onClick={() => { setActiveTab('profile'); setMenuOpen(false); }}>
+            <button className="header-profile-btn" onClick={() => { switchTab('profile'); closeMenu(); }}>
               <User size={16} />
             </button>
           </div>
@@ -1396,8 +1422,8 @@ function App() {
 
         {menuOpen && (
           <>
-            <div className="corner-menu-backdrop" onClick={() => setMenuOpen(false)} />
-            <nav className="corner-menu-dropdown">
+            <div className={`corner-menu-backdrop${menuExiting ? ' menu-exiting' : ''}`} onClick={closeMenu} />
+            <nav className={`corner-menu-dropdown${menuExiting ? ' menu-exiting' : ''}`}>
               <div className="corner-menu-header">
                 <div className="brand-mark">&gt;]</div>
                 <div>
@@ -1407,38 +1433,38 @@ function App() {
               </div>
 
               {!isSignedIn && (
-                <button className="corner-menu-item accent-item" onClick={() => { setMenuOpen(false); setAuthOpen(true) }}>
+                <button className="corner-menu-item accent-item" onClick={() => { closeMenu(); setAuthOpen(true) }}>
                   🔽 Зайти в Регель
                 </button>
               )}
 
               {isSignedIn && (
                 <>
-                  <button className={activeTab === 'home' ? 'corner-menu-item active' : 'corner-menu-item'} onClick={() => { setActiveTab('home'); setMenuOpen(false) }}>
+                  <button className={activeTab === 'home' ? 'corner-menu-item active' : 'corner-menu-item'} onClick={() => switchTab('home', closeMenu)}>
                     <Home size={16} /> Главная
                   </button>
-                  <button className={activeTab === 'chats' ? 'corner-menu-item active' : 'corner-menu-item'} onClick={() => { setActiveTab('chats'); setMenuOpen(false) }}>
+                  <button className={activeTab === 'chats' ? 'corner-menu-item active' : 'corner-menu-item'} onClick={() => switchTab('chats', closeMenu)}>
                     <MessageCircle size={16} /> Чаты
                   </button>
-                  <button className={activeTab === 'radar' ? 'corner-menu-item active' : 'corner-menu-item'} onClick={() => { setActiveTab('radar'); void loadRadar(); setMenuOpen(false) }}>
+                  <button className={activeTab === 'radar' ? 'corner-menu-item active' : 'corner-menu-item'} onClick={() => switchTab('radar', () => { void loadRadar(); closeMenu() })}>
                     <Radar size={16} /> Радар
                   </button>
-                  <button className={activeTab === 'profile' ? 'corner-menu-item active' : 'corner-menu-item'} onClick={() => { setActiveTab('profile'); setMenuOpen(false) }}>
+                  <button className={activeTab === 'profile' ? 'corner-menu-item active' : 'corner-menu-item'} onClick={() => switchTab('profile', closeMenu)}>
                     <User size={16} /> Профиль
                   </button>
-                  <button className={activeTab === 'transactions' ? 'corner-menu-item active' : 'corner-menu-item'} onClick={() => { setActiveTab('transactions'); setMenuOpen(false) }}>
+                  <button className={activeTab === 'transactions' ? 'corner-menu-item active' : 'corner-menu-item'} onClick={() => switchTab('transactions', closeMenu)}>
                     <Wallet size={16} /> Транзакции
                   </button>
-                  <button className={activeTab === 'settings' ? 'corner-menu-item active' : 'corner-menu-item'} onClick={() => { setActiveTab('settings'); setMenuOpen(false) }}>
+                  <button className={activeTab === 'settings' ? 'corner-menu-item active' : 'corner-menu-item'} onClick={() => switchTab('settings', closeMenu)}>
                     <Settings2 size={16} /> Настройки
                   </button>
                   {isAdmin && (
-                    <button className={activeTab === 'admin' ? 'corner-menu-item active' : 'corner-menu-item'} onClick={() => { setActiveTab('admin'); setMenuOpen(false) }}>
+                    <button className={activeTab === 'admin' ? 'corner-menu-item active' : 'corner-menu-item'} onClick={() => switchTab('admin', closeMenu)}>
                       <UserCog size={16} /> Админка
                     </button>
                   )}
                   <div className="corner-menu-divider" />
-                  <button className="corner-menu-item danger-item" onClick={() => { setMenuOpen(false); void signOut() }}>
+                  <button className="corner-menu-item danger-item" onClick={() => { closeMenu(); void signOut() }}>
                     <LogOut size={16} /> Выйти
                   </button>
                 </>
@@ -1495,7 +1521,7 @@ function App() {
       {/* --- ОСНОВНОЙ КОНТЕНТ (залогинен) --- */}
       {isSignedIn && (
         <>
-          <main className="main-layout">
+          <main className={`main-layout${pageExiting ? ' page-exiting' : ''}`}>
             {/* --- ГЛАВНАЯ (home) --- */}
             {activeTab === 'home' && viewer && (
               <section className="home-screen page-transition">
@@ -1522,22 +1548,22 @@ function App() {
                 </div>
 
                 <div className="home-nav-grid">
-                  <button className="home-nav-btn" onClick={() => setActiveTab('chats')}>
+                  <button className="home-nav-btn" onClick={() => switchTab('chats')}>
                     <MessageCircle size={24} />
                     <strong>Чаты</strong>
                     <span>Сообщения</span>
                   </button>
-                  <button className="home-nav-btn" onClick={() => { setActiveTab('radar'); void loadRadar(); }}>
+                  <button className="home-nav-btn" onClick={() => switchTab('radar', () => void loadRadar())}>
                     <Radar size={24} />
                     <strong>Радар</strong>
                     <span>Люди рядом</span>
                   </button>
-                  <button className="home-nav-btn" onClick={() => setActiveTab('profile')}>
+                  <button className="home-nav-btn" onClick={() => switchTab('profile')}>
                     <User size={24} />
                     <strong>Профиль</strong>
                     <span>Настройка</span>
                   </button>
-                  <button className="home-nav-btn" onClick={() => setActiveTab('transactions')}>
+                  <button className="home-nav-btn" onClick={() => switchTab('transactions')}>
                     <Wallet size={24} />
                     <strong>Баланс</strong>
                     <span>Транзакции</span>
@@ -1552,7 +1578,7 @@ function App() {
                 <div className="chats-header-row">
                   <h2 className="chats-title">Чаты</h2>
                   <div className="chats-header-actions">
-                    <button className="chats-radar-btn" onClick={() => { setActiveTab('radar'); void loadRadar(); }} title="Радар">
+                    <button className="chats-radar-btn" onClick={() => switchTab('radar', () => void loadRadar())} title="Радар">
                       <Radar size={16} />
                       <span>Радар</span>
                     </button>
@@ -1603,9 +1629,9 @@ function App() {
 
                 {/* Compose — full page under header */}
                 {composeOpen && (
-                  <div className="compose-page">
+                  <div className={`compose-page${composeExiting ? ' compose-page-exit' : ''}`}>
                     <div className="compose-page-header">
-                      <button className="compose-back-btn" onClick={() => { setComposeOpen(false); setComposeSearch(''); }}>
+                      <button className="compose-back-btn" onClick={closeCompose}>
                         <ArrowLeft size={20} />
                       </button>
                       <h3>Новый чат</h3>

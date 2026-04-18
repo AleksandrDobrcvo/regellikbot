@@ -3021,6 +3021,390 @@ select {
   }
 }
 
+/* ===== PAGE EXIT ANIMATION ===== */
+.page-exiting > section {
+  animation: pageOut 0.25s cubic-bezier(0.4, 0, 1, 1) both !important;
+}
+
+@keyframes pageOut {
+  from {
+    opacity: 1;
+    transform: translateY(0) scale(1);
+    filter: blur(0);
+  }
+  to {
+    opacity: 0;
+    transform: translateY(-18px) scale(0.97);
+    filter: blur(4px);
+  }
+}
+
+/* ===== COMPOSE PAGE EXIT ===== */
+.compose-page-exit {
+  animation: composeExit 0.25s cubic-bezier(0.4, 0, 1, 1) both !important;
+}
+
+@keyframes composeExit {
+  from {
+    opacity: 1;
+    transform: translateX(0);
+  }
+  to {
+    opacity: 0;
+    transform: translateX(-40px);
+  }
+}
+
+/* ===== MENU EXIT ===== */
+.corner-menu-dropdown.menu-exiting {
+  animation: menuSlideOut 0.2s cubic-bezier(0.4, 0, 1, 1) both !important;
+}
+
+@keyframes menuSlideOut {
+  from {
+    opacity: 1;
+    transform: translateY(0) scale(1);
+  }
+  to {
+    opacity: 0;
+    transform: translateY(-8px) scale(0.96);
+  }
+}
+
+.corner-menu-backdrop.menu-exiting {
+  animation: fadeOut 0.2s ease-out both;
+}
+
+@keyframes fadeOut {
+  from { opacity: 1; }
+  to { opacity: 0; }
+}
+
+/* ===== ANIMATED GRADIENT BORDER — BUTTONS ===== */
+@keyframes borderGlow {
+  0%, 100% {
+    border-color: rgba(185, 255, 59, 0.15);
+    box-shadow: 0 0 0 rgba(185, 255, 59, 0);
+  }
+  50% {
+    border-color: rgba(185, 255, 59, 0.35);
+    box-shadow: 0 0 20px rgba(185, 255, 59, 0.08);
+  }
+}
+
+@keyframes shimmer {
+  0% { background-position: -200% center; }
+  100% { background-position: 200% center; }
+}
+
+@keyframes pulseRing {
+  0% {
+    box-shadow: 0 0 0 0 rgba(185, 255, 59, 0.25);
+  }
+  70% {
+    box-shadow: 0 0 0 10px rgba(185, 255, 59, 0);
+  }
+  100% {
+    box-shadow: 0 0 0 0 rgba(185, 255, 59, 0);
+  }
+}
+
+@keyframes breathe {
+  0%, 100% { opacity: 0.4; transform: scale(1); }
+  50% { opacity: 1; transform: scale(1.02); }
+}
+
+/* Home nav buttons — animated border glow on hover */
+.home-nav-btn {
+  position: relative;
+  overflow: hidden;
+}
+
+.home-nav-btn::before {
+  content: '';
+  position: absolute;
+  inset: 0;
+  border-radius: 18px;
+  background: linear-gradient(135deg,
+    rgba(185, 255, 59, 0.08),
+    rgba(111, 230, 255, 0.06),
+    transparent,
+    rgba(185, 255, 59, 0.06));
+  opacity: 0;
+  transition: opacity 0.3s;
+}
+
+.home-nav-btn::after {
+  content: '';
+  position: absolute;
+  top: -50%;
+  left: -50%;
+  width: 200%;
+  height: 200%;
+  background: conic-gradient(
+    from 0deg,
+    transparent,
+    rgba(185, 255, 59, 0.12),
+    transparent,
+    rgba(111, 230, 255, 0.08),
+    transparent
+  );
+  animation: rotateBorder 4s linear infinite;
+  opacity: 0;
+  transition: opacity 0.4s;
+}
+
+.home-nav-btn:hover::before {
+  opacity: 1;
+}
+
+.home-nav-btn:hover::after {
+  opacity: 1;
+}
+
+.home-nav-btn:active {
+  transform: scale(0.96) !important;
+}
+
+@keyframes rotateBorder {
+  from { transform: rotate(0deg); }
+  to { transform: rotate(360deg); }
+}
+
+/* Conversation items — smooth hover slide + glow line */
+.conversation-item {
+  position: relative;
+  overflow: hidden;
+}
+
+.conversation-item::after {
+  content: '';
+  position: absolute;
+  left: 0;
+  top: 50%;
+  transform: translateY(-50%) scaleY(0);
+  width: 3px;
+  height: 60%;
+  border-radius: 0 4px 4px 0;
+  background: linear-gradient(180deg, var(--green), var(--cyan));
+  transition: transform 0.3s cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+.conversation-item:hover::after {
+  transform: translateY(-50%) scaleY(1);
+}
+
+/* Panel cards — subtle shimmer on hover */
+.panel-card {
+  position: relative;
+  overflow: hidden;
+}
+
+.panel-card::after {
+  content: '';
+  position: absolute;
+  top: 0;
+  left: -100%;
+  width: 60%;
+  height: 100%;
+  background: linear-gradient(
+    90deg,
+    transparent,
+    rgba(185, 255, 59, 0.03),
+    rgba(255, 255, 255, 0.04),
+    transparent
+  );
+  transition: left 0.6s ease;
+  pointer-events: none;
+}
+
+.panel-card:hover::after {
+  left: 120%;
+}
+
+/* Topup CTA — pulse ring effect */
+.topup-cta-btn {
+  position: relative;
+}
+
+.topup-cta-btn::after {
+  content: '';
+  position: absolute;
+  inset: -2px;
+  border-radius: 20px;
+  animation: pulseRing 2.5s ease-out infinite;
+  pointer-events: none;
+}
+
+/* Home logo — breathing glow */
+.home-logo-icon {
+  animation: breathe 3s ease-in-out infinite;
+  text-shadow: 0 0 20px rgba(185, 255, 59, 0.4), 0 0 40px rgba(185, 255, 59, 0.15);
+}
+
+/* Stats items — count-up shimmer */
+.home-stat strong {
+  background: linear-gradient(90deg, var(--green) 40%, var(--cyan) 50%, var(--green) 60%);
+  background-size: 200% auto;
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+  background-clip: text;
+  animation: shimmer 3s linear infinite;
+}
+
+/* Compose FAB — enhanced with rotating glow ring */
+.compose-fab::before {
+  content: '';
+  position: absolute;
+  inset: -3px;
+  border-radius: 999px;
+  background: conic-gradient(
+    from 0deg,
+    rgba(185, 255, 59, 0.6),
+    rgba(111, 230, 255, 0.4),
+    rgba(185, 255, 59, 0.6),
+    rgba(111, 230, 255, 0.4),
+    rgba(185, 255, 59, 0.6)
+  );
+  animation: rotateBorder 3s linear infinite;
+  z-index: -1;
+  opacity: 0.7;
+}
+
+/* Profile avatar — glow ring */
+.profile-avatar-wrap {
+  position: relative;
+}
+
+.profile-avatar-wrap::after {
+  content: '';
+  position: absolute;
+  inset: -4px;
+  border-radius: 50%;
+  background: conic-gradient(
+    from 0deg,
+    rgba(185, 255, 59, 0.3),
+    transparent,
+    rgba(111, 230, 255, 0.2),
+    transparent,
+    rgba(185, 255, 59, 0.3)
+  );
+  animation: rotateBorder 6s linear infinite;
+  z-index: -1;
+}
+
+/* Topup option buttons — glow on hover */
+.topup-option-btn {
+  position: relative;
+  transition: all 0.25s cubic-bezier(0.16, 1, 0.3, 1), border-color 0.3s;
+}
+
+.topup-option-btn:hover {
+  border-color: rgba(185, 255, 59, 0.25);
+  transform: translateY(-3px);
+  box-shadow: 0 8px 24px rgba(185, 255, 59, 0.1);
+}
+
+.topup-option-btn:active {
+  transform: scale(0.95);
+}
+
+/* Unread badge — pulse */
+.convo-unread {
+  animation: pulseRing 2s ease-out infinite;
+}
+
+/* Header online dot — breathing pulse */
+.online-dot {
+  animation: onlinePulse 2s ease-in-out infinite;
+}
+
+@keyframes onlinePulse {
+  0%, 100% {
+    box-shadow: 0 0 0 0 rgba(185, 255, 59, 0.5);
+    transform: scale(1);
+  }
+  50% {
+    box-shadow: 0 0 8px 3px rgba(185, 255, 59, 0.25);
+    transform: scale(1.15);
+  }
+}
+
+/* Topup inline — stagger children entrance */
+.topup-inline > * {
+  animation: cardFadeIn 0.35s cubic-bezier(0.16, 1, 0.3, 1) both;
+}
+.topup-inline > :nth-child(1) { animation-delay: 0.05s; }
+.topup-inline > :nth-child(2) { animation-delay: 0.12s; }
+.topup-inline > :nth-child(3) { animation-delay: 0.2s; }
+
+/* Compose user items — stagger entrance */
+.compose-user-item {
+  animation: cardFadeIn 0.3s cubic-bezier(0.16, 1, 0.3, 1) both;
+}
+.compose-user-list .compose-user-item:nth-child(1) { animation-delay: 0.03s; }
+.compose-user-list .compose-user-item:nth-child(2) { animation-delay: 0.06s; }
+.compose-user-list .compose-user-item:nth-child(3) { animation-delay: 0.09s; }
+.compose-user-list .compose-user-item:nth-child(4) { animation-delay: 0.12s; }
+.compose-user-list .compose-user-item:nth-child(5) { animation-delay: 0.15s; }
+.compose-user-list .compose-user-item:nth-child(6) { animation-delay: 0.18s; }
+
+/* Chat messages — slide in */
+.msg-row {
+  animation: msgSlideIn 0.3s cubic-bezier(0.16, 1, 0.3, 1) both;
+}
+
+@keyframes msgSlideIn {
+  from {
+    opacity: 0;
+    transform: translateY(12px) scale(0.97);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0) scale(1);
+  }
+}
+
+/* Corner menu items — stagger */
+.corner-menu-dropdown .corner-menu-item {
+  animation: menuItemIn 0.2s cubic-bezier(0.16, 1, 0.3, 1) both;
+}
+.corner-menu-dropdown .corner-menu-item:nth-child(1) { animation-delay: 0.03s; }
+.corner-menu-dropdown .corner-menu-item:nth-child(2) { animation-delay: 0.06s; }
+.corner-menu-dropdown .corner-menu-item:nth-child(3) { animation-delay: 0.09s; }
+.corner-menu-dropdown .corner-menu-item:nth-child(4) { animation-delay: 0.12s; }
+.corner-menu-dropdown .corner-menu-item:nth-child(5) { animation-delay: 0.15s; }
+.corner-menu-dropdown .corner-menu-item:nth-child(6) { animation-delay: 0.18s; }
+.corner-menu-dropdown .corner-menu-item:nth-child(7) { animation-delay: 0.21s; }
+.corner-menu-dropdown .corner-menu-item:nth-child(8) { animation-delay: 0.24s; }
+
+@keyframes menuItemIn {
+  from {
+    opacity: 0;
+    transform: translateX(-12px);
+  }
+  to {
+    opacity: 1;
+    transform: translateX(0);
+  }
+}
+
+/* Radar cards — entrance with scale bounce */
+.radar-card {
+  animation: radarCardIn 0.4s cubic-bezier(0.34, 1.56, 0.64, 1) both;
+}
+
+@keyframes radarCardIn {
+  from {
+    opacity: 0;
+    transform: scale(0.85) translateY(20px);
+  }
+  to {
+    opacity: 1;
+    transform: scale(1) translateY(0);
+  }
+}
+
 /* === Chats screen compact === */
 .chats-screen {
   display: flex;
