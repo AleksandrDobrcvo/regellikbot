@@ -630,6 +630,33 @@ function pushAudit(state, action, actorId, targetId, details) {
   state.auditLog = state.auditLog.slice(0, 60)
 }
 
+/** Send a system notification to a user via the Regellik system chat */
+function sendSystemNotification(state, userId, text) {
+  const regellikId = 'seed-regellik'
+  if (userId === regellikId) return
+  let convo = state.conversations.find(c =>
+    c.isSystem && c.participants.includes(regellikId) && c.participants.includes(userId)
+  )
+  if (!convo) {
+    convo = { id: createToken(), participants: [regellikId, userId], isSystem: true, createdAt: new Date().toISOString() }
+    state.conversations.push(convo)
+  }
+  const msg = {
+    id: createToken(),
+    conversationId: convo.id,
+    senderId: regellikId,
+    text,
+    createdAt: new Date().toISOString(),
+  }
+  state.chatMessages.push(msg)
+  sendToUser(userId, {
+    type: 'new_message',
+    conversationId: convo.id,
+    message: { id: msg.id, text: msg.text, senderId: regellikId, senderName: 'Regellik', createdAt: msg.createdAt },
+    conversations: getConversationsForUser(state, userId),
+  })
+}
+
 function publicUser(user) {
   return {
     id: user.id,
@@ -1444,6 +1471,7 @@ app.post('/api/messages/send', (request, response) => {
   viewer.stats.sent += 1
   recipient.stats.received += 1
   pushAudit(state, 'message.sent', viewer.id, recipient.id, 'Отправлена анонимка.')
+  sendSystemNotification(state, recipient.id, 'Вам пришла новая анонимная открытка! Проверьте входящие.')
   saveState(state)
   response.json(bootstrapPayload(state, viewer))
 })
@@ -1536,6 +1564,7 @@ app.post('/api/admin/users/update', (request, response) => {
   }
 
   pushAudit(state, 'admin.user.update', viewer.id, target.id, `Обновлён пользователь ${target.handle}.`)
+  sendSystemNotification(state, target.id, 'Ваш профиль был обновлён администратором.')
   saveState(state)
   response.json(bootstrapPayload(state, viewer))
 })
@@ -1567,6 +1596,7 @@ app.post('/api/admin/grant', (request, response) => {
     target.badges.unshift('ADMIN')
   }
   pushAudit(state, 'admin.role.grant', viewer.id, target.id, `Выданы права admin пользователю ${target.handle}.`)
+  sendSystemNotification(state, target.id, 'Вам выданы права администратора!')
   saveState(state)
   response.json(bootstrapPayload(state, viewer))
 })
@@ -1606,6 +1636,10 @@ app.post('/api/admin/ban', (request, response) => {
 
   const durationText = until ? `на ${duration} мин` : 'навсегда'
   pushAudit(state, `admin.ban.${banType}`, viewer.id, target.id, `${banType === 'global' ? 'Глобальный бан' : 'Бан чата'} ${target.handle} ${durationText}. Причина: ${target.ban.reason}`)
+  sendSystemNotification(state, target.id, banType === 'global'
+    ? `Ваш аккаунт заблокирован ${durationText}.\nПричина: ${target.ban.reason}`
+    : `Чат заблокирован ${durationText}.\nПричина: ${target.ban.reason}`
+  )
   saveState(state)
   response.json(bootstrapPayload(state, viewer))
 })
@@ -1626,6 +1660,7 @@ app.post('/api/admin/unban', (request, response) => {
   const hadBan = target.ban
   target.ban = null
   pushAudit(state, 'admin.unban', viewer.id, target.id, `Разбан ${target.handle}${hadBan ? ` (был: ${hadBan.type})` : ''}.`)
+  sendSystemNotification(state, target.id, 'Ваш аккаунт разблокирован. Добро пожаловать обратно!')
   saveState(state)
   response.json(bootstrapPayload(state, viewer))
 })
@@ -1647,9 +1682,11 @@ app.post('/api/admin/freeze', (request, response) => {
     target.status = 'suspended'
     state.sessions = state.sessions.filter(s => s.userId !== target.id)
     pushAudit(state, 'admin.freeze', viewer.id, target.id, `Заморозка аккаунта ${target.handle}.`)
+    sendSystemNotification(state, target.id, 'Ваш аккаунт временно заморожен администрацией.')
   } else {
     target.status = 'active'
     pushAudit(state, 'admin.unfreeze', viewer.id, target.id, `Разморозка аккаунта ${target.handle}.`)
+    sendSystemNotification(state, target.id, 'Ваш аккаунт разморожен. Добро пожаловать обратно!')
   }
 
   saveState(state)
@@ -1716,6 +1753,10 @@ app.post('/api/admin/topup', (request, response) => {
   if (target.powers < 0) target.powers = 0
 
   pushAudit(state, numAmount > 0 ? 'admin.topup' : 'admin.deduct', viewer.id, target.id, `${numAmount > 0 ? '+' : ''}${numAmount}⚡ пользователю ${target.handle} (было ${oldPowers}, стало ${target.powers}). ${reason ? 'Причина: ' + reason : ''}`)
+  sendSystemNotification(state, target.id, numAmount > 0
+    ? `Ваш баланс пополнен на ${numAmount}⚡\nТекущий баланс: ${target.powers}⚡${reason ? '\nПричина: ' + reason : ''}`
+    : `С вашего баланса списано ${Math.abs(numAmount)}⚡\nТекущий баланс: ${target.powers}⚡${reason ? '\nПричина: ' + reason : ''}`
+  )
   saveState(state)
   response.json(bootstrapPayload(state, viewer))
 })
@@ -1955,6 +1996,7 @@ app.post('/api/conversations', (request, response) => {
     isSystem: false,
     createdAt: new Date().toISOString(),
   })
+  sendSystemNotification(state, recipientId, `${viewer.name} (@${viewer.handle}) начал с вами чат.`)
   saveState(state)
   response.json({ conversationId: convoId })
 })
