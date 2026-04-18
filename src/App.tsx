@@ -9,6 +9,7 @@ import {
   Camera,
   ChevronDown,
   Copy,
+  Dices,
   DollarSign,
   Eye,
   EyeOff,
@@ -381,6 +382,8 @@ function App() {
   const [isGrantingAdmin, setIsGrantingAdmin] = useState(false)
   const [profileName, setProfileName] = useState('')
   const [profileHandle, setProfileHandle] = useState('@regellik')
+  const [handleStatus, setHandleStatus] = useState<'idle' | 'checking' | 'available' | 'taken'>('idle')
+  const handleCheckTimer = useRef<number | null>(null)
   const [profileTagline, setProfileTagline] = useState('')
   const [profileBio, setProfileBio] = useState('')
   const [adminDraft, setAdminDraft] = useState<AdminDraft | null>(null)
@@ -491,6 +494,34 @@ function App() {
 
   const showToast = (_message: string, _tone: ToastTone) => {
     try { navigator.vibrate?.(80) } catch { /* ignore */ }
+  }
+
+  const checkHandleAvailability = (handle: string) => {
+    if (handleCheckTimer.current) window.clearTimeout(handleCheckTimer.current)
+    const normalized = normalizeHandle(handle)
+    if (normalized === viewer?.handle) { setHandleStatus('idle'); return }
+    if (normalized.length < 3) { setHandleStatus('idle'); return }
+    setHandleStatus('checking')
+    handleCheckTimer.current = window.setTimeout(async () => {
+      try {
+        const data = await apiRequest<{ available: boolean }>(`/api/handle/check?handle=${encodeURIComponent(normalized)}`, undefined, sessionToken)
+        setHandleStatus(data.available ? 'available' : 'taken')
+      } catch { setHandleStatus('idle') }
+    }, 400)
+  }
+
+  const changeHandle = (value: string) => {
+    const h = normalizeHandle(value)
+    setProfileHandle(h)
+    checkHandleAvailability(h)
+  }
+
+  const randomHandle = async () => {
+    try {
+      const data = await apiRequest<{ handle: string }>('/api/handle/random', undefined, sessionToken)
+      setProfileHandle(data.handle)
+      checkHandleAvailability(data.handle)
+    } catch { /* ignore */ }
   }
 
   const applyBootstrap = (data: BootstrapResponse) => {
@@ -1874,10 +1905,20 @@ function App() {
                       <span>Имя</span>
                       <input value={profileName} onChange={(event) => setProfileName(event.target.value)} />
                     </label>
-                    <label className="input-block">
-                      <span>Хэндл</span>
-                      <input value={profileHandle} onChange={(event) => setProfileHandle(normalizeHandle(event.target.value))} />
-                    </label>
+                    <div className="input-block handle-block">
+                      <span>Юзернейм</span>
+                      <div className="handle-row">
+                        <input value={profileHandle} onChange={(event) => changeHandle(event.target.value)} />
+                        <button type="button" className="handle-dice-btn" onClick={randomHandle} title="Случайный ник">
+                          <Dices size={16} />
+                        </button>
+                      </div>
+                      <div className={`handle-status ${handleStatus}`}>
+                        {handleStatus === 'checking' && '● проверяю...'}
+                        {handleStatus === 'available' && '● свободен'}
+                        {handleStatus === 'taken' && '● занят'}
+                      </div>
+                    </div>
                   </div>
                   <label className="input-block">
                     <span>Подпись</span>

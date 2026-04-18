@@ -1402,6 +1402,72 @@ html {
   box-shadow: 0 0 0 4px rgba(200, 200, 200, 0.08), 0 0 28px rgba(200, 200, 200, 0.08);
 }
 
+/* Handle editor */
+.handle-block {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.handle-row {
+  display: flex;
+  gap: 6px;
+  align-items: stretch;
+}
+
+.handle-row input {
+  flex: 1;
+  min-width: 0;
+}
+
+.handle-dice-btn {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 40px;
+  border-radius: 12px;
+  background: rgba(255, 255, 255, 0.06);
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  color: var(--text);
+  cursor: pointer;
+  transition: all 0.2s ease;
+  flex-shrink: 0;
+}
+
+.handle-dice-btn:hover {
+  background: rgba(255, 255, 255, 0.12);
+  border-color: rgba(255, 255, 255, 0.2);
+}
+
+.handle-dice-btn:active {
+  transform: rotate(90deg) scale(0.9);
+}
+
+.handle-status {
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: 0.3px;
+  padding-left: 2px;
+  min-height: 16px;
+  transition: color 0.2s;
+}
+
+.handle-status.idle {
+  color: transparent;
+}
+
+.handle-status.checking {
+  color: var(--muted);
+}
+
+.handle-status.available {
+  color: #aaa;
+}
+
+.handle-status.taken {
+  color: #666;
+}
+
 .toggle-grid {
   grid-template-columns: repeat(2, minmax(0, 1fr));
 }

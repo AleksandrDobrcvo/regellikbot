@@ -1299,6 +1299,34 @@ app.post('/api/auth/telegram-widget', (request, response) => {
   response.json({ token, viewer: publicUser(user) })
 })
 
+// Check handle availability
+app.get('/api/handle/check', (request, response) => {
+  const state = readState()
+  const viewer = requireUser(request, response, state)
+  if (!viewer) return
+
+  const raw = String(request.query.handle || '').trim()
+  if (!raw) {
+    response.json({ available: false, normalized: '' })
+    return
+  }
+
+  const normalized = normalizeHandle(raw)
+  const taken = state.users.some(u => u.handle === normalized && u.id !== viewer.id)
+  response.json({ available: !taken, normalized })
+})
+
+// Generate random handle
+app.get('/api/handle/random', (request, response) => {
+  const adjectives = ['dark','cold','neon','fast','gray','iron','void','zero','hex','null','mono','raw','low','dry','zen','arc','bit','fog','dusk','ash']
+  const nouns = ['wolf','node','byte','core','mind','edge','root','link','grid','cell','code','flux','data','mask','wave','port','rule','base','form','unit']
+  const adj = adjectives[Math.floor(Math.random() * adjectives.length)]
+  const noun = nouns[Math.floor(Math.random() * nouns.length)]
+  const num = Math.floor(Math.random() * 900) + 100
+  const handle = `@${adj}${noun}${num}`
+  response.json({ handle })
+})
+
 app.post('/api/profile/update', (request, response) => {
   const state = readState()
   const viewer = requireUser(request, response, state)
