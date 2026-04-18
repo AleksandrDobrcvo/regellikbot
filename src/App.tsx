@@ -339,8 +339,8 @@ function getToastEmoji(tone: ToastTone) {
 
 function getNotifIcon(type: NotificationItem['type']) {
   if (type === 'system') return '🤖'
-  if (type === 'inbox') return '📩'
-  return '💬'
+  if (type === 'inbox') return '→'
+  return '←'
 }
 
 function normalizeHandle(value: string) {
@@ -644,7 +644,7 @@ function App() {
           const preview = payload.message.text.length > 40
             ? payload.message.text.slice(0, 40) + '...'
             : payload.message.text
-          showToast(`💬 ${senderName}: ${preview}`, 'info')
+          showToast(`${senderName}: ${preview}`, 'info')
         }
       } catch {
         // ignore malformed payloads
@@ -2002,7 +2002,7 @@ function App() {
                 <article className="panel-card">
                   <div className="panel-head">
                     <div>
-                      <span className="eyebrow">📊 статистика</span>
+                      <span className="eyebrow"># статистика</span>
                       <h2>Активность</h2>
                     </div>
                   </div>
@@ -2048,7 +2048,7 @@ function App() {
                     </div>
                     <div className="meta-row">
                       <span>Статус</span>
-                      <strong>{viewer.status === 'active' ? '🟢 Активен' : '🔴 Заблокирован'}</strong>
+                      <strong>{viewer.status === 'active' ? '● Активен' : '○ Заблокирован'}</strong>
                     </div>
                   </div>
                   <button className="secondary-btn danger wide settings-logout-btn" onClick={() => void signOut()}>
@@ -2145,7 +2145,7 @@ function App() {
                 {/* Уведомления / Приватность */}
                 <article className="panel-card settings-card">
                   <div className="panel-head compact-head">
-                    <span className="eyebrow">🔔 приватность</span>
+                    <span className="eyebrow"># приватность</span>
                   </div>
                   <div className="settings-toggle-list">
                     <button className={viewer.preferences.allowInbox ? 'settings-toggle-item active' : 'settings-toggle-item'} onClick={() => void updatePreference('allowInbox', !viewer.preferences.allowInbox)}>
@@ -2631,7 +2631,7 @@ function App() {
                           <div className="admin-ban-info">
                             <strong>{u.name}</strong>
                             <span className="admin-ban-handle">{u.handle}</span>
-                            <span className={`admin-ban-type ${u.ban!.type}`}>{u.ban!.type === 'global' ? '🌐 Глобальный' : '💬 Чат'}</span>
+                            <span className={`admin-ban-type ${u.ban!.type}`}>{u.ban!.type === 'global' ? '◉ Глобальный' : '◎ Чат'}</span>
                             <span className="admin-ban-reason">{u.ban!.reason}</span>
                             {u.ban!.until && <span className="admin-ban-until"><Timer size={11} /> до {new Date(u.ban!.until).toLocaleString('ru')}</span>}
                           </div>
