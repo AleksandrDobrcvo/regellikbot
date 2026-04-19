@@ -499,7 +499,7 @@ function App() {
   const [viewer, setViewer] = useState<SessionUser | null>(null)
   const [publicFeed, setPublicFeed] = useState<FeedMessage[]>([])
   const [inbox, setInbox] = useState<InboxMessage[]>([])
-  const [directory, setDirectory] = useState<DirectoryProfile[]>([])
+  const [_directory, setDirectory] = useState<DirectoryProfile[]>([])
   const [siteSettings, setSiteSettings] = useState<SiteSettings>(DEFAULT_SITE_SETTINGS)
   const [adminUsers, setAdminUsers] = useState<AdminManagedUser[]>([])
   const [auditLog, setAuditLog] = useState<AuditLogItem[]>([])
@@ -2147,25 +2147,40 @@ function App() {
 
                 {isSignedIn && (
                   <>
+                    <button className={activeTab === 'home' ? 'corner-menu-item active' : 'corner-menu-item'} onClick={() => switchTab('home', closeMenu)}>
+                      <span className="menu-emoji">🖊</span> Kabinet
+                    </button>
                     <button className={activeTab === 'chats' ? 'corner-menu-item active' : 'corner-menu-item'} onClick={() => switchTab('chats', closeMenu)}>
-                      <MessageCircle size={16} /> Chatlar
+                      <span className="menu-emoji">💬</span> Chatlar
                       {totalUnread > 0 && <span className="menu-badge">{totalUnread}</span>}
                     </button>
                     <button className={activeTab === 'trends' ? 'corner-menu-item active' : 'corner-menu-item'} onClick={() => switchTab('trends', closeMenu)}>
-                      <Flame size={16} /> Global
-                      {posts.length > 0 && <span className="menu-badge-muted">{posts.length}</span>}
+                      <span className="menu-emoji">#️⃣</span> Global
+                    </button>
+                    <button className={activeTab === 'radar' ? 'corner-menu-item active' : 'corner-menu-item'} onClick={() => switchTab('radar', () => { closeMenu(); void loadRadar() })}>
+                      <span className="menu-emoji">👤</span> Kontaktlar
                     </button>
                     <button className={activeTab === 'transactions' ? 'corner-menu-item active' : 'corner-menu-item'} onClick={() => switchTab('transactions', closeMenu)}>
-                      <Wallet size={16} /> O'tkazmalar
+                      <span className="menu-emoji">👤</span> O'tkazmalar
+                    </button>
+                    <button className={activeTab === 'transactions' ? 'corner-menu-item active' : 'corner-menu-item'} onClick={() => { switchTab('transactions', closeMenu) }}>
+                      <span className="menu-emoji">⚡️</span> QUVVAT
                     </button>
                     <button className={activeTab === 'settings' ? 'corner-menu-item active' : 'corner-menu-item'} onClick={() => switchTab('settings', closeMenu)}>
-                      <Settings2 size={16} /> Sozlamalar
+                      <span className="menu-emoji">⚙</span> Sozlamalar
                     </button>
                     {isAdmin && (
                       <button className={activeTab === 'admin' ? 'corner-menu-item active' : 'corner-menu-item'} onClick={() => switchTab('admin', closeMenu)}>
                         <UserCog size={16} /> Adminlar
                       </button>
                     )}
+                    <div className="corner-menu-divider" />
+                    <button className="corner-menu-item muted-item" onClick={() => { closeMenu(); openReportForPost() }}>
+                      <span className="menu-emoji">❗️</span> Shikoyat qilish
+                    </button>
+                    <button className="corner-menu-item muted-item" onClick={() => { closeMenu(); void startConversation('support') }}>
+                      <span className="menu-emoji">😀</span> Qo'llab quvvatlash 24/7
+                    </button>
                     <div className="corner-menu-divider" />
                     <button className="corner-menu-item danger-item" onClick={() => { closeMenu(); void signOut() }}>
                       <LogOut size={16} /> Chiqish
@@ -2174,15 +2189,8 @@ function App() {
                 )}
               </div>
 
-              <div className="corner-menu-footer">
-                <div className="corner-menu-footer-brand">&gt;]Regellik</div>
-                <div className="corner-menu-footer-links">
-                  <span>Нормативы</span>
-                  <span>О нас</span>
-                  <span>FAQ</span>
-                  <span>Связаться</span>
-                </div>
-                <div className="corner-menu-footer-copy">© 2026 Regellik</div>
+              <div className="corner-menu-footer-mini">
+                <span>&gt;]Regellik · © 2026</span>
               </div>
             </nav>
           </>,
@@ -2291,21 +2299,7 @@ function App() {
             {/* --- ЧАТЫ (мессенджер) --- */}
             {activeTab === 'chats' && !openConvoId && !composeOpen && (
               <section className="chats-screen page-transition">
-                <div className="chats-header-row">
-                  <h2 className="chats-title">Chatlar</h2>
-                  <div className="chats-header-actions">
-                    <button className="chats-radar-btn" onClick={() => switchTab('radar', () => void loadRadar())} title="Atrofimda kim?">
-                      <Radar size={16} />
-                      <span>Atrofimda kim?</span>
-                    </button>
-                    <button className="compose-fab-inline" onClick={() => setComposeOpen(true)} title="Kontaktlar">
-                      <Users size={16} />
-                      <span>Kontaktlar</span>
-                    </button>
-                  </div>
-                </div>
-
-                {/* Izlash search bar */}
+                {/* Поиск + радар */}
                 <div className="chats-search-row">
                   <Search size={14} />
                   <input
@@ -2319,6 +2313,12 @@ function App() {
                       <X size={13} />
                     </button>
                   )}
+                  <button className="chats-radar-inline-btn" onClick={() => switchTab('radar', () => void loadRadar())} title="Atrofimda kim?">
+                    <Radar size={16} />
+                  </button>
+                  <button className="chats-contacts-inline-btn" onClick={() => setComposeOpen(true)} title="Kontaktlar">
+                    <Users size={16} />
+                  </button>
                 </div>
 
                 {conversations.length === 0 && (
@@ -3353,38 +3353,6 @@ function App() {
                   )}
                 </article>
 
-                {/* Статистика активности */}
-                <article className="panel-card">
-                  <div className="panel-head">
-                    <div>
-                      <span className="eyebrow"># статистика</span>
-                      <h2>Активность</h2>
-                    </div>
-                  </div>
-                  <div className="tx-stats-grid">
-                    <div className="tx-stat-item">
-                      <div className="tx-stat-icon tx-stat-out"><Send size={15} /></div>
-                      <strong>{viewer?.stats.sent ?? 0}</strong>
-                      <span>отправлено</span>
-                    </div>
-                    <div className="tx-stat-item">
-                      <div className="tx-stat-icon tx-stat-in"><MessageCircle size={15} /></div>
-                      <strong>{viewer?.stats.received ?? 0}</strong>
-                      <span>получено</span>
-                    </div>
-                    <div className="tx-stat-item">
-                      <div className="tx-stat-icon tx-stat-boost"><Zap size={15} /></div>
-                      <strong>{powerLog.filter(t => t.type === 'boost_received').length}</strong>
-                      <span>бустов</span>
-                    </div>
-                    <div className="tx-stat-item">
-                      <div className="tx-stat-icon tx-stat-topup"><Plus size={15} /></div>
-                      <strong>{powerLog.filter(t => t.type === 'topup').length}</strong>
-                      <span>пополнений</span>
-                    </div>
-                  </div>
-                </article>
-
                 </>)}
 
                 {/* === ПОДВКЛАДКА: ИСТОРИЯ === */}
@@ -3476,10 +3444,6 @@ function App() {
                     <div className="meta-row">
                       <span>Telegram привязан</span>
                       <strong>{viewer.telegramLinked ? 'Да' : 'Нет'}</strong>
-                    </div>
-                    <div className="meta-row">
-                      <span>Статус</span>
-                      <strong>{viewer.status === 'active' ? '● Активен' : '○ Заблокирован'}</strong>
                     </div>
                   </div>
                   <button className="secondary-btn danger wide settings-logout-btn" onClick={() => void signOut()}>
@@ -3594,27 +3558,6 @@ function App() {
                       <div><strong>Неоновый профиль</strong><span>Яркая подсветка аватара</span></div>
                       <div className={viewer.preferences.neonProfile ? 'toggle-pill on' : 'toggle-pill'} />
                     </button>
-                  </div>
-                </article>
-
-                {/* Информация */}
-                <article className="panel-card settings-card">
-                  <div className="panel-head compact-head">
-                    <span className="eyebrow"># информация</span>
-                  </div>
-                  <div className="settings-info-rows">
-                    <div className="meta-row">
-                      <span>Версия</span>
-                      <strong>Regellik 1.0</strong>
-                    </div>
-                    <div className="meta-row">
-                      <span>Онлайн сейчас</span>
-                      <strong>{onlineCount}</strong>
-                    </div>
-                    <div className="meta-row">
-                      <span>Пользователей</span>
-                      <strong>{directory.length}</strong>
-                    </div>
                   </div>
                 </article>
 
@@ -4521,137 +4464,96 @@ function App() {
                 </div>
               </div>
 
-              <article className="panel-card public-profile-card">
-                <div className="profile-sheet-header">
-              <div className="profile-sheet-avatar">
-                {viewedProfile.user.avatarUrl
-                  ? <img src={viewedProfile.user.avatarUrl} alt="" />
-                  : <span>{(viewedProfile.user.name || '?')[0]}</span>
-                }
-              </div>
-              <div className="profile-sheet-name-row">
-                <h3>{viewedProfile.user.name}</h3>
-                {viewedProfile.user.badges && viewedProfile.user.badges.length > 0 && (
-                  <div className="profile-sheet-badges">
-                    {viewedProfile.user.badges.map((b: string) => <BadgeChip key={b} id={b} />)}
+              <article className="panel-card public-profile-card compact-profile-card">
+                {/* Compact header: avatar + name + stats inline */}
+                <div className="cpf-header">
+                  <div className="cpf-avatar">
+                    {viewedProfile.user.avatarUrl
+                      ? <img src={viewedProfile.user.avatarUrl} alt="" />
+                      : <span>{(viewedProfile.user.name || '?')[0]}</span>
+                    }
+                  </div>
+                  <div className="cpf-meta">
+                    <div className="cpf-name-row">
+                      <strong>{viewedProfile.user.name}</strong>
+                      {viewedProfile.user.badges && viewedProfile.user.badges.length > 0 && viewedProfile.user.badges.slice(0,3).map((b: string) => <BadgeChip key={b} id={b} />)}
+                    </div>
+                    <span className="cpf-handle">{viewedProfile.user.handle}</span>
+                    {viewedProfile.user.tagline && <span className="cpf-tagline">{viewedProfile.user.tagline}</span>}
+                    <div className="cpf-stats-row">
+                      <span><strong>{viewedProfile.user.postCount}</strong> постов</span>
+                      <span><strong>{viewedProfile.user.followerCount}</strong> подписчиков</span>
+                      <span><strong>{viewedProfile.user.followingCount}</strong> подписок</span>
+                    </div>
+                  </div>
+                </div>
+
+                {viewedProfile.user.bio && <p className="cpf-bio">{viewedProfile.user.bio}</p>}
+
+                {/* Actions row */}
+                {viewer?.id !== viewedProfile.user.id && (
+                  <div className="cpf-actions">
+                    <button className="cpf-btn primary" onClick={() => void toggleFollowViewedProfile()} disabled={isProfileActionLoading}>
+                      <Users size={14} /> {isProfileActionLoading ? '...' : viewedProfile.isFollowing ? 'Otpisatsya' : 'Obunachi'}
+                    </button>
+                    <button className="cpf-btn" onClick={() => {
+                      setViewedProfile(null)
+                      setActiveTab('chats')
+                      void startConversation(viewedProfile.user.id)
+                    }}>
+                      <MessageCircle size={14} /> Yozish
+                    </button>
+                    <button className="cpf-btn danger" onClick={() => openReportForPost()}>
+                      <Ban size={14} />
+                    </button>
                   </div>
                 )}
-              </div>
-              {viewedProfile.user.handle && <span className="profile-sheet-handle">{viewedProfile.user.handle}</span>}
-            </div>
-            {viewedProfile.user.tagline && <p className="profile-sheet-tagline">{viewedProfile.user.tagline}</p>}
-            {viewedProfile.user.bio && <p className="profile-sheet-bio">{viewedProfile.user.bio}</p>}
-            <div className="profile-sheet-stats">
-              <div className="profile-sheet-stat"><Flame size={14} /> <strong>{viewedProfile.user.postCount}</strong> публикаций</div>
-              <div className="profile-sheet-stat"><Users size={14} /> <strong>{viewedProfile.user.followerCount}</strong> подписчиков</div>
-              <div className="profile-sheet-stat"><User size={14} /> <strong>{viewedProfile.user.followingCount}</strong> подписок</div>
-              <div className="profile-sheet-stat"><Zap size={14} /> <strong>{viewedProfile.user.powers ?? 0}</strong> энергия</div>
-              <div className="profile-sheet-stat"><Eye size={14} /> <strong>{viewedProfile.user.profileViews || 0}</strong> просмотров</div>
-              {viewedProfile.user.city && (
-                <div className="profile-sheet-stat"><MapPin size={14} /> {viewedProfile.user.city}</div>
-              )}
-            </div>
-            <div className="profile-sheet-actions-grid">
-              {viewer?.id !== viewedProfile.user.id && (
-                <button className="profile-sheet-write-btn active" onClick={() => void toggleFollowViewedProfile()} disabled={isProfileActionLoading}>
-                  <Users size={16} /> {isProfileActionLoading ? '...' : viewedProfile.isFollowing ? 'Отписаться' : 'Подписаться'}
-                </button>
-              )}
-              {viewer?.id !== viewedProfile.user.id && (
-                <button className="profile-sheet-write-btn active" onClick={() => {
-                  setViewedProfile(null)
-                  setActiveTab('chats')
-                  void startConversation(viewedProfile.user.id)
-                }}>
-                  <MessageCircle size={16} /> Написать
-                </button>
-              )}
-              {viewer?.id !== viewedProfile.user.id && (
-                <button className="profile-sheet-write-btn report" onClick={() => openReportForPost()}>
-                  <Ban size={16} /> Пожаловаться
-                </button>
-              )}
-            </div>
 
-            <div className="profile-sheet-tabs">
-              <button className={profileViewTab === 'posts' ? 'profile-sheet-tab active' : 'profile-sheet-tab'} onClick={() => setProfileViewTab('posts')}>
-                Публикации
-              </button>
-              <button className={profileViewTab === 'info' ? 'profile-sheet-tab active' : 'profile-sheet-tab'} onClick={() => setProfileViewTab('info')}>
-                Инфо
-              </button>
-            </div>
-
-            {profileViewTab === 'posts' && (
-              <div className="profile-sheet-posts">
-                <div className="profile-sheet-posts-head">
-                  <strong>Публикации</strong>
-                  <span>{viewedProfile.posts.length}</span>
+                {/* Tabs */}
+                <div className="cpf-tabs">
+                  <button className={profileViewTab === 'posts' ? 'cpf-tab active' : 'cpf-tab'} onClick={() => setProfileViewTab('posts')}>
+                    <Flame size={14} /> {viewedProfile.posts.length}
+                  </button>
+                  <button className={profileViewTab === 'info' ? 'cpf-tab active' : 'cpf-tab'} onClick={() => setProfileViewTab('info')}>
+                    Info
+                  </button>
                 </div>
-                {viewedProfile.posts.length === 0 ? (
-                  <div className="profile-posts-empty compact">
-                    <p>Пока нет публикаций</p>
-                  </div>
-                ) : (
-                  <div className="profile-posts-grid in-sheet">
-                    {viewedProfile.posts.map(post => (
-                      <article key={post.id} className="profile-post-tile">
-                        {(post.imageUrls?.length || post.imageUrl) ? (
-                          <div className={`profile-post-tile-gallery${(post.imageUrls?.length || 0) > 1 ? ' multi' : ''}`}>
-                            {(post.imageUrls?.length ? post.imageUrls : [post.imageUrl]).filter(Boolean).map((image, index) => (
-                              <img key={`${post.id}-${index}`} src={image!} alt="Публикация" className="profile-post-tile-image" onClick={() => openImageLightbox((post.imageUrls?.length ? post.imageUrls : [post.imageUrl]).filter(Boolean) as string[], index)} />
-                            ))}
-                          </div>
-                        ) : (
-                          <div className="profile-post-tile-fallback">{post.text.slice(0, 120)}</div>
-                        )}
-                        <div className="profile-post-tile-overlay">
-                          <div className="profile-post-tile-stats">
-                            <span><Zap size={13} /> {post.boosts}</span>
-                            <span><MessageSquare size={13} /> {post.commentsCount || post.comments.length}</span>
-                          </div>
-                          <p>{post.text}</p>
-                          {viewer?.id !== viewedProfile.user.id && (
-                            <button className="profile-post-report-btn" onClick={() => openReportForPost(post.id)}>
-                              <Ban size={13} /> Пожаловаться на пост
-                            </button>
-                          )}
-                        </div>
-                      </article>
-                    ))}
+
+                {profileViewTab === 'posts' && (
+                  viewedProfile.posts.length === 0 ? (
+                    <div className="profile-posts-empty compact"><p>Hali post yo'q</p></div>
+                  ) : (
+                    <div className="profile-ig-grid cpf-posts-grid">
+                      {viewedProfile.posts.map(post => {
+                        const thumb = post.imageUrls?.[0] || post.imageUrl || null
+                        return (
+                          <button key={post.id} className={`profile-ig-cell${thumb ? '' : ' text-only'}`}
+                            onClick={() => openImageLightbox(thumb ? (post.imageUrls?.length ? post.imageUrls : [post.imageUrl]).filter(Boolean) as string[] : [], 0)}>
+                            {thumb ? (
+                              <img src={thumb} alt="" className="profile-ig-thumb" />
+                            ) : (
+                              <div className="profile-ig-text"><p>{post.text.slice(0, 80)}</p></div>
+                            )}
+                            <div className="profile-ig-overlay">
+                              <Zap size={11}/><span>{post.boosts}</span>
+                              <MessageSquare size={11} style={{marginLeft:'6px'}}/><span>{post.commentsCount || post.comments.length}</span>
+                            </div>
+                          </button>
+                        )
+                      })}
+                    </div>
+                  )
+                )}
+
+                {profileViewTab === 'info' && (
+                  <div className="cpf-info-grid">
+                    {viewedProfile.user.city && <div className="cpf-info-row"><MapPin size={13}/><span>{viewedProfile.user.city}</span></div>}
+                    <div className="cpf-info-row"><Zap size={13}/><span>{viewedProfile.user.powers ?? 0} энергии</span></div>
+                    <div className="cpf-info-row"><Eye size={13}/><span>{viewedProfile.user.profileViews || 0} просмотров</span></div>
+                    <div className="cpf-info-row"><User size={13}/><span>С нами с {formatDate(viewedProfile.user.joinedAt)}</span></div>
+                    {viewedProfile.user.bio && <div className="cpf-info-row bio"><span>{viewedProfile.user.bio}</span></div>}
                   </div>
                 )}
-              </div>
-            )}
-
-            {profileViewTab === 'info' && (
-              <div className="profile-sheet-info-grid">
-                <div className="profile-sheet-info-card">
-                  <span>Имя</span>
-                  <strong>{viewedProfile.user.name}</strong>
-                </div>
-                <div className="profile-sheet-info-card">
-                  <span>Handle</span>
-                  <strong>{viewedProfile.user.handle}</strong>
-                </div>
-                <div className="profile-sheet-info-card">
-                  <span>Энергия</span>
-                  <strong>{viewedProfile.user.powers}</strong>
-                </div>
-                <div className="profile-sheet-info-card">
-                  <span>Зарегистрирован</span>
-                  <strong>{formatDate(viewedProfile.user.joinedAt)}</strong>
-                </div>
-                <div className="profile-sheet-info-card wide">
-                  <span>Город</span>
-                  <strong>{viewedProfile.user.city || 'Не указан'}</strong>
-                </div>
-                <div className="profile-sheet-info-card wide">
-                  <span>О себе</span>
-                  <strong>{viewedProfile.user.bio || 'Пока без описания'}</strong>
-                </div>
-              </div>
-            )}
               </article>
             </section>
           </main>
