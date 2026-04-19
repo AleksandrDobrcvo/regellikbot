@@ -3193,11 +3193,74 @@ html {
   flex-direction: column;
   gap: 0;
   z-index: 1001;
-  overflow-y: auto;
+  overflow: hidden;
   overscroll-behavior: contain;
   padding: env(safe-area-inset-top, 0px) 0 env(safe-area-inset-bottom, 0px);
   box-shadow: 8px 0 40px rgba(0, 0, 0, 0.6), 20px 0 80px rgba(0, 0, 0, 0.3);
   animation: drawerSlideIn 0.3s cubic-bezier(0.16, 1, 0.3, 1) both;
+  position: relative;
+}
+
+.corner-menu-dropdown::before {
+  content: '';
+  position: absolute;
+  top: -50%;
+  left: -50%;
+  width: 200%;
+  height: 200%;
+  background: conic-gradient(from 0deg at 50% 50%, transparent 0deg, rgba(255, 255, 255, 0.02) 60deg, transparent 120deg, rgba(255, 255, 255, 0.015) 200deg, transparent 260deg, rgba(255, 255, 255, 0.01) 320deg, transparent 360deg);
+  animation: drawerAuroraRotate 20s linear infinite;
+  pointer-events: none;
+  z-index: 0;
+}
+
+.corner-menu-dropdown::after {
+  content: '';
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  height: 1px;
+  background: linear-gradient(90deg, transparent, rgba(255, 255, 255, 0.15), transparent);
+  animation: drawerShimmer 3s ease-in-out infinite;
+  z-index: 2;
+}
+
+@keyframes drawerAuroraRotate {
+  from { transform: rotate(0deg); }
+  to { transform: rotate(360deg); }
+}
+
+@keyframes drawerShimmer {
+  0%, 100% { opacity: 0.3; background-position: -200% 0; }
+  50% { opacity: 0.8; background-position: 200% 0; }
+}
+
+.corner-menu-header,
+.corner-menu-nav {
+  position: relative;
+  z-index: 1;
+}
+
+.corner-menu-nav {
+  overflow-y: auto;
+}
+
+/* Stagger animation for menu items */
+.corner-menu-item {
+  animation: menuItemSlideIn 0.3s cubic-bezier(0.16, 1, 0.3, 1) both;
+  animation-delay: calc(var(--i, 0) * 0.035s + 0.1s);
+}
+
+@keyframes menuItemSlideIn {
+  from {
+    opacity: 0;
+    transform: translateX(-12px);
+  }
+  to {
+    opacity: 1;
+    transform: translateX(0);
+  }
 }
 
 @keyframes drawerSlideIn {
@@ -11062,6 +11125,7 @@ html {
   justify-content: center;
   font-size: 22px;
   flex-shrink: 0;
+  filter: grayscale(1) brightness(1.2);
 }
 
 .support-modal-header h2 {
@@ -11085,14 +11149,14 @@ html {
   width: 7px;
   height: 7px;
   border-radius: 50%;
-  background: #4cde80;
-  box-shadow: 0 0 6px #4cde80;
+  background: rgba(255, 255, 255, 0.7);
+  box-shadow: 0 0 6px rgba(255, 255, 255, 0.4);
   animation: pulseDot 2s ease infinite;
 }
 
 @keyframes pulseDot {
-  0%, 100% { opacity: 1; box-shadow: 0 0 6px #4cde80; }
-  50% { opacity: 0.7; box-shadow: 0 0 12px #4cde80; }
+  0%, 100% { opacity: 1; box-shadow: 0 0 6px rgba(255, 255, 255, 0.4); }
+  50% { opacity: 0.7; box-shadow: 0 0 12px rgba(255, 255, 255, 0.3); }
 }
 
 .support-close-btn {
@@ -11127,7 +11191,7 @@ html {
   color: var(--muted);
 }
 
-.support-clock { font-size: 14px; }
+.support-clock { font-size: 14px; filter: grayscale(1) brightness(1.2); }
 
 .support-form-body {
   display: grid;
@@ -11168,6 +11232,7 @@ html {
 .support-cat-btn .support-cat-icon {
   font-size: 20px;
   line-height: 1;
+  filter: grayscale(1) brightness(1.2);
 }
 
 .support-cat-btn:hover {
@@ -11309,13 +11374,14 @@ html {
   width: 42px;
   height: 42px;
   border-radius: 12px;
-  background: rgba(255, 100, 70, 0.1);
-  border: 1px solid rgba(255, 100, 70, 0.18);
+  background: rgba(255, 255, 255, 0.06);
+  border: 1px solid rgba(255, 255, 255, 0.10);
   display: flex;
   align-items: center;
   justify-content: center;
   font-size: 20px;
   flex-shrink: 0;
+  filter: grayscale(1) brightness(1.2);
 }
 
 .report-modal-header h2 {
@@ -11397,6 +11463,7 @@ html {
 .report-reason-icon {
   font-size: 18px;
   line-height: 1;
+  filter: grayscale(1) brightness(1.2);
 }
 
 .report-reason-btn-v2:hover {

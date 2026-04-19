@@ -1702,7 +1702,7 @@ function App() {
   }
 
   const submitProfileReport = async () => {
-    if (!sessionToken || !viewedProfile) return
+    if (!sessionToken) return
     const category = reportReason === t.reportCustom ? '' : reportReason
     if (!category && !reportText.trim()) {
       showToast(t.reportReasonHint, 'error')
@@ -1710,7 +1710,8 @@ function App() {
     }
     setIsSubmittingReport(true)
     try {
-      await apiRequest(`/api/users/${viewedProfile.user.id}/report`, {
+      const targetId = viewedProfile ? viewedProfile.user.id : 'general'
+      await apiRequest(`/api/users/${targetId}/report`, {
         method: 'POST',
         body: JSON.stringify({ category, text: reportText.trim(), postId: reportPostId || undefined }),
       }, sessionToken)
@@ -2237,42 +2238,42 @@ function App() {
 
                 {isSignedIn && (
                   <>
-                    <button className={activeTab === 'home' ? 'corner-menu-item active' : 'corner-menu-item'} onClick={() => switchTab('home', closeMenu)}>
+                    <button style={{'--i': 0} as React.CSSProperties} className={activeTab === 'home' ? 'corner-menu-item active' : 'corner-menu-item'} onClick={() => switchTab('home', closeMenu)}>
                       <span className="menu-emoji bw">🖊</span> {t.kabinet}
                     </button>
-                    <button className={activeTab === 'chats' ? 'corner-menu-item active' : 'corner-menu-item'} onClick={() => switchTab('chats', closeMenu)}>
+                    <button style={{'--i': 1} as React.CSSProperties} className={activeTab === 'chats' ? 'corner-menu-item active' : 'corner-menu-item'} onClick={() => switchTab('chats', closeMenu)}>
                       <span className="menu-emoji bw">💬</span> {t.chatlar}
                       {totalUnread > 0 && <span className="menu-badge">{totalUnread}</span>}
                     </button>
-                    <button className={activeTab === 'trends' ? 'corner-menu-item active' : 'corner-menu-item'} onClick={() => switchTab('trends', closeMenu)}>
+                    <button style={{'--i': 2} as React.CSSProperties} className={activeTab === 'trends' ? 'corner-menu-item active' : 'corner-menu-item'} onClick={() => switchTab('trends', closeMenu)}>
                       <span className="menu-emoji bw">#️⃣</span> {t.global}
                     </button>
-                    <button className={activeTab === 'radar' ? 'corner-menu-item active' : 'corner-menu-item'} onClick={() => switchTab('radar', () => { closeMenu(); void loadRadar() })}>
+                    <button style={{'--i': 3} as React.CSSProperties} className={activeTab === 'radar' ? 'corner-menu-item active' : 'corner-menu-item'} onClick={() => switchTab('radar', () => { closeMenu(); void loadRadar() })}>
                       <span className="menu-emoji bw">👤</span> {t.kontaktlar}
                     </button>
-                    <button className={activeTab === 'transactions' ? 'corner-menu-item active' : 'corner-menu-item'} onClick={() => switchTab('transactions', closeMenu)}>
+                    <button style={{'--i': 4} as React.CSSProperties} className={activeTab === 'transactions' ? 'corner-menu-item active' : 'corner-menu-item'} onClick={() => switchTab('transactions', closeMenu)}>
                       <span className="menu-emoji bw">👤</span> {t.otkazmalar}
                     </button>
-                    <button className={activeTab === 'transactions' ? 'corner-menu-item active' : 'corner-menu-item'} onClick={() => { switchTab('transactions', closeMenu) }}>
+                    <button style={{'--i': 5} as React.CSSProperties} className={activeTab === 'transactions' ? 'corner-menu-item active' : 'corner-menu-item'} onClick={() => { switchTab('transactions', closeMenu) }}>
                       <span className="menu-emoji bw">⚡️</span> {t.quvvat}
                     </button>
-                    <button className={activeTab === 'settings' ? 'corner-menu-item active' : 'corner-menu-item'} onClick={() => switchTab('settings', closeMenu)}>
+                    <button style={{'--i': 6} as React.CSSProperties} className={activeTab === 'settings' ? 'corner-menu-item active' : 'corner-menu-item'} onClick={() => switchTab('settings', closeMenu)}>
                       <span className="menu-emoji bw">⚙</span> {t.sozlamalar}
                     </button>
                     {isAdmin && (
-                      <button className={activeTab === 'admin' ? 'corner-menu-item active' : 'corner-menu-item'} onClick={() => switchTab('admin', closeMenu)}>
+                      <button style={{'--i': 7} as React.CSSProperties} className={activeTab === 'admin' ? 'corner-menu-item active' : 'corner-menu-item'} onClick={() => switchTab('admin', closeMenu)}>
                         <UserCog size={16} /> {t.tabAdmin}
                       </button>
                     )}
                     <div className="corner-menu-divider" />
-                    <button className="corner-menu-item muted-item" onClick={() => { closeMenu(); openReportForPost() }}>
+                    <button style={{'--i': 8} as React.CSSProperties} className="corner-menu-item muted-item" onClick={() => { closeMenu(); openReportForPost() }}>
                       <span className="menu-emoji bw">❗️</span> {t.shikoyat}
                     </button>
-                    <button className="corner-menu-item support-item" onClick={() => { closeMenu(); setSupportOpen(true) }}>
-                      <span className="menu-emoji">🛟</span> {t.support}
+                    <button style={{'--i': 9} as React.CSSProperties} className="corner-menu-item muted-item" onClick={() => { closeMenu(); setSupportOpen(true) }}>
+                      <span className="menu-emoji bw">🛟</span> {t.support}
                     </button>
                     <div className="corner-menu-divider" />
-                    <button className="corner-menu-item danger-item" onClick={() => { closeMenu(); void signOut() }}>
+                    <button style={{'--i': 10} as React.CSSProperties} className="corner-menu-item danger-item" onClick={() => { closeMenu(); void signOut() }}>
                       <LogOut size={16} /> {t.exit}
                     </button>
                   </>
@@ -2396,17 +2397,17 @@ function App() {
                     className="chats-search-input"
                     value={chatSearch}
                     onChange={e => setChatSearch(e.target.value)}
-                    placeholder="Izlash..."
+                    placeholder={t.search}
                   />
                   {chatSearch && (
                     <button className="chats-search-clear" onClick={() => setChatSearch('')}>
                       <X size={13} />
                     </button>
                   )}
-                  <button className="chats-radar-inline-btn" onClick={() => switchTab('radar', () => void loadRadar())} title="Atrofimda kim?">
+                  <button className="chats-radar-inline-btn" onClick={() => switchTab('radar', () => void loadRadar())} title={t.nearbyTitle}>
                     <Radar size={16} />
                   </button>
-                  <button className="chats-contacts-inline-btn" onClick={() => setComposeOpen(true)} title="Kontaktlar">
+                  <button className="chats-contacts-inline-btn" onClick={() => setComposeOpen(true)} title={t.contactsTitle}>
                     <Users size={16} />
                   </button>
                 </div>
@@ -2509,7 +2510,7 @@ function App() {
 
                 <div className="compose-search-row">
                   <Search size={16} />
-                  <input value={composeSearch} onChange={e => setComposeSearch(e.target.value)} placeholder="Kontaktlarni qidirish..." autoFocus />
+                  <input value={composeSearch} onChange={e => setComposeSearch(e.target.value)} placeholder={t.searchContacts} autoFocus />
                 </div>
 
                 {filteredKontaktlar.length === 0 && (
@@ -3817,7 +3818,7 @@ function App() {
                         />
                       </div>
                       <button className="primary-btn compact-btn" onClick={() => void adminSearchUsers()} disabled={adminSearching}>
-                        <Search size={14} /> {adminSearching ? '...' : 'Найти'}
+                        <Search size={14} /> {adminSearching ? '...' : t.adminSearch}
                       </button>
                     </div>
                     {adminSearchResults.length > 0 && (
@@ -4398,10 +4399,10 @@ function App() {
                             value={broadcastSearchQ}
                             onChange={e => setBroadcastSearchQ(e.target.value)}
                             onKeyDown={e => { if (e.key === 'Enter') { e.preventDefault(); void searchBroadcastUsers() } }}
-                            placeholder="Поиск по имени, handle, email..."
+                            placeholder={t.adminSearchPlaceholder}
                           />
                           <button className="secondary-btn compact-btn" onClick={() => void searchBroadcastUsers()} disabled={broadcastSearching}>
-                            {broadcastSearching ? '...' : 'Найти'}
+                            {broadcastSearching ? '...' : t.adminSearch}
                           </button>
                         </div>
 
@@ -4617,21 +4618,26 @@ function App() {
         </>
       )}
 
-      {reportProfileOpen && viewedProfile && (
+      {reportProfileOpen && (
         <div className="compose-modal report-modal-wrap">
           <div className="compose-modal-backdrop" onClick={() => setReportProfileOpen(false)} />
           <div className="compose-modal-sheet report-modal-sheet report-modal-sheet--v2">
             <div className="report-modal-header">
               <div className="report-modal-icon-wrap">
-                <span className="report-modal-icon">⚠️</span>
+                <span className="report-modal-icon bw">⚠️</span>
               </div>
               <div>
                 <h2>{t.reportTitle}</h2>
-                <p className="report-modal-target">{viewedProfile.user.name} <span>{viewedProfile.user.handle}</span></p>
+                <p className="report-modal-target">
+                  {viewedProfile
+                    ? <>{viewedProfile.user.name} <span>{viewedProfile.user.handle}</span></>
+                    : <>{t.reportGeneralTarget}</>
+                  }
+                </p>
               </div>
               <button className="report-close-btn" onClick={() => setReportProfileOpen(false)}><X size={18} /></button>
             </div>
-            {viewedProfile.posts.length > 0 && (
+            {viewedProfile && viewedProfile.posts.length > 0 && (
               <label className="input-block">
                 <span className="report-label">{t.reportTarget}</span>
                 <select className="report-select" value={reportPostId} onChange={(e) => setReportPostId(e.target.value)}>
@@ -4647,7 +4653,7 @@ function App() {
             {reportPostId && (
               <div className="report-selected-post">
                 <strong>{t.reportSelected}</strong>
-                <p>{viewedProfile.posts.find((post) => post.id === reportPostId)?.text || t.publication}</p>
+                <p>{viewedProfile?.posts.find((post) => post.id === reportPostId)?.text || t.publication}</p>
               </div>
             )}
             <div className="report-label" style={{marginBottom: '8px', fontSize: '12px', color: 'var(--muted)'}}>{t.reportTarget}</div>
