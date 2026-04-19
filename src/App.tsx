@@ -3095,7 +3095,7 @@ function App() {
                         {viewer.preferences.showContact !== false ? <Eye size={10} /> : <EyeOff size={10} />}
                       </button>
                     </span>
-                    <span className="profile-meta-chip muted"><MapPin size={11} />{viewer?.city || (locationState === 'granted' && locationLabel) ? viewerLocation : '—'}</span>
+                    <span className="profile-meta-chip muted"><MapPin size={11} />{viewer.preferences.showCity !== false && (viewer?.city || (locationState === 'granted' && locationLabel)) ? viewerLocation : '—'}</span>
                     <span className="profile-meta-chip muted">{formatDate(viewer.joinedAt)}</span>
                   </div>
 
@@ -3546,7 +3546,7 @@ function App() {
                   <div className="settings-info-rows">
                     <div className="meta-row">
                       <span>{t.currentGeo}</span>
-                      <strong>{viewerLocation}</strong>
+                      <strong>{viewer.preferences.showCity !== false ? viewerLocation : '—'}</strong>
                     </div>
                     <div className="meta-row">
                       <span>{t.permission}</span>

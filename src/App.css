@@ -3198,7 +3198,7 @@ html {
   padding: env(safe-area-inset-top, 0px) 0 env(safe-area-inset-bottom, 0px);
   box-shadow: 8px 0 40px rgba(0, 0, 0, 0.6), 20px 0 80px rgba(0, 0, 0, 0.3);
   animation: drawerSlideIn 0.3s cubic-bezier(0.16, 1, 0.3, 1) both;
-  position: relative;
+  isolation: isolate;
 }
 
 .corner-menu-dropdown::before {
