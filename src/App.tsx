@@ -14,6 +14,7 @@ import {
   EyeOff,
   Flame,
   Hash,
+  Heart,
   LayoutGrid,
   List,
   LogOut,
@@ -561,7 +562,6 @@ function App() {
   const [trendsSort, setTrendsSort] = useState<'top' | 'new'>('top')
   const [trendsView, setTrendsView] = useState<'grid' | 'feed'>('grid')
   const [gridSelectedPost, setGridSelectedPost] = useState<Post | null>(null)
-  const [selectedOwnPost, setSelectedOwnPost] = useState<Post | null>(null)
   // Auth password
   const [authMethod, setAuthMethod] = useState<'password' | 'code'>('password')
   const [regLangStep, setRegLangStep] = useState(false)
@@ -2872,7 +2872,7 @@ function App() {
                     )}
                   </>
                 ) : (
-                <div className="trends-feed">
+                <div className="threads-feed">
                   {sortedPosts.length === 0 && (
                     <div className="trends-empty">
                       <Flame size={40} />
@@ -2881,117 +2881,123 @@ function App() {
                     </div>
                   )}
                   {sortedPosts.map((post, idx) => (
-                    <article key={post.id} className="trends-post-card">
-                      <div className="trends-post-header">
-                        <div className="trends-post-avatar">
+                    <article key={post.id} className="thr-post">
+                      <div className="thr-left">
+                        <div className="thr-avatar" onClick={() => void openUserProfile(post.authorId)}>
                           {post.authorAvatarUrl
                             ? <img src={post.authorAvatarUrl} alt="" />
                             : <span>{post.authorName[0]}</span>
                           }
                         </div>
-                        <div className="trends-post-meta">
-                          <div className="trends-post-name-row">
-                            <strong
-                                className="clickable-author"
-                                onClick={() => void openUserProfile(post.authorId)}
-                            >{post.authorName}</strong>
-                            {post.authorBadges && post.authorBadges.slice(0,2).map(b => <BadgeChip key={b} id={b} />)}
+                        <div className="thr-line" />
+                      </div>
+                      <div className="thr-right">
+                        <div className="thr-header">
+                          <strong className="thr-author clickable-author" onClick={() => void openUserProfile(post.authorId)}>
+                            {post.authorName}
+                          </strong>
+                          {post.authorBadges && post.authorBadges.slice(0,2).map(b => <BadgeChip key={b} id={b} />)}
+                          <span className="thr-time">{frt(post.createdAt)}</span>
+                          {trendsSort === 'top' && idx < 3 && (
+                            <span className={`thr-rank rank-${idx + 1}`}>#{idx + 1}</span>
+                          )}
+                        </div>
+
+                        {post.text && <p className="thr-text">{post.text}</p>}
+
+                        {(post.imageUrls?.length || post.imageUrl) && (
+                          <div className={`thr-images${(post.imageUrls?.length || 0) > 1 ? ' multi' : ''}`}>
+                            {(post.imageUrls?.length ? post.imageUrls : [post.imageUrl]).filter(Boolean).map((image, index) => (
+                              <img
+                                key={`${post.id}-${index}`}
+                                src={image!}
+                                alt={t.publication}
+                                className="thr-img"
+                                onClick={() => openImageLightbox((post.imageUrls?.length ? post.imageUrls : [post.imageUrl]).filter(Boolean) as string[], index)}
+                              />
+                            ))}
+                            {(post.imageUrls?.length || 0) > 1 && (
+                              <span className="thr-img-count">{post.imageUrls!.length}</span>
+                            )}
                           </div>
-                          <span>{post.authorHandle}</span>
-                        </div>
-                        <small className="trends-post-time">{frt(post.createdAt)}</small>
-                        {trendsSort === 'top' && idx < 3 && (
-                          <div className={`trends-rank rank-${idx + 1}`}>#{idx + 1}</div>
                         )}
-                      </div>
 
-                      <p className="trends-post-text">{post.text}</p>
-                      {(post.imageUrls?.length || post.imageUrl) && (
-                        <div className={`trends-post-image-wrap${(post.imageUrls?.length || 0) > 1 ? ' multi' : ''}`}>
-                          {(post.imageUrls?.length ? post.imageUrls : [post.imageUrl]).filter(Boolean).map((image, index) => (
-                            <img
-                              key={`${post.id}-${index}`}
-                              src={image!}
-                              alt={t.publication}
-                              className="trends-post-image"
-                              onClick={() => openImageLightbox((post.imageUrls?.length ? post.imageUrls : [post.imageUrl]).filter(Boolean) as string[], index)}
-                            />
-                          ))}
-                        </div>
-                      )}
-
-                      <div className="trends-post-actions">
-                        <div className="boost-btn-wrap">
-                          <button
-                            className={`trends-boost-btn${post.boostedByViewer ? ' boosted' : ''}`}
-                            onClick={() => void boostPost(post.id)}
-                            title={post.boostedByViewer ? t.boostRemove : t.boostAction}
-                          >
-                            <Zap size={16} />
-                            <span>{post.boosts}</span>
-                          </button>
-                          {boostBursts.filter(b => b.postId === post.id).map(b => (
-                            <div key={b.id} className="boost-burst">
-                              <div className="boost-ring" />
-                              <div className="boost-ring boost-ring-2" />
-                              {([0,1,2,3,4,5,6,7] as const).map(i => (
-                                <div key={i} className="bsp" style={{ '--ba': `${i * 45}deg` } as React.CSSProperties} />
-                              ))}
-                            </div>
-                          ))}
-                        </div>
-                        <button
-                          className={expandedPostComments.has(post.id) ? 'trends-comment-toggle active' : 'trends-comment-toggle'}
-                          onClick={() => togglePostComments(post.id)}
-                        >
-                          <MessageSquare size={16} />
-                          <span>{post.commentsCount || post.comments.length}</span>
-                        </button>
-                        <button
-                          className={`trends-repost-btn${post.repostedByViewer ? ' reposted' : ''}${post.authorId === viewer?.id ? ' disabled' : ''}`}
-                          onClick={() => post.authorId !== viewer?.id && void repostPost(post.id)}
-                          title={post.repostedByViewer ? t.repostRemove : t.repostAction}
-                        >
-                          <RefreshCw size={15} />
-                          <span>{post.reposts || 0}</span>
-                        </button>
-                        {isAdmin && (
-                          <button className="post-admin-delete-btn" onClick={() => void adminDeletePost(post.id)}>
-                            <Trash2 size={14} /> {t.deleteAction}
-                          </button>
-                        )}
-                      </div>
-
-                      {expandedPostComments.has(post.id) && (
-                        <div className="trends-comments-section">
-                          {post.comments.map(cmt => (
-                            <div key={cmt.id} className="trends-comment-item">
-                              <div className="trends-comment-author">
-                                <strong>{cmt.authorName}</strong>
-                                <span>{cmt.authorHandle}</span>
-                                <small>{frt(cmt.createdAt)}</small>
-                              </div>
-                              <p>{cmt.text}</p>
-                            </div>
-                          ))}
-                          <div className="trends-comment-input-row">
-                            <input
-                              value={commentTexts[post.id] || ''}
-                              onChange={(e) => setCommentTexts(prev => ({ ...prev, [post.id]: e.target.value }))}
-                              placeholder={t.commentPlaceholder}
-                              maxLength={300}
-                              onKeyDown={(e) => { if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); void addComment(post.id) } }}
-                            />
+                        <div className="thr-actions">
+                          <div className="boost-btn-wrap">
                             <button
-                              className="trends-send-comment-btn"
-                              onClick={() => void addComment(post.id)}
-                              disabled={!commentTexts[post.id]?.trim()}
+                              className={`thr-action-btn${post.boostedByViewer ? ' active heart' : ''}`}
+                              onClick={() => void boostPost(post.id)}
+                              title={post.boostedByViewer ? t.boostRemove : t.boostAction}
                             >
-                              <Send size={14} />
+                              <Heart size={18} fill={post.boostedByViewer ? 'currentColor' : 'none'} />
+                              {post.boosts > 0 && <span>{post.boosts}</span>}
                             </button>
+                            {boostBursts.filter(b => b.postId === post.id).map(b => (
+                              <div key={b.id} className="boost-burst">
+                                <div className="boost-ring" />
+                                <div className="boost-ring boost-ring-2" />
+                                {([0,1,2,3,4,5,6,7] as const).map(i => (
+                                  <div key={i} className="bsp" style={{ '--ba': `${i * 45}deg` } as React.CSSProperties} />
+                                ))}
+                              </div>
+                            ))}
                           </div>
+                          <button
+                            className={`thr-action-btn${expandedPostComments.has(post.id) ? ' active' : ''}`}
+                            onClick={() => togglePostComments(post.id)}
+                          >
+                            <MessageSquare size={18} />
+                            {(post.commentsCount || post.comments.length) > 0 && <span>{post.commentsCount || post.comments.length}</span>}
+                          </button>
+                          <button
+                            className={`thr-action-btn${post.repostedByViewer ? ' active repost' : ''}${post.authorId === viewer?.id ? ' disabled' : ''}`}
+                            onClick={() => post.authorId !== viewer?.id && void repostPost(post.id)}
+                            title={post.repostedByViewer ? t.repostRemove : t.repostAction}
+                          >
+                            <RefreshCw size={17} />
+                            {(post.reposts || 0) > 0 && <span>{post.reposts}</span>}
+                          </button>
+                          <button className="thr-action-btn" onClick={() => { void navigator.clipboard?.writeText(`${window.location.origin}?post=${post.id}`); showToast(t.linkCopied || 'Link copied', 'success') }}>
+                            <Send size={17} />
+                          </button>
+                          {isAdmin && (
+                            <button className="thr-action-btn danger" onClick={() => void adminDeletePost(post.id)}>
+                              <Trash2 size={15} />
+                            </button>
+                          )}
                         </div>
-                      )}
+
+                        {expandedPostComments.has(post.id) && (
+                          <div className="thr-comments">
+                            {post.comments.map(cmt => (
+                              <div key={cmt.id} className="thr-comment">
+                                <div className="thr-comment-head">
+                                  <strong>{cmt.authorName}</strong>
+                                  <span>{cmt.authorHandle}</span>
+                                  <small>{frt(cmt.createdAt)}</small>
+                                </div>
+                                <p>{cmt.text}</p>
+                              </div>
+                            ))}
+                            <div className="thr-comment-input">
+                              <input
+                                value={commentTexts[post.id] || ''}
+                                onChange={(e) => setCommentTexts(prev => ({ ...prev, [post.id]: e.target.value }))}
+                                placeholder={t.commentPlaceholder}
+                                maxLength={300}
+                                onKeyDown={(e) => { if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); void addComment(post.id) } }}
+                              />
+                              <button
+                                className="thr-comment-send"
+                                onClick={() => void addComment(post.id)}
+                                disabled={!commentTexts[post.id]?.trim()}
+                              >
+                                <Send size={14} />
+                              </button>
+                            </div>
+                          </div>
+                        )}
+                      </div>
                     </article>
                   ))}
                 </div>
@@ -3132,102 +3138,89 @@ function App() {
                       <span>{t.noPostsHint}</span>
                     </div>
                   ) : (
-                    <div className="profile-ig-grid">
-                      {ownPosts.map(post => {
-                        const thumb = post.imageUrls?.[0] || post.imageUrl || null
-                        return (
-                          <button key={post.id} className={`profile-ig-cell${thumb ? '' : ' text-only'}`} onClick={() => setSelectedOwnPost(post)}>
-                            {thumb ? (
-                              <img src={thumb} alt="" className="profile-ig-thumb" />
-                            ) : (
-                              <div className="profile-ig-text">
-                                <p>{post.text.slice(0, 80)}</p>
+                    <div className="threads-feed profile-threads-feed">
+                      {ownPosts.map(post => (
+                        <article key={post.id} className="thr-post">
+                          <div className="thr-left">
+                            <div className="thr-avatar">
+                              {viewer.avatarUrl ? <img src={viewer.avatarUrl} alt="" /> : <span>{viewer.name[0]}</span>}
+                            </div>
+                            <div className="thr-line" />
+                          </div>
+                          <div className="thr-right">
+                            <div className="thr-header">
+                              <strong className="thr-author">{viewer.name}</strong>
+                              <span className="thr-time">{frt(post.createdAt)}</span>
+                            </div>
+                            {post.text && <p className="thr-text">{post.text}</p>}
+                            {(post.imageUrls?.length || post.imageUrl) && (
+                              <div className={`thr-images${(post.imageUrls?.length || 0) > 1 ? ' multi' : ''}`}>
+                                {(post.imageUrls?.length ? post.imageUrls : [post.imageUrl]).filter(Boolean).map((img, i) => (
+                                  <img key={i} src={img!} alt="" className="thr-img" onClick={() => openImageLightbox((post.imageUrls?.length ? post.imageUrls : [post.imageUrl]).filter(Boolean) as string[], i)} />
+                                ))}
                               </div>
                             )}
-                            <div className="profile-ig-overlay">
-                              <Zap size={11} /><span>{post.boosts}</span>
-                              <MessageSquare size={11} style={{marginLeft:'6px'}} /><span>{post.commentsCount || post.comments.length}</span>
+                            <div className="thr-actions">
+                              <button
+                                className={`thr-action-btn${post.boostedByViewer ? ' active heart' : ''}`}
+                                onClick={() => void boostPost(post.id)}
+                              >
+                                <Heart size={18} fill={post.boostedByViewer ? 'currentColor' : 'none'} />
+                                {post.boosts > 0 && <span>{post.boosts}</span>}
+                              </button>
+                              <button
+                                className={`thr-action-btn${expandedPostComments.has(post.id) ? ' active' : ''}`}
+                                onClick={() => togglePostComments(post.id)}
+                              >
+                                <MessageSquare size={18} />
+                                {(post.commentsCount || post.comments.length) > 0 && <span>{post.commentsCount || post.comments.length}</span>}
+                              </button>
+                              <button className="thr-action-btn disabled">
+                                <RefreshCw size={17} />
+                                {(post.reposts || 0) > 0 && <span>{post.reposts}</span>}
+                              </button>
+                              <button className="thr-action-btn" onClick={() => { void navigator.clipboard?.writeText(`${window.location.origin}?post=${post.id}`); showToast(t.linkCopied || 'Link copied', 'success') }}>
+                                <Send size={17} />
+                              </button>
+                              {isAdmin && (
+                                <button className="thr-action-btn danger" onClick={() => void adminDeletePost(post.id)}>
+                                  <Trash2 size={15} />
+                                </button>
+                              )}
                             </div>
-                          </button>
-                        )
-                      })}
+                            {expandedPostComments.has(post.id) && (
+                              <div className="thr-comments">
+                                {post.comments.map(cmt => (
+                                  <div key={cmt.id} className="thr-comment">
+                                    <div className="thr-comment-head">
+                                      <strong>{cmt.authorName}</strong>
+                                      <span>{cmt.authorHandle}</span>
+                                      <small>{frt(cmt.createdAt)}</small>
+                                    </div>
+                                    <p>{cmt.text}</p>
+                                  </div>
+                                ))}
+                                <div className="thr-comment-input">
+                                  <input
+                                    value={commentTexts[post.id] || ''}
+                                    onChange={e => setCommentTexts(prev => ({...prev, [post.id]: e.target.value}))}
+                                    placeholder={t.commentPlaceholder}
+                                    maxLength={300}
+                                    onKeyDown={e => { if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); void addComment(post.id) } }}
+                                  />
+                                  <button className="thr-comment-send" onClick={() => void addComment(post.id)} disabled={!commentTexts[post.id]?.trim()}>
+                                    <Send size={14} />
+                                  </button>
+                                </div>
+                              </div>
+                            )}
+                          </div>
+                        </article>
+                      ))}
                     </div>
                   )}
                 </article>
 
-                {/* Own post modal */}
-                {selectedOwnPost && (
-                  <div className="trends-post-modal-backdrop" onClick={() => setSelectedOwnPost(null)}>
-                    <div className="trends-post-modal" onClick={e => e.stopPropagation()}>
-                      <button className="trends-post-modal-close" onClick={() => setSelectedOwnPost(null)}><X size={18} /></button>
-                      <div className="trends-post-modal-header">
-                        <div className="trends-post-avatar">
-                          {viewer.avatarUrl ? <img src={viewer.avatarUrl} alt="" /> : <span>{viewer.name[0]}</span>}
-                        </div>
-                        <div className="trends-post-meta">
-                          <strong>{viewer.name}</strong>
-                          <span>{viewer.handle}</span>
-                        </div>
-                        <small className="trends-post-time">{frt(selectedOwnPost.createdAt)}</small>
-                      </div>
-                      {(selectedOwnPost.imageUrls?.length || selectedOwnPost.imageUrl) && (
-                        <div className={`trends-post-image-wrap${(selectedOwnPost.imageUrls?.length || 0) > 1 ? ' multi' : ''}`}>
-                          {(selectedOwnPost.imageUrls?.length ? selectedOwnPost.imageUrls : [selectedOwnPost.imageUrl]).filter(Boolean).map((img, i) => (
-                            <img key={i} src={img!} alt="" className="trends-post-image" onClick={() => openImageLightbox((selectedOwnPost.imageUrls?.length ? selectedOwnPost.imageUrls : [selectedOwnPost.imageUrl]).filter(Boolean) as string[], i)} />
-                          ))}
-                        </div>
-                      )}
-                      <p className="trends-post-modal-text">{selectedOwnPost.text}</p>
-                      <div className="trends-post-actions">
-                        <button
-                          className={`trends-boost-btn${selectedOwnPost.boostedByViewer ? ' boosted' : ''}`}
-                          onClick={() => { void boostPost(selectedOwnPost.id); setSelectedOwnPost(prev => prev ? {...prev, boostedByViewer: !prev.boostedByViewer, boosts: prev.boosts + (prev.boostedByViewer ? -1 : 1)} : null) }}
-                        >
-                          <Zap size={16} /><span>{selectedOwnPost.boosts}</span>
-                        </button>
-                        <button
-                          className={expandedPostComments.has(selectedOwnPost.id) ? 'trends-comment-toggle active' : 'trends-comment-toggle'}
-                          onClick={() => togglePostComments(selectedOwnPost.id)}
-                        >
-                          <MessageSquare size={16} /><span>{selectedOwnPost.commentsCount || selectedOwnPost.comments.length}</span>
-                        </button>
-                        <button className="trends-repost-btn disabled" title={t.ownPost}>
-                          <RefreshCw size={15} /><span>{selectedOwnPost.reposts || 0}</span>
-                        </button>
-                        {isAdmin && (
-                          <button className="post-admin-delete-btn" onClick={() => { void adminDeletePost(selectedOwnPost.id); setSelectedOwnPost(null) }}>
-                            <Trash2 size={14} />
-                          </button>
-                        )}
-                      </div>
-                      {expandedPostComments.has(selectedOwnPost.id) && (
-                        <div className="trends-comments-section">
-                          {selectedOwnPost.comments.map(cmt => (
-                            <div key={cmt.id} className="trends-comment-item">
-                              <div className="trends-comment-author">
-                                <strong>{cmt.authorName}</strong><span>{cmt.authorHandle}</span>
-                                <small>{frt(cmt.createdAt)}</small>
-                              </div>
-                              <p>{cmt.text}</p>
-                            </div>
-                          ))}
-                          <div className="trends-comment-input-row">
-                            <input
-                              value={commentTexts[selectedOwnPost.id] || ''}
-                              onChange={e => setCommentTexts(prev => ({...prev, [selectedOwnPost.id]: e.target.value}))}
-                              placeholder="Kommentariy..."
-                              maxLength={300}
-                              onKeyDown={e => { if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); void addComment(selectedOwnPost.id) } }}
-                            />
-                            <button className="trends-send-comment-btn" onClick={() => void addComment(selectedOwnPost.id)} disabled={!commentTexts[selectedOwnPost.id]?.trim()}>
-                              <Send size={14} />
-                            </button>
-                          </div>
-                        </div>
-                      )}
-                    </div>
-                  </div>
-                )}
               </section>
             )}
 
@@ -4538,24 +4531,83 @@ function App() {
                   viewedProfile.posts.length === 0 ? (
                     <div className="profile-posts-empty compact"><p>{t.profileNoPosts}</p></div>
                   ) : (
-                    <div className="profile-ig-grid cpf-posts-grid">
-                      {viewedProfile.posts.map(post => {
-                        const thumb = post.imageUrls?.[0] || post.imageUrl || null
-                        return (
-                          <button key={post.id} className={`profile-ig-cell${thumb ? '' : ' text-only'}`}
-                            onClick={() => openImageLightbox(thumb ? (post.imageUrls?.length ? post.imageUrls : [post.imageUrl]).filter(Boolean) as string[] : [], 0)}>
-                            {thumb ? (
-                              <img src={thumb} alt="" className="profile-ig-thumb" />
-                            ) : (
-                              <div className="profile-ig-text"><p>{post.text.slice(0, 80)}</p></div>
-                            )}
-                            <div className="profile-ig-overlay">
-                              <Zap size={11}/><span>{post.boosts}</span>
-                              <MessageSquare size={11} style={{marginLeft:'6px'}}/><span>{post.commentsCount || post.comments.length}</span>
+                    <div className="threads-feed profile-threads-feed">
+                      {viewedProfile.posts.map(post => (
+                        <article key={post.id} className="thr-post">
+                          <div className="thr-left">
+                            <div className="thr-avatar">
+                              {viewedProfile.user.avatarUrl
+                                ? <img src={viewedProfile.user.avatarUrl} alt="" />
+                                : <span>{(viewedProfile.user.name || '?')[0]}</span>
+                              }
                             </div>
-                          </button>
-                        )
-                      })}
+                            <div className="thr-line" />
+                          </div>
+                          <div className="thr-right">
+                            <div className="thr-header">
+                              <strong className="thr-author">{viewedProfile.user.name}</strong>
+                              <span className="thr-time">{frt(post.createdAt)}</span>
+                            </div>
+                            {post.text && <p className="thr-text">{post.text}</p>}
+                            {(post.imageUrls?.length || post.imageUrl) && (
+                              <div className={`thr-images${(post.imageUrls?.length || 0) > 1 ? ' multi' : ''}`}>
+                                {(post.imageUrls?.length ? post.imageUrls : [post.imageUrl]).filter(Boolean).map((img, i) => (
+                                  <img key={i} src={img!} alt="" className="thr-img" onClick={() => openImageLightbox((post.imageUrls?.length ? post.imageUrls : [post.imageUrl]).filter(Boolean) as string[], i)} />
+                                ))}
+                              </div>
+                            )}
+                            <div className="thr-actions">
+                              <button
+                                className={`thr-action-btn${post.boostedByViewer ? ' active heart' : ''}`}
+                                onClick={() => void boostPost(post.id)}
+                              >
+                                <Heart size={18} fill={post.boostedByViewer ? 'currentColor' : 'none'} />
+                                {post.boosts > 0 && <span>{post.boosts}</span>}
+                              </button>
+                              <button
+                                className={`thr-action-btn${expandedPostComments.has(post.id) ? ' active' : ''}`}
+                                onClick={() => togglePostComments(post.id)}
+                              >
+                                <MessageSquare size={18} />
+                                {(post.commentsCount || post.comments.length) > 0 && <span>{post.commentsCount || post.comments.length}</span>}
+                              </button>
+                              <button className={`thr-action-btn${post.repostedByViewer ? ' active repost' : ''}${post.authorId === viewer?.id ? ' disabled' : ''}`} onClick={() => post.authorId !== viewer?.id && void repostPost(post.id)}>
+                                <RefreshCw size={17} />
+                                {(post.reposts || 0) > 0 && <span>{post.reposts}</span>}
+                              </button>
+                              <button className="thr-action-btn" onClick={() => { void navigator.clipboard?.writeText(`${window.location.origin}?post=${post.id}`); showToast(t.linkCopied || 'Link copied', 'success') }}>
+                                <Send size={17} />
+                              </button>
+                            </div>
+                            {expandedPostComments.has(post.id) && (
+                              <div className="thr-comments">
+                                {post.comments.map(cmt => (
+                                  <div key={cmt.id} className="thr-comment">
+                                    <div className="thr-comment-head">
+                                      <strong>{cmt.authorName}</strong>
+                                      <span>{cmt.authorHandle}</span>
+                                      <small>{frt(cmt.createdAt)}</small>
+                                    </div>
+                                    <p>{cmt.text}</p>
+                                  </div>
+                                ))}
+                                <div className="thr-comment-input">
+                                  <input
+                                    value={commentTexts[post.id] || ''}
+                                    onChange={e => setCommentTexts(prev => ({...prev, [post.id]: e.target.value}))}
+                                    placeholder={t.commentPlaceholder}
+                                    maxLength={300}
+                                    onKeyDown={e => { if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); void addComment(post.id) } }}
+                                  />
+                                  <button className="thr-comment-send" onClick={() => void addComment(post.id)} disabled={!commentTexts[post.id]?.trim()}>
+                                    <Send size={14} />
+                                  </button>
+                                </div>
+                              </div>
+                            )}
+                          </div>
+                        </article>
+                      ))}
                     </div>
                   )
                 )}
