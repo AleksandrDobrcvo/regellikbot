@@ -420,16 +420,16 @@ const DEFAULT_SITE_SETTINGS: SiteSettings = {
   topUpOptions: [10, 50, 100, 250, 500, 1000],
 }
 
-function formatRelativeTime(value: string) {
+function formatRelativeTime(value: string, lang: 'uz' | 'ru' = 'uz') {
   const then = new Date(value).getTime()
   const diffMinutes = Math.max(0, Math.floor((Date.now() - then) / 60000))
 
   if (diffMinutes < 1) {
-    return 'только что'
+    return lang === 'ru' ? 'только что' : 'hozirgina'
   }
 
   if (diffMinutes < 60) {
-    return `${diffMinutes} мин`
+    return `${diffMinutes} ${lang === 'ru' ? 'мин' : 'daq'}`
   }
 
   const diffHours = Math.floor(diffMinutes / 60)
@@ -479,8 +479,8 @@ async function apiRequest<T>(path: string, init?: RequestInit, token?: string) {
   })
 
   if (!response.ok) {
-    const payload = await response.json().catch(() => ({ error: 'Ошибка запроса' }))
-    throw new Error(payload.error || 'Ошибка запроса')
+    const payload = await response.json().catch(() => ({ error: 'Error' }))
+    throw new Error(payload.error || 'Error')
   }
 
   return (await response.json()) as T
@@ -521,7 +521,7 @@ function App() {
   const [emailCode, setEmailCode] = useState('')
   const [isSendingCode, setIsSendingCode] = useState(false)
   const [locationState, setLocationState] = useState<LocationState>('idle')
-  const [locationLabel, setLocationLabel] = useState('Гео не включено')
+  const [locationLabel, setLocationLabel] = useState('')
   const [resolvedLocation, setResolvedLocation] = useState<ResolvedLocation | null>(null)
   const [isLoading, setIsLoading] = useState(true)
   const [isSavingProfile, setIsSavingProfile] = useState(false)
@@ -624,7 +624,7 @@ function App() {
   const [profileViewTab, setProfileViewTab] = useState<PublicProfileTab>('posts')
   const [isProfileActionLoading, setIsProfileActionLoading] = useState(false)
   const [reportProfileOpen, setReportProfileOpen] = useState(false)
-  const [reportReason, setReportReason] = useState('Спам')
+  const [reportReason, setReportReason] = useState<string>(t.reportCustom)
   const [reportText, setReportText] = useState('')
   const [reportPostId, setReportPostId] = useState<string>('')
   const [isSubmittingReport, setIsSubmittingReport] = useState(false)
@@ -678,9 +678,9 @@ function App() {
     try {
       const data = await apiRequest<{ ok: boolean; conversations: ConversationPreview[] }>(`/api/conversations/${convoId}`, { method: 'DELETE' }, sessionToken)
       setConversations(data.conversations)
-      showToast('Чат удалён', 'success')
+      showToast(t.chatDeleted, 'success')
     } catch {
-      showToast('Не удалось удалить чат', 'error')
+      showToast(t.chatDeleteError, 'error')
     } finally {
       setDeletingConvoId(null)
     }
@@ -691,9 +691,9 @@ function App() {
     try {
       await apiRequest<{ ok: boolean }>('/api/profile/avatar', { method: 'DELETE' }, sessionToken)
       setViewer({ ...viewer, avatarUrl: null })
-      showToast('Аватар удалён', 'success')
+      showToast(t.avatarDeleted, 'success')
     } catch {
-      showToast('Не удалось удалить аватар', 'error')
+      showToast(t.avatarDeleteError, 'error')
     }
   }
 
@@ -715,13 +715,13 @@ function App() {
 
   const isSignedIn = Boolean(viewer)
   const isAdmin = viewer?.role === 'admin'
+  const frt = (value: string) => formatRelativeTime(value, lang)
   const viewerLocation = useMemo(() => {
     if (viewer?.city) {
       return `${viewer.city}${viewer.country ? `, ${viewer.country}` : ''}`
     }
-
-    return locationState === 'granted' ? locationLabel : 'Гео не включено'
-  }, [locationLabel, locationState, viewer?.city, viewer?.country])
+    return locationState === 'granted' ? (locationLabel || t.geoActivated) : t.geoNotEnabled
+  }, [locationLabel, locationState, viewer?.city, viewer?.country, lang, t])
   const selectedAdminUser = useMemo(() => adminUsers.find((item) => item.id === selectedAdminUserId) || null, [adminUsers, selectedAdminUserId])
 
   const totalUnread = useMemo(() => conversations.reduce((sum, c) => sum + c.unreadCount, 0), [conversations])
@@ -841,11 +841,11 @@ function App() {
         if (!data.viewer && sessionToken) {
           window.localStorage.removeItem(SESSION_KEY)
           setSessionToken('')
-          showToast('Сессия истекла — войди заново', 'error')
+          showToast(t.sessionExpired, 'error')
         }
       } catch (error) {
         if (!cancelled) {
-          showToast(error instanceof Error ? error.message : 'Не удалось загрузить данные', 'error')
+          showToast(error instanceof Error ? error.message : t.loadError, 'error')
         }
       } finally {
         if (!cancelled) {
@@ -913,7 +913,7 @@ function App() {
           }
 
           // Show toast notification if not viewing this chat
-          const senderName = payload.message.senderName || 'Кто-то'
+          const senderName = payload.message.senderName || t.someone
           const preview = payload.message.text.length > 40
             ? payload.message.text.slice(0, 40) + '...'
             : payload.message.text
@@ -971,15 +971,15 @@ function App() {
       }, sessionToken)
       setViewer((current) => (current ? { ...current, ...data.viewer } : data.viewer))
     } catch (error) {
-      showToast(error instanceof Error ? error.message : 'Не удалось обновить гео', 'error')
+      showToast(error instanceof Error ? error.message : t.geoUpdateError, 'error')
     }
   }
 
   const requestLocation = () => {
     if (!navigator.geolocation) {
       setLocationState('denied')
-      setLocationLabel('Гео недоступно')
-      showToast('Геолокация недоступна на этом устройстве', 'error')
+      setLocationLabel(t.geoUnavailable)
+      showToast(t.geoDeviceError, 'error')
       return
     }
 
@@ -991,8 +991,8 @@ function App() {
             `https://nominatim.openstreetmap.org/reverse?lat=${coords.latitude}&lon=${coords.longitude}&format=jsonv2&accept-language=ru`,
           )
           const data = await response.json()
-          const city = data.address?.city || data.address?.town || data.address?.village || data.address?.state || 'Город'
-          const country = data.address?.country || 'Локация'
+          const city = data.address?.city || data.address?.town || data.address?.village || data.address?.state || t.cityFallback
+          const country = data.address?.country || t.locationFallback
           const nextLocation = {
             city,
             country,
@@ -1003,20 +1003,20 @@ function App() {
           setResolvedLocation(nextLocation)
           setLocationState('granted')
           setLocationLabel(`${city}, ${country}`)
-          showToast(`Гео включено: ${city}`, 'success')
+          showToast(`${t.geoActivated}: ${city}`, 'success')
           if (sessionToken) {
             await syncLocation(nextLocation)
           }
         } catch {
           setLocationState('granted')
-          setLocationLabel('Гео включено')
-          showToast('Гео включено', 'success')
+          setLocationLabel(t.geoActivated)
+          showToast(t.geoActivated, 'success')
         }
       },
       () => {
         setLocationState('denied')
-        setLocationLabel('Без гео отправка закрыта')
-        showToast('Без гео отправка закрыта', 'error')
+        setLocationLabel(t.geoRequired)
+        showToast(t.geoRequired, 'error')
       },
       { enableHighAccuracy: true, timeout: 12000 },
     )
@@ -1032,7 +1032,7 @@ function App() {
     setEmailValue('')
     setEmailCode('')
     setEmailStep('email')
-    showToast(`Вход выполнен: ${data.viewer.name}`, 'success')
+    showToast(`${t.loginSuccess} ${data.viewer.name}`, 'success')
 
     if (resolvedLocation && !data.viewer.geoAllowed && !geoUserDisabled.current) {
       await syncLocation(resolvedLocation)
@@ -1043,11 +1043,11 @@ function App() {
     event.preventDefault()
 
     if (!emailValue.trim()) {
-      showToast('Укажи email', 'info')
+      showToast(t.emailHint, 'info')
       return
     }
     if (authMode === 'register' && !emailName.trim()) {
-      showToast('Укажи имя для регистрации', 'info')
+      showToast(t.nameHint, 'info')
       return
     }
 
@@ -1062,9 +1062,9 @@ function App() {
         }),
       })
       setEmailStep('code')
-      showToast(result.hint || 'Код отправлен на почту', 'success')
+      showToast(result.hint || t.codeSentMail, 'success')
     } catch (error) {
-      showToast(error instanceof Error ? error.message : 'Не удалось отправить код', 'error')
+      showToast(error instanceof Error ? error.message : t.codeSendError, 'error')
     } finally {
       setIsSendingCode(false)
     }
@@ -1074,7 +1074,7 @@ function App() {
     event.preventDefault()
 
     if (!emailCode.trim()) {
-      showToast('Введи код подтверждения', 'info')
+      showToast(t.enterCodeHint, 'info')
       return
     }
 
@@ -1089,10 +1089,10 @@ function App() {
       })
       await completeAuth(data)
       if (data.isNewUser) {
-        showToast('Аккаунт создан! Добро пожаловать', 'success')
+        showToast(t.accountCreated, 'success')
       }
     } catch (error) {
-      showToast(error instanceof Error ? error.message : 'Ошибка авторизации', 'error')
+      showToast(error instanceof Error ? error.message : t.authError, 'error')
     }
   }
 
@@ -1107,7 +1107,7 @@ function App() {
       })
       await completeAuth(data)
     } catch (err) {
-      showToast(err instanceof Error ? err.message : 'Ошибка входа', 'error')
+      showToast(err instanceof Error ? err.message : t.loginError, 'error')
     } finally {
       setIsAuthingPassword(false)
     }
@@ -1116,8 +1116,8 @@ function App() {
   const registerWithPassword = async (e: React.FormEvent) => {
     e.preventDefault()
     if (!emailName.trim() || !emailValue.trim() || !authPassword) return
-    if (authPassword.length < 8) { showToast('Пароль минимум 8 символов', 'info'); return }
-    if (authPassword !== authConfirmPassword) { showToast('Пароли не совпадают', 'info'); return }
+    if (authPassword.length < 8) { showToast(t.passwordMin, 'info'); return }
+    if (authPassword !== authConfirmPassword) { showToast(t.passwordMismatch, 'info'); return }
     setIsAuthingPassword(true)
     try {
       const data = await apiRequest<AuthResponse>('/api/auth/password', {
@@ -1125,9 +1125,9 @@ function App() {
         body: JSON.stringify({ mode: 'register', email: emailValue.trim(), name: emailName.trim(), password: authPassword }),
       })
       await completeAuth(data)
-      showToast('Аккаунт создан!', 'success')
+      showToast(t.accountCreated, 'success')
     } catch (err) {
-      showToast(err instanceof Error ? err.message : 'Ошибка регистрации', 'error')
+      showToast(err instanceof Error ? err.message : t.registerError, 'error')
     } finally {
       setIsAuthingPassword(false)
     }
@@ -1157,7 +1157,7 @@ function App() {
     setReportPostId('')
     setLightboxOpen(false)
     setActiveTab('feed')
-    showToast('Сессия завершена', 'info')
+    showToast(t.sessionTerminated, 'info')
   }
 
   const loadSessions = async () => {
@@ -1173,18 +1173,18 @@ function App() {
   const killSession = async (sid: string) => {
     try {
       await apiRequest('/api/sessions/kill', { method: 'POST', body: JSON.stringify({ sessionId: sid }) }, sessionToken)
-      showToast('Сессия завершена', 'success')
+      showToast(t.sessionTerminated, 'success')
       void loadSessions()
     } catch (err) {
-      showToast(err instanceof Error ? err.message : 'Ошибка', 'error')
+      showToast(err instanceof Error ? err.message : t.error, 'error')
     }
   }
 
   function parseUserAgent(ua: string) {
-    if (!ua) return 'Неизвестное устройство'
+    if (!ua) return t.unknownDevice
     const isMobile = /mobile|android|iphone|ipad/i.test(ua)
     const isTelegram = /telegram/i.test(ua)
-    let browser = 'Браузер'
+    let browser: string = t.browserFallback
     if (/firefox/i.test(ua)) browser = 'Firefox'
     else if (/edg/i.test(ua)) browser = 'Edge'
     else if (/chrome/i.test(ua)) browser = 'Chrome'
@@ -1214,7 +1214,7 @@ function App() {
       // Update unread count locally
       setConversations(prev => prev.map(c => c.id === convoId ? { ...c, unreadCount: 0 } : c))
     } catch (error) {
-      showToast(error instanceof Error ? error.message : 'Не удалось загрузить чат', 'error')
+      showToast(error instanceof Error ? error.message : t.chatLoadError, 'error')
       setOpenConvoId(null)
     } finally {
       setIsChatLoading(false)
@@ -1244,7 +1244,7 @@ function App() {
         setViewer(prev => prev ? { ...prev, powers: data.viewerPowers } : prev)
       }
     } catch (error) {
-      showToast(error instanceof Error ? error.message : 'Не удалось отправить', 'error')
+      showToast(error instanceof Error ? error.message : t.sendError, 'error')
       setChatText(text)
     }
   }
@@ -1259,7 +1259,7 @@ function App() {
       setComposeSearch('')
       await openConversation(data.conversationId)
     } catch (error) {
-      showToast(error instanceof Error ? error.message : 'Не удалось создать чат', 'error')
+      showToast(error instanceof Error ? error.message : t.chatCreateError, 'error')
     }
   }
 
@@ -1270,7 +1270,7 @@ function App() {
       const data = await apiRequest<{ users: RadarUser[] }>('/api/radar', undefined, sessionToken)
       setRadarUsers(data.users)
     } catch (error) {
-      showToast(error instanceof Error ? error.message : 'Радар недоступен', 'error')
+      showToast(error instanceof Error ? error.message : t.radarError, 'error')
     } finally {
       setIsRadarLoading(false)
     }
@@ -1288,7 +1288,7 @@ function App() {
       const data = await apiRequest<{ notifications: NotificationItem[] }>('/api/notifications', undefined, sessionToken)
       setNotifications(data.notifications)
     } catch {
-      showToast('Не удалось загрузить уведомления', 'error')
+      showToast(t.notifError, 'error')
     } finally {
       setNotifLoading(false)
     }
@@ -1297,7 +1297,7 @@ function App() {
   const sendBroadcast = async () => {
     if (!broadcastText.trim() || !sessionToken) return
     if (broadcastMode === 'selected' && broadcastSelectedUsers.length === 0) {
-      showToast('Выберите получателей', 'info')
+      showToast(t.selectRecipients, 'info')
       return
     }
     setIsBroadcasting(true)
@@ -1315,7 +1315,7 @@ function App() {
       setBroadcastSelectedUsers([])
       setBroadcastSearchResults([])
     } catch (error) {
-      showToast(error instanceof Error ? error.message : 'Ошибка рассылки', 'error')
+      showToast(error instanceof Error ? error.message : t.broadcastError, 'error')
     } finally {
       setIsBroadcasting(false)
     }
@@ -1329,7 +1329,7 @@ function App() {
       const data = await apiRequest<{ users: AdminManagedUser[] }>(`/api/admin/users/search?q=${encodeURIComponent(broadcastSearchQ.trim())}`, undefined, sessionToken)
       setBroadcastSearchResults(data.users)
     } catch {
-      showToast('Ошибка поиска', 'error')
+      showToast(t.searchError, 'error')
     } finally {
       setBroadcastSearching(false)
     }
@@ -1351,7 +1351,7 @@ function App() {
       const data = await apiRequest<{ users: AdminManagedUser[] }>(`/api/admin/users/search?q=${encodeURIComponent(adminSearchQ.trim())}`, undefined, sessionToken)
       setAdminSearchResults(data.users)
     } catch {
-      showToast('Ошибка поиска', 'error')
+      showToast(t.searchError, 'error')
     } finally {
       setAdminSearching(false)
     }
@@ -1366,12 +1366,12 @@ function App() {
         body: JSON.stringify({ userId: adminTopUpUserId, amount: Number(adminTopUpAmount), reason: adminTopUpReason }),
       }, sessionToken)
       applyBootstrap(data)
-      showToast(`Баланс обновлён: ${adminTopUpAmount > '0' ? '+' : ''}${adminTopUpAmount}`, 'success')
+      showToast(`+${adminTopUpAmount}`, 'success')
       setAdminTopUpUserId('')
       setAdminTopUpAmount('')
       setAdminTopUpReason('')
     } catch (error) {
-      showToast(error instanceof Error ? error.message : 'Ошибка', 'error')
+      showToast(error instanceof Error ? error.message : t.error, 'error')
     }
   }
 
@@ -1385,12 +1385,12 @@ function App() {
         body: JSON.stringify({ userId: banUserId, type: banType, reason: banReason, duration: banDuration ? Number(banDuration) : undefined }),
       }, sessionToken)
       applyBootstrap(data)
-      showToast('Бан выдан', 'success')
+      showToast('Ban ✓', 'success')
       setBanUserId('')
       setBanReason('')
       setBanDuration('')
     } catch (error) {
-      showToast(error instanceof Error ? error.message : 'Ошибка бана', 'error')
+      showToast(error instanceof Error ? error.message : t.error, 'error')
     } finally {
       setIsBanning(false)
     }
@@ -1405,9 +1405,9 @@ function App() {
         body: JSON.stringify({ userId }),
       }, sessionToken)
       applyBootstrap(data)
-      showToast('Бан снят', 'success')
+      showToast('Unban ✓', 'success')
     } catch (error) {
-      showToast(error instanceof Error ? error.message : 'Ошибка', 'error')
+      showToast(error instanceof Error ? error.message : t.error, 'error')
     }
   }
 
@@ -1420,9 +1420,9 @@ function App() {
         body: JSON.stringify({ userId, frozen }),
       }, sessionToken)
       applyBootstrap(data)
-      showToast(frozen ? 'Аккаунт заморожен' : 'Аккаунт разморожен', 'success')
+      showToast(frozen ? 'Frozen ✓' : 'Unfrozen ✓', 'success')
     } catch (error) {
-      showToast(error instanceof Error ? error.message : 'Ошибка', 'error')
+      showToast(error instanceof Error ? error.message : t.error, 'error')
     }
   }
 
@@ -1430,7 +1430,7 @@ function App() {
     if (event) event.preventDefault()
 
     if (!viewer || !sessionToken) {
-      showToast('Сначала войди в аккаунт', 'info')
+      showToast(t.loginFirst, 'info')
       return
     }
 
@@ -1446,9 +1446,9 @@ function App() {
         }),
       }, sessionToken)
       applyBootstrap(data)
-      showToast('Профиль сохранён', 'success')
+      showToast(t.profileSaved, 'success')
     } catch (error) {
-      showToast(error instanceof Error ? error.message : 'Не удалось сохранить профиль', 'error')
+      showToast(error instanceof Error ? error.message : t.profileSaveError, 'error')
     } finally {
       setIsSavingProfile(false)
     }
@@ -1476,11 +1476,11 @@ function App() {
     const nextImages: string[] = []
     for (const file of files.slice(0, Math.max(0, 6 - newPostImages.length))) {
       if (!file.type.match(/^image\/(png|jpeg|webp|gif)$/)) {
-        showToast('Допускается PNG, JPEG, WebP или GIF', 'error')
+        showToast(t.photoFormat, 'error')
         continue
       }
       if (file.size > 768 * 1024) {
-        showToast('Каждое фото до 768 КБ', 'error')
+        showToast(t.photoSize, 'error')
         continue
       }
       const dataUrl = await new Promise<string>((resolve, reject) => {
@@ -1509,9 +1509,9 @@ function App() {
       setPosts(prev => [data.post, ...prev])
       setNewPostText('')
       setNewPostImages([])
-      showToast('Опубликовано!', 'success')
+      showToast(t.published, 'success')
     } catch (error) {
-      showToast(error instanceof Error ? error.message : 'Не удалось опубликовать', 'error')
+      showToast(error instanceof Error ? error.message : t.publishError, 'error')
     } finally {
       setIsCreatingPost(false)
     }
@@ -1533,7 +1533,7 @@ function App() {
         setViewer(prev => prev ? { ...prev, powers: data.viewerPowers! } : prev)
       }
     } catch (error) {
-      showToast(error instanceof Error ? error.message : 'Ошибка', 'error')
+      showToast(error instanceof Error ? error.message : t.error, 'error')
     }
   }
 
@@ -1548,7 +1548,7 @@ function App() {
       })))
       setViewedProfile(current => current ? { ...current, posts: current.posts.filter(post => post.id !== postId) } : current)
     } catch (error) {
-      showToast(error instanceof Error ? error.message : 'Ошибка удаления', 'error')
+      showToast(error instanceof Error ? error.message : t.error, 'error')
     }
   }
 
@@ -1558,7 +1558,7 @@ function App() {
       const data = await apiRequest<{ post: Post; reposted: boolean }>(`/api/posts/${postId}/repost`, { method: 'POST' }, sessionToken)
       setPosts(prev => prev.map(p => p.id === postId ? { ...p, ...data.post } : p))
     } catch (error) {
-      showToast(error instanceof Error ? error.message : 'Ошибка', 'error')
+      showToast(error instanceof Error ? error.message : t.error, 'error')
     }
   }
 
@@ -1577,7 +1577,7 @@ function App() {
       setTransferHandle('')
       setTransferAmount('')
     } catch (err) {
-      setTransferResult({ ok: false, error: err instanceof Error ? err.message : 'Ошибка' })
+      setTransferResult({ ok: false, error: err instanceof Error ? err.message : t.error })
     } finally {
       setTransferLoading(false)
     }
@@ -1599,7 +1599,7 @@ function App() {
       })
       switchTab('profile-view')
     } catch (error) {
-      showToast(error instanceof Error ? error.message : 'Ошибка', 'error')
+      showToast(error instanceof Error ? error.message : t.error, 'error')
     }
   }
 
@@ -1655,9 +1655,9 @@ function App() {
         },
       } : current)
       setViewer(data.viewer)
-      showToast(data.isFollowing ? 'Подписка оформлена' : 'Подписка снята', 'success')
+      showToast(data.isFollowing ? t.followed : t.unfollowed, 'success')
     } catch (error) {
-      showToast(error instanceof Error ? error.message : 'Не удалось изменить подписку', 'error')
+      showToast(error instanceof Error ? error.message : t.followError, 'error')
     } finally {
       setIsProfileActionLoading(false)
     }
@@ -1665,9 +1665,9 @@ function App() {
 
   const submitProfileReport = async () => {
     if (!sessionToken || !viewedProfile) return
-    const category = reportReason === 'Своё' ? '' : reportReason
+    const category = reportReason === t.reportCustom ? '' : reportReason
     if (!category && !reportText.trim()) {
-      showToast('Укажи причину жалобы', 'error')
+      showToast(t.reportReasonHint, 'error')
       return
     }
     setIsSubmittingReport(true)
@@ -1677,12 +1677,12 @@ function App() {
         body: JSON.stringify({ category, text: reportText.trim(), postId: reportPostId || undefined }),
       }, sessionToken)
       setReportProfileOpen(false)
-      setReportReason('Спам')
+      setReportReason(t.reportCustom)
       setReportText('')
       setReportPostId('')
-      showToast('Жалоба отправлена администрации', 'success')
+      showToast(t.reportSent, 'success')
     } catch (error) {
-      showToast(error instanceof Error ? error.message : 'Не удалось отправить жалобу', 'error')
+      showToast(error instanceof Error ? error.message : t.reportError, 'error')
     } finally {
       setIsSubmittingReport(false)
     }
@@ -1696,9 +1696,9 @@ function App() {
         body: JSON.stringify({ status }),
       }, sessionToken)
       setReports(data.reports)
-      showToast('Статус жалобы обновлён', 'success')
+      showToast(t.reportSent, 'success')
     } catch (error) {
-      showToast(error instanceof Error ? error.message : 'Не удалось обновить жалобу', 'error')
+      showToast(error instanceof Error ? error.message : t.reportError, 'error')
     }
   }
 
@@ -1718,7 +1718,7 @@ function App() {
       ))
       setCommentTexts(prev => ({ ...prev, [postId]: '' }))
     } catch (error) {
-      showToast(error instanceof Error ? error.message : 'Ошибка', 'error')
+      showToast(error instanceof Error ? error.message : t.error, 'error')
     }
   }
 
@@ -1748,11 +1748,11 @@ function App() {
     if (!file || !sessionToken) return
 
     if (!file.type.match(/^image\/(png|jpeg|webp|gif)$/)) {
-      showToast('Допускается PNG, JPEG, WebP или GIF', 'error')
+      showToast(t.photoFormat, 'error')
       return
     }
     if (file.size > 256 * 1024) {
-      showToast('Файл слишком большой (макс. 256 КБ)', 'error')
+      showToast(t.photoSize, 'error')
       return
     }
 
@@ -1773,9 +1773,9 @@ function App() {
       if (result.avatarUrl && viewer) {
         setViewer({ ...viewer, avatarUrl: result.avatarUrl })
       }
-      showToast('Аватар обновлён', 'success')
+      showToast(t.avatarUpdated, 'success')
     } catch (error) {
-      showToast(error instanceof Error ? error.message : 'Не удалось загрузить аватар', 'error')
+      showToast(error instanceof Error ? error.message : t.avatarError, 'error')
     } finally {
       setIsUploadingAvatar(false)
       event.target.value = ''
@@ -1790,9 +1790,9 @@ function App() {
         body: JSON.stringify({ preferences: { ...viewer.preferences, [key]: value } }),
       }, sessionToken)
       applyBootstrap(data)
-      showToast('Настройка обновлена', 'success')
+      showToast(t.settingUpdated, 'success')
     } catch (error) {
-      showToast(error instanceof Error ? error.message : 'Ошибка', 'error')
+      showToast(error instanceof Error ? error.message : t.error, 'error')
     }
   }
 
@@ -1810,9 +1810,9 @@ function App() {
         body: JSON.stringify({ settings: siteSettings }),
       }, sessionToken)
       applyBootstrap(data)
-      showToast('Настройки сайта сохранены', 'success')
+      showToast(t.settingUpdated, 'success')
     } catch (error) {
-      showToast(error instanceof Error ? error.message : 'Не удалось обновить настройки', 'error')
+      showToast(error instanceof Error ? error.message : t.error, 'error')
     } finally {
       setIsSavingSite(false)
     }
@@ -1847,9 +1847,9 @@ function App() {
         }),
       }, sessionToken)
       applyBootstrap(data)
-      showToast(`Пользователь ${adminDraft.handle} обновлён`, 'success')
+      showToast(`${adminDraft.handle} ✓`, 'success')
     } catch (error) {
-      showToast(error instanceof Error ? error.message : 'Не удалось обновить пользователя', 'error')
+      showToast(error instanceof Error ? error.message : t.error, 'error')
     } finally {
       setIsSavingAdminUser(false)
     }
@@ -1859,7 +1859,7 @@ function App() {
     event.preventDefault()
 
     if (!grantIdentifier.trim() || !sessionToken) {
-      showToast('Укажи id, handle или email', 'info')
+      showToast('ID / handle / email?', 'info')
       return
     }
 
@@ -1871,9 +1871,9 @@ function App() {
       }, sessionToken)
       applyBootstrap(data)
       setGrantIdentifier('')
-      showToast('Админка выдана', 'success')
+      showToast('Admin ✓', 'success')
     } catch (error) {
-      showToast(error instanceof Error ? error.message : 'Не удалось выдать админку', 'error')
+      showToast(error instanceof Error ? error.message : t.error, 'error')
     } finally {
       setIsGrantingAdmin(false)
     }
@@ -1892,7 +1892,7 @@ function App() {
   }
 
   if (isLoading) {
-    return <div className="loading-screen">Загрузка…</div>
+    return <div className="loading-screen">{t.loading || '...'}</div>
   }
 
   return (
@@ -2091,15 +2091,15 @@ function App() {
           <div className="notif-backdrop" onClick={() => setNotifOpen(false)} />
           <div className="notif-panel">
             <div className="notif-panel-head">
-              <h3><Bell size={16} /> Уведомления</h3>
+              <h3><Bell size={16} /> {t.notifTitle}</h3>
               <button className="ghost-icon" onClick={() => setNotifOpen(false)}>×</button>
             </div>
             <div className="notif-list">
-              {notifLoading && <div className="notif-loading">Загрузка...</div>}
+              {notifLoading && <div className="notif-loading">{t.loading || '...'}</div>}
               {!notifLoading && notifications.length === 0 && (
                 <div className="notif-empty">
                   <Bell size={32} />
-                  <p>Нет уведомлений</p>
+                  <p>{t.noNotif || '—'}</p>
                 </div>
               )}
               {notifications.map(n => (
@@ -2108,7 +2108,7 @@ function App() {
                   <div className="notif-body">
                     <strong>{n.title}</strong>
                     <p>{n.text.length > 120 ? n.text.slice(0, 120) + '...' : n.text}</p>
-                    <small>{formatRelativeTime(n.createdAt)}</small>
+                    <small>{frt(n.createdAt)}</small>
                   </div>
                 </div>
               ))}
@@ -2168,7 +2168,7 @@ function App() {
                 <div className="brand-mark">&gt;]</div>
                 <div>
                   <div className="brand-name">Regellik</div>
-                  <div className="brand-sub">{siteSettings.onlineCounterVisible ? `${onlineCount} онлайн` : 'анонимки • профили'} {publicFeed.length > 0 ? `• ${publicFeed.length} постов` : ''} {inbox.length > 0 ? `• ${inbox.length} входящих` : ''}</div>
+                  <div className="brand-sub">{siteSettings.onlineCounterVisible ? `${onlineCount} ${t.online}` : t.brandSubtitle} {publicFeed.length > 0 ? `• ${publicFeed.length} ${t.posts}` : ''} {inbox.length > 0 ? `• ${inbox.length} ${t.incoming}` : ''}</div>
                 </div>
               </div>
 
@@ -2242,11 +2242,11 @@ function App() {
               <div className="landing-logo-text">Regellik</div>
             </div>
 
-            <h1 className="welcome-heading">добро пожаловать</h1>
-            <p className="welcome-sub">анонимки • профили • транзакции</p>
+            <h1 className="welcome-heading">{t.welcome}</h1>
+            <p className="welcome-sub">{t.brandSubtitle}</p>
 
             <button className="landing-cta" onClick={() => setAuthOpen(true)}>
-              Зайти в Регель
+              {t.enterRegel}
             </button>
           </section>
 
@@ -2288,7 +2288,7 @@ function App() {
                   <div className="home-logo-text">Regellik</div>
                 </div>
 
-                <p className="home-greeting">Привет, <strong>{viewer.name}</strong></p>
+                <p className="home-greeting">{t.hello}, <strong>{viewer.name}</strong></p>
 
                 <div className="home-stats-row">
                   <div className="home-stat">
@@ -2297,11 +2297,11 @@ function App() {
                   </div>
                   <div className="home-stat">
                     <strong>{conversations.length}</strong>
-                    <span>Чатов</span>
+                    <span>{t.tabChats}</span>
                   </div>
                   <div className="home-stat">
                     <strong>{totalUnread}</strong>
-                    <span>Новых</span>
+                    <span>{t.incoming}</span>
                   </div>
                 </div>
 
@@ -2358,7 +2358,7 @@ function App() {
                 {conversations.length === 0 && (
                   <div className="chats-empty">
                     <MessageCircle size={40} />
-                    <p>Пока нет чатов</p>
+                    <p>{t.noChats}</p>
                     <span>«Kontaktlar» tugmasini bosib chat boshlang</span>
                   </div>
                 )}
@@ -2386,23 +2386,23 @@ function App() {
                         </div>
                         <div className="convo-body">
                           <div className="convo-top">
-                            <strong>{convo.isSystem ? 'Regellik' : convo.otherUser?.name || 'Пользователь'}</strong>
-                            <small>{convo.lastMessage ? formatRelativeTime(convo.lastMessage.createdAt) : ''}</small>
+                            <strong>{convo.isSystem ? 'Regellik' : convo.otherUser?.name || t.user}</strong>
+                            <small>{convo.lastMessage ? frt(convo.lastMessage.createdAt) : ''}</small>
                           </div>
                           <div className="convo-bottom">
-                            <span className="convo-preview">{convo.lastMessage?.text || 'Нет сообщений'}</span>
+                            <span className="convo-preview">{convo.lastMessage?.text || t.noMessages}</span>
                             {convo.unreadCount > 0 && <span className="convo-unread">{convo.unreadCount}</span>}
                           </div>
                         </div>
                       </button>
                       {deletingConvoId === convo.id ? (
                         <div className="convo-delete-confirm">
-                          <span>Удалить?</span>
-                          <button className="convo-del-yes" onClick={() => void deleteConversation(convo.id)}>Да</button>
-                          <button className="convo-del-no" onClick={() => setDeletingConvoId(null)}>Нет</button>
+                          <span>{t.deleteChat}?</span>
+                          <button className="convo-del-yes" onClick={() => void deleteConversation(convo.id)}>{t.yes || 'OK'}</button>
+                          <button className="convo-del-no" onClick={() => setDeletingConvoId(null)}>{t.cancel}</button>
                         </div>
                       ) : (
-                        <button className="convo-delete-btn" onClick={() => setDeletingConvoId(convo.id)} title="Удалить чат">
+                        <button className="convo-delete-btn" onClick={() => setDeletingConvoId(convo.id)} title={t.deleteChat}>
                           <X size={14} />
                         </button>
                       )}
@@ -2522,15 +2522,15 @@ function App() {
                       </div>
                     )}
                     <div>
-                      <strong>{isSystemChat ? '>]Regellik' : chatOtherUser?.name || 'Чат'}</strong>
-                      <small>{isSystemChat ? 'системный чат' : chatOtherUser?.handle || ''}</small>
+                      <strong>{isSystemChat ? '>]Regellik' : chatOtherUser?.name || t.chatlar}</strong>
+                      <small>{isSystemChat ? t.systemChat : chatOtherUser?.handle || ''}</small>
                     </div>
                   </div>
                   {isSystemChat && <span className="chat-system-badge">SYSTEM</span>}
                 </div>
 
                 <div className="chat-messages-area">
-                  {isChatLoading && <div className="chat-loading">Загрузка...</div>}
+                  {isChatLoading && <div className="chat-loading">{t.loading || '...'}</div>}
                   {chatMessages.map((msg, idx) => {
                     const isMine = msg.senderId === viewer?.id
                     const isSystem = !isMine && isSystemChat
@@ -2545,7 +2545,7 @@ function App() {
                         <div className={`chat-bubble ${isMine ? 'mine' : 'theirs'}${isSystem ? ' system' : ''}`} style={isMine ? {marginLeft:'auto'} : {marginRight:'auto'}}>
                           {isSystem && <span className="chat-bubble-sender">{'Regellik'}</span>}
                           <p>{msg.text}</p>
-                          <small>{formatRelativeTime(msg.createdAt)}</small>
+                          <small>{frt(msg.createdAt)}</small>
                         </div>
                       </div>
                     )
@@ -2557,7 +2557,7 @@ function App() {
                   <input
                     value={chatText}
                     onChange={e => setChatText(e.target.value)}
-                    placeholder="Сообщение..."
+                    placeholder={t.messagePlaceholder}
                     onKeyDown={e => { if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); void sendChatMessage(); } }}
                   />
                   <button className="chat-send-btn" onClick={() => void sendChatMessage()} disabled={!chatText.trim()}>
@@ -2577,7 +2577,7 @@ function App() {
                     <h2>Радар</h2>
                   </div>
                   <button className="secondary-btn" onClick={() => void loadRadar()} disabled={isRadarLoading}>
-                    {isRadarLoading ? '...' : 'Обновить'}
+                    {isRadarLoading ? '...' : t.refresh}
                   </button>
                 </div>
                 <p className="radar-desc">Люди рядом с тобой (до 50 км)</p>
@@ -2658,7 +2658,7 @@ function App() {
                       className="trends-composer-input"
                       value={newPostText}
                       onChange={(e) => setNewPostText(e.target.value)}
-                      placeholder="Поделись мыслью — получи powers за бусты..."
+                      placeholder={t.sharePlaceholder}
                       rows={3}
                       maxLength={500}
                     />
@@ -2677,7 +2677,7 @@ function App() {
                     <div className="trends-composer-footer">
                       <label className="secondary-btn compact-btn post-upload-btn">
                         <Camera size={14} />
-                        Фото {newPostImages.length > 0 ? `${newPostImages.length}/6` : ''}
+                        {t.photo} {newPostImages.length > 0 ? `${newPostImages.length}/6` : ''}
                         <input type="file" accept="image/png,image/jpeg,image/webp,image/gif" onChange={handlePostImageUpload} hidden multiple />
                       </label>
                       <span className={newPostText.length > 450 ? 'trends-char-counter warn' : 'trends-char-counter'}>
@@ -2689,7 +2689,7 @@ function App() {
                         disabled={isCreatingPost || !newPostText.trim()}
                       >
                         <Send size={14} />
-                        {isCreatingPost ? '...' : 'Опубликовать'}
+                        {isCreatingPost ? '...' : t.publish}
                       </button>
                     </div>
                   </div>
@@ -2702,8 +2702,8 @@ function App() {
                     {sortedPosts.length === 0 && (
                       <div className="trends-empty">
                         <Flame size={40} />
-                        <p>Лента пуста</p>
-                        <span>Будь первым — опубликуй пост!</span>
+                        <p>{t.feedEmpty}</p>
+                        <span>{t.feedEmptyHint}</span>
                       </div>
                     )}
                     <div className="trends-grid">
@@ -2752,7 +2752,7 @@ function App() {
                               <strong className="clickable-author" onClick={() => { setGridSelectedPost(null); void openUserProfile(gridSelectedPost.authorId) }}>{gridSelectedPost.authorName}</strong>
                               <span>{gridSelectedPost.authorHandle}</span>
                             </div>
-                            <small className="trends-post-time">{formatRelativeTime(gridSelectedPost.createdAt)}</small>
+                            <small className="trends-post-time">{frt(gridSelectedPost.createdAt)}</small>
                           </div>
                           {(gridSelectedPost.imageUrls?.length || gridSelectedPost.imageUrl) && (
                             <div className={`trends-post-image-wrap${(gridSelectedPost.imageUrls?.length || 0) > 1 ? ' multi' : ''}`}>
@@ -2787,7 +2787,7 @@ function App() {
                                   <div className="trends-comment-author">
                                     <strong>{cmt.authorName}</strong>
                                     <span>{cmt.authorHandle}</span>
-                                    <small>{formatRelativeTime(cmt.createdAt)}</small>
+                                    <small>{frt(cmt.createdAt)}</small>
                                   </div>
                                   <p>{cmt.text}</p>
                                 </div>
@@ -2796,7 +2796,7 @@ function App() {
                                 <input
                                   value={commentTexts[gridSelectedPost.id] || ''}
                                   onChange={e => setCommentTexts(prev => ({...prev, [gridSelectedPost.id]: e.target.value}))}
-                                  placeholder="Оставить комментарий..."
+                                  placeholder={t.commentPlaceholder}
                                   maxLength={300}
                                   onKeyDown={e => { if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); void addComment(gridSelectedPost.id) } }}
                                 />
@@ -2815,8 +2815,8 @@ function App() {
                   {sortedPosts.length === 0 && (
                     <div className="trends-empty">
                       <Flame size={40} />
-                      <p>Лента пуста</p>
-                      <span>Будь первым — опубликуй пост!</span>
+                      <p>{t.feedEmpty}</p>
+                      <span>{t.feedEmptyHint}</span>
                     </div>
                   )}
                   {sortedPosts.map((post, idx) => (
@@ -2838,7 +2838,7 @@ function App() {
                           </div>
                           <span>{post.authorHandle}</span>
                         </div>
-                        <small className="trends-post-time">{formatRelativeTime(post.createdAt)}</small>
+                        <small className="trends-post-time">{frt(post.createdAt)}</small>
                         {trendsSort === 'top' && idx < 3 && (
                           <div className={`trends-rank rank-${idx + 1}`}>#{idx + 1}</div>
                         )}
@@ -2851,7 +2851,7 @@ function App() {
                             <img
                               key={`${post.id}-${index}`}
                               src={image!}
-                              alt="Публикация"
+                              alt={t.publication}
                               className="trends-post-image"
                               onClick={() => openImageLightbox((post.imageUrls?.length ? post.imageUrls : [post.imageUrl]).filter(Boolean) as string[], index)}
                             />
@@ -2864,7 +2864,7 @@ function App() {
                           <button
                             className={`trends-boost-btn${post.boostedByViewer ? ' boosted' : ''}`}
                             onClick={() => void boostPost(post.id)}
-                            title={post.boostedByViewer ? 'Убрать буст' : 'Бустнуть'}
+                            title={post.boostedByViewer ? t.boostRemove : t.boostAction}
                           >
                             <Zap size={16} />
                             <span>{post.boosts}</span>
@@ -2889,14 +2889,14 @@ function App() {
                         <button
                           className={`trends-repost-btn${post.repostedByViewer ? ' reposted' : ''}${post.authorId === viewer?.id ? ' disabled' : ''}`}
                           onClick={() => post.authorId !== viewer?.id && void repostPost(post.id)}
-                          title={post.repostedByViewer ? 'Убрать репост' : 'Репостнуть'}
+                          title={post.repostedByViewer ? t.repostRemove : t.repostAction}
                         >
                           <RefreshCw size={15} />
                           <span>{post.reposts || 0}</span>
                         </button>
                         {isAdmin && (
                           <button className="post-admin-delete-btn" onClick={() => void adminDeletePost(post.id)}>
-                            <Trash2 size={14} /> Удалить
+                            <Trash2 size={14} /> {t.deleteAction}
                           </button>
                         )}
                       </div>
@@ -2908,7 +2908,7 @@ function App() {
                               <div className="trends-comment-author">
                                 <strong>{cmt.authorName}</strong>
                                 <span>{cmt.authorHandle}</span>
-                                <small>{formatRelativeTime(cmt.createdAt)}</small>
+                                <small>{frt(cmt.createdAt)}</small>
                               </div>
                               <p>{cmt.text}</p>
                             </div>
@@ -2917,7 +2917,7 @@ function App() {
                             <input
                               value={commentTexts[post.id] || ''}
                               onChange={(e) => setCommentTexts(prev => ({ ...prev, [post.id]: e.target.value }))}
-                              placeholder="Оставить комментарий..."
+                              placeholder={t.commentPlaceholder}
                               maxLength={300}
                               onKeyDown={(e) => { if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); void addComment(post.id) } }}
                             />
@@ -2962,7 +2962,7 @@ function App() {
                           className="hero-name-input"
                           value={profileName}
                           onChange={(e) => setProfileName(e.target.value)}
-                          placeholder="Имя"
+                          placeholder={t.name}
                           disabled={!siteSettings.profileEditEnabled}
                         />
                         {viewer.badges.length > 0 && (
@@ -2985,16 +2985,16 @@ function App() {
                       </div>
                       {handleStatus !== 'idle' && (
                         <div className={`handle-status ${handleStatus}`}>
-                          {handleStatus === 'checking' && 'проверяю...'}
-                          {handleStatus === 'available' && 'свободен'}
-                          {handleStatus === 'taken' && 'занят'}
+                      {handleStatus === 'checking' && t.checkingHandle}
+                          {handleStatus === 'available' && t.handleAvailable}
+                          {handleStatus === 'taken' && t.handleTaken}
                         </div>
                       )}
                       <input
                         className="hero-tagline-input"
                         value={profileTagline}
                         onChange={(e) => setProfileTagline(e.target.value)}
-                        placeholder="Короткая подпись профиля"
+                        placeholder={t.taglinePlaceholder}
                         maxLength={72}
                         disabled={!siteSettings.profileEditEnabled}
                       />
@@ -3005,7 +3005,7 @@ function App() {
                     className="hero-bio-input"
                     value={profileBio}
                     onChange={(e) => setProfileBio(e.target.value)}
-                    placeholder="О себе..."
+                    placeholder={t.bioPlaceholder}
                     rows={2}
                     disabled={!siteSettings.profileEditEnabled}
                   />
@@ -3014,7 +3014,7 @@ function App() {
                     <div className="hero-save-row">
                       <button className="primary-btn compact-btn" onClick={saveProfile} disabled={isSavingProfile}>
                         <Save size={14} />
-                        {isSavingProfile ? '...' : 'Сохранить'}
+                        {isSavingProfile ? '...' : t.save}
                       </button>
                       <button className="secondary-btn compact-btn" type="button" onClick={() => {
                         setProfileName(viewer.name)
@@ -3022,7 +3022,7 @@ function App() {
                         setProfileBio(viewer.bio || '')
                         setProfileTagline(viewer.tagline || '')
                       }}>
-                        Отмена
+                        {t.cancel}
                       </button>
                     </div>
                   )}
@@ -3038,15 +3038,15 @@ function App() {
                         {viewer.preferences.showContact !== false ? <Eye size={10} /> : <EyeOff size={10} />}
                       </button>
                     </span>
-                    <span className="profile-meta-chip muted"><MapPin size={11} />{viewerLocation !== 'Гео не включено' ? viewerLocation : '—'}</span>
+                    <span className="profile-meta-chip muted"><MapPin size={11} />{viewer?.city || (locationState === 'granted' && locationLabel) ? viewerLocation : '—'}</span>
                     <span className="profile-meta-chip muted">{formatDate(viewer.joinedAt)}</span>
                   </div>
 
                   <div className="profile-quick-stats four-col">
-                    <div><strong>{viewer.postCount}</strong><span>публикаций</span></div>
-                    <div><strong>{viewer.followerCount}</strong><span>подписчиков</span></div>
-                    <div><strong>{viewer.followingCount}</strong><span>подписок</span></div>
-                    <div><strong>{viewer.powers}</strong><span>энергия</span></div>
+                    <div><strong>{viewer.postCount}</strong><span>{t.postsCount}</span></div>
+                    <div><strong>{viewer.followerCount}</strong><span>{t.followers}</span></div>
+                    <div><strong>{viewer.followingCount}</strong><span>{t.following}</span></div>
+                    <div><strong>{viewer.powers}</strong><span>{t.energyLabel}</span></div>
                   </div>
                 </article>
 
@@ -3056,17 +3056,17 @@ function App() {
                     <div className="geo-settings-left">
                       <MapPin size={18} />
                       <div>
-                        <strong>Геолокация</strong>
+                        <strong>{t.geolocation}</strong>
                         <span className="geo-settings-label">{viewerLocation}</span>
                       </div>
                     </div>
                     <div className="geo-settings-actions">
                       {locationState !== 'granted' ? (
                         <button className="secondary-btn compact-btn" onClick={requestLocation}>
-                          Включить
+                          {t.enable}
                         </button>
                       ) : (
-                        <span className="geo-granted-badge">Включено</span>
+                        <span className="geo-granted-badge">{t.geoEnabled}</span>
                       )}
                       <button
                         className={viewer.geoAllowed ? 'toggle-mini active' : 'toggle-mini'}
@@ -3090,14 +3090,14 @@ function App() {
                               }),
                             }, sessionToken)
                             setViewer(prev => prev ? { ...prev, ...data.viewer } : prev)
-                            showToast(newGeoAllowed ? 'Геолокация показана' : 'Геолокация скрыта', 'success')
+                            showToast(newGeoAllowed ? t.geoShown : t.geoHiddenMsg, 'success')
                           } catch {
-                            showToast('Не удалось изменить настройку', 'error')
+                            showToast(t.settingError, 'error')
                           }
                         }}
                       >
                         {viewer.geoAllowed ? <Eye size={14} /> : <EyeOff size={14} />}
-                        <span>{viewer.geoAllowed ? 'Видно' : 'Скрыто'}</span>
+                        <span>{viewer.geoAllowed ? t.geoShow : t.geoHide}</span>
                       </button>
                     </div>
                   </div>
@@ -3106,16 +3106,16 @@ function App() {
                 <article className="panel-card profile-publications-card">
                   <div className="panel-head">
                     <div>
-                      <span className="eyebrow"># профиль</span>
-                      <h2>Mening postlarim</h2>
+                      <span className="eyebrow"># {t.tabProfile}</span>
+                      <h2>{t.publications}</h2>
                     </div>
                     <span className="profile-posts-counter">{ownPosts.length}</span>
                   </div>
                   {ownPosts.length === 0 ? (
                     <div className="profile-posts-empty">
                       <Flame size={26} />
-                      <p>Hali post yo'q</p>
-                      <span>Global bo'limida post yarating.</span>
+                      <p>{t.noPosts}</p>
+                      <span>{t.noPostsHint}</span>
                     </div>
                   ) : (
                     <div className="profile-ig-grid">
@@ -3154,7 +3154,7 @@ function App() {
                           <strong>{viewer.name}</strong>
                           <span>{viewer.handle}</span>
                         </div>
-                        <small className="trends-post-time">{formatRelativeTime(selectedOwnPost.createdAt)}</small>
+                        <small className="trends-post-time">{frt(selectedOwnPost.createdAt)}</small>
                       </div>
                       {(selectedOwnPost.imageUrls?.length || selectedOwnPost.imageUrl) && (
                         <div className={`trends-post-image-wrap${(selectedOwnPost.imageUrls?.length || 0) > 1 ? ' multi' : ''}`}>
@@ -3192,7 +3192,7 @@ function App() {
                             <div key={cmt.id} className="trends-comment-item">
                               <div className="trends-comment-author">
                                 <strong>{cmt.authorName}</strong><span>{cmt.authorHandle}</span>
-                                <small>{formatRelativeTime(cmt.createdAt)}</small>
+                                <small>{frt(cmt.createdAt)}</small>
                               </div>
                               <p>{cmt.text}</p>
                             </div>
@@ -3228,14 +3228,14 @@ function App() {
                     onClick={() => setTxSubTab('balance')}
                   >
                     <Wallet size={14} />
-                    Баланс
+                    {t.balance}
                   </button>
                   <button
                     className={`tx-subtab-btn${txSubTab === 'history' ? ' active' : ''}`}
                     onClick={() => { setTxSubTab('history'); void loadTransactions() }}
                   >
                     <RefreshCw size={14} />
-                    История
+                    {t.history}
                   </button>
                 </div>
 
@@ -3246,8 +3246,8 @@ function App() {
                 <article className="panel-card">
                   <div className="panel-head">
                     <div>
-                      <span className="eyebrow"># баланс</span>
-                      <h2>Энергия</h2>
+                      <span className="eyebrow"># {t.balance}</span>
+                      <h2>{t.energy}</h2>
                     </div>
                   </div>
                   <div className="balance-hero">
@@ -3263,14 +3263,14 @@ function App() {
                       <Send size={16} />
                       <div>
                         <strong>−{siteSettings.messageCost}</strong>
-                        <span>за отправку сообщения</span>
+                        <span>{t.msgSendCost}</span>
                       </div>
                     </div>
                     <div className="economy-info-item">
                       <MessageCircle size={16} />
                       <div>
                         <strong>+{siteSettings.messageEarn}</strong>
-                        <span>за полученное сообщение</span>
+                        <span>{t.msgReceiveEarn}</span>
                       </div>
                     </div>
                   </div>
@@ -3282,11 +3282,11 @@ function App() {
 
                   {topUpOpen && (
                     <div className="topup-inline">
-                      <p className="topup-desc">Выбери сумму пополнения</p>
+                      <p className="topup-desc">{t.topupChoose}</p>
                       <div className="topup-options-grid">
                         {(siteSettings.topUpOptions || [10, 50, 100, 250, 500, 1000]).map(amount => (
                           <button key={amount} className="topup-option-btn" onClick={() => {
-                            showToast(`Пополнение на ${amount} — скоро будет доступно!`, 'info')
+                            showToast(`${t.topupSoon} ${amount}`, 'info')
                             setTopUpOpen(false)
                           }}>
                             <Zap size={16} />
@@ -3394,8 +3394,8 @@ function App() {
                 <article className="panel-card">
                   <div className="panel-head">
                     <div>
-                      <span className="eyebrow"># история</span>
-                      <h2>Все транзакции</h2>
+                      <span className="eyebrow"># {t.history}</span>
+                      <h2>{t.history}</h2>
                     </div>
                     <button className="tx-refresh-btn" onClick={() => void loadTransactions()} disabled={txLoading}>
                       {txLoading ? '...' : <RefreshCw size={15} />}
@@ -3405,8 +3405,7 @@ function App() {
                   {powerLog.length === 0 ? (
                     <div className="tx-empty">
                       <Zap size={28} />
-                      <p>Транзакций пока нет</p>
-                      <span>Отправляй сообщения, получай бусты — и они появятся здесь</span>
+                      <p>{t.noTx || '—'}</p>
                     </div>
                   ) : (
                     <div className="tx-list">
@@ -3437,8 +3436,8 @@ function App() {
                             </div>
                             <div className="tx-info">
                               <strong>{txLabel[tx.type] || tx.description}</strong>
-                              <span>{tx.description !== txLabel[tx.type] ? tx.description : formatRelativeTime(tx.createdAt)}</span>
-                              <small>{formatRelativeTime(tx.createdAt)}</small>
+                              <span>{tx.description !== txLabel[tx.type] ? tx.description : frt(tx.createdAt)}</span>
+                              <small>{frt(tx.createdAt)}</small>
                             </div>
                             <div className="tx-amount">
                               <span className={isPositive ? 'tx-plus' : 'tx-minus'}>
@@ -4244,7 +4243,7 @@ function App() {
                             <div className="report-card-meta">
                               <span>Категория: {report.category}</span>
                               <span>Отправил: {report.reporterName} ({report.reporterHandle})</span>
-                              <span>{formatRelativeTime(report.createdAt)}</span>
+                              <span>{frt(report.createdAt)}</span>
                             </div>
                             {report.text && <p className="report-card-text">{report.text}</p>}
                             {report.relatedPosts && report.relatedPosts.length > 0 && (
@@ -4252,7 +4251,7 @@ function App() {
                                 {report.relatedPosts.map(post => (
                                   <div key={post.id} className="report-related-post">
                                     <div className="report-related-post-body">
-                                      <strong>{formatRelativeTime(post.createdAt)}</strong>
+                                      <strong>{frt(post.createdAt)}</strong>
                                       <p>{post.text}</p>
                                     </div>
                                     <button className="secondary-btn compact-btn danger" onClick={() => void adminDeletePost(post.id)}>
@@ -4362,7 +4361,7 @@ function App() {
                         <div key={item.id} className="audit-item">
                           <strong>{item.action}</strong>
                           <span>{item.details}</span>
-                          <small>{formatRelativeTime(item.createdAt)}</small>
+                          <small>{frt(item.createdAt)}</small>
                         </div>
                       ))}
                       {auditLog.length === 0 && <div className="chats-empty" style={{padding: '20px'}}><p>Лог пуст</p></div>}
@@ -4457,7 +4456,7 @@ function App() {
                         <h3>Подтвердить действие?</h3>
                         <p>{adminConfirmAction.label}</p>
                         <div className="admin-confirm-btns">
-                          <button className="secondary-btn" onClick={() => setAdminConfirmAction(null)}>Отмена</button>
+                          <button className="secondary-btn" onClick={() => setAdminConfirmAction(null)}>{t.cancel}</button>
                           <button className="primary-btn" onClick={adminConfirmAction.action}>Подтвердить</button>
                         </div>
                       </div>
@@ -4657,7 +4656,7 @@ function App() {
               />
             </label>
             <div className="report-modal-actions">
-              <button className="secondary-btn" onClick={() => setReportProfileOpen(false)}>Отмена</button>
+              <button className="secondary-btn" onClick={() => setReportProfileOpen(false)}>{t.cancel}</button>
               <button className="primary-btn" onClick={() => void submitProfileReport()} disabled={isSubmittingReport}>
                 <Send size={14} /> {isSubmittingReport ? '...' : 'Отправить'}
               </button>
