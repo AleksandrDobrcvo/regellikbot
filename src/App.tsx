@@ -22,7 +22,6 @@ import {
   MessageSquare,
   Minus,
   Monitor,
-  PenSquare,
   Plus,
   Radar,
   RefreshCw,
@@ -2140,13 +2139,13 @@ function App() {
                         <span>Рассылка</span>
                       </button>
                     )}
-                    <button className="chats-radar-btn" onClick={() => switchTab('radar', () => void loadRadar())} title="Радар">
+                    <button className="chats-radar-btn" onClick={() => switchTab('radar', () => void loadRadar())} title="Atrofimda kim?">
                       <Radar size={16} />
-                      <span>Радар</span>
+                      <span>Atrofimda kim?</span>
                     </button>
-                    <button className="compose-fab-inline" onClick={() => setComposeOpen(true)} title="Написать">
-                      <PenSquare size={16} />
-                      <span>Написать</span>
+                    <button className="compose-fab-inline" onClick={() => setComposeOpen(true)} title="Kontaktlar">
+                      <Users size={16} />
+                      <span>Kontaktlar</span>
                     </button>
                   </div>
                 </div>
@@ -2155,7 +2154,7 @@ function App() {
                   <div className="chats-empty">
                     <MessageCircle size={40} />
                     <p>Пока нет чатов</p>
-                    <span>Нажми «Написать» чтобы начать разговор</span>
+                    <span>«Kontaktlar» tugmasini bosib chat boshlang</span>
                   </div>
                 )}
 
@@ -2165,7 +2164,7 @@ function App() {
                       <button className={`conversation-item${convo.unreadCount > 0 ? ' has-unread' : ''}`} onClick={() => openConversation(convo.id)}>
                         <div className="convo-avatar">
                           {convo.isSystem ? (
-                            <span className="convo-avatar-system">&gt;]</span>
+                            <span className="convo-avatar-system">R</span>
                           ) : convo.otherUser?.avatarUrl ? (
                             <img src={convo.otherUser.avatarUrl} alt="" />
                           ) : (
@@ -2174,7 +2173,7 @@ function App() {
                         </div>
                         <div className="convo-body">
                           <div className="convo-top">
-                            <strong>{convo.isSystem ? '>]Regellik' : convo.otherUser?.name || 'Пользователь'}</strong>
+                            <strong>{convo.isSystem ? 'Regellik' : convo.otherUser?.name || 'Пользователь'}</strong>
                             <small>{convo.lastMessage ? formatRelativeTime(convo.lastMessage.createdAt) : ''}</small>
                           </div>
                           <div className="convo-bottom">
@@ -2273,8 +2272,8 @@ function App() {
                             <span>{new Date(msg.createdAt).toLocaleDateString('ru-RU', { day: 'numeric', month: 'long' })}</span>
                           </div>
                         )}
-                        <div className={`chat-bubble ${isMine ? 'mine' : 'theirs'}${isSystem ? ' system' : ''}`}>
-                          {isSystem && <span className="chat-bubble-sender">{'>]Regellik'}</span>}
+                        <div className={`chat-bubble ${isMine ? 'mine' : 'theirs'}${isSystem ? ' system' : ''}`} style={isMine ? {marginLeft:'auto'} : {marginRight:'auto'}}>
+                          {isSystem && <span className="chat-bubble-sender">{'Regellik'}</span>}
                           <p>{msg.text}</p>
                           <small>{formatRelativeTime(msg.createdAt)}</small>
                         </div>

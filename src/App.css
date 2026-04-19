@@ -5540,9 +5540,26 @@ html {
   display: flex;
   flex-direction: column;
   gap: 6px;
-  background:
-    radial-gradient(ellipse at 50% 0%, rgba(255, 255, 255, 0.025), transparent 50%),
-    radial-gradient(ellipse at 50% 100%, rgba(200, 200, 200, 0.025), transparent 50%);
+  position: relative;
+  /* Aesthetic dark pattern */
+  background-color: #080808;
+  background-image:
+    radial-gradient(circle at 25% 20%, rgba(255,255,255,0.022) 0%, transparent 45%),
+    radial-gradient(circle at 75% 80%, rgba(255,255,255,0.018) 0%, transparent 45%),
+    repeating-linear-gradient(
+      0deg,
+      transparent,
+      transparent 39px,
+      rgba(255,255,255,0.025) 39px,
+      rgba(255,255,255,0.025) 40px
+    ),
+    repeating-linear-gradient(
+      90deg,
+      transparent,
+      transparent 39px,
+      rgba(255,255,255,0.015) 39px,
+      rgba(255,255,255,0.015) 40px
+    );
 }
 
 .chat-loading {
@@ -5607,11 +5624,15 @@ html {
 
 .chat-bubble.mine {
   align-self: flex-end;
-  background: rgba(255, 255, 255, 0.12);
-  border: 1px solid rgba(255, 255, 255, 0.2);
-  color: var(--text);
+  margin-left: auto;
+  background: rgba(255, 255, 255, 0.22);
+  border: 1px solid rgba(255, 255, 255, 0.32);
+  color: #fff;
   border-bottom-right-radius: 6px;
-  box-shadow: 0 2px 12px rgba(255, 255, 255, 0.06);
+  border-top-right-radius: 18px;
+  border-top-left-radius: 18px;
+  border-bottom-left-radius: 18px;
+  box-shadow: 0 2px 16px rgba(255, 255, 255, 0.1);
 }
 
 .chat-bubble.mine small {
@@ -5621,10 +5642,14 @@ html {
 
 .chat-bubble.theirs {
   align-self: flex-start;
+  margin-right: auto;
   background: rgba(255, 255, 255, 0.07);
   border: 1px solid rgba(255, 255, 255, 0.1);
   color: var(--text);
   border-bottom-left-radius: 6px;
+  border-top-right-radius: 18px;
+  border-top-left-radius: 18px;
+  border-bottom-right-radius: 18px;
   box-shadow: 0 2px 12px rgba(0, 0, 0, 0.15);
 }
 

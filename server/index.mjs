@@ -1772,7 +1772,7 @@ app.post('/api/admin/users/update', (request, response) => {
     const added = target.badges.filter(b => !oldBadges.includes(b))
     const removed = oldBadges.filter(b => !target.badges.includes(b))
     if (added.length) {
-      sendSystemNotification(state, target.id, `✦ Тебе выдан новый префикс: ${added.join(', ')}. Носи с честью!`)
+      sendSystemNotification(state, target.id, `Yangi prefiks berildi: ${added.join(', ')}. Uni sharaf bilan kiy!`)
     }
     if (removed.length) {
       sendSystemNotification(state, target.id, `◌ Префикс ${removed.join(', ')} был отозван администратором.`)
@@ -2340,7 +2340,7 @@ app.get('/api/notifications', (request, response) => {
       notifications.push({
         id: m.id,
         type: 'system',
-        title: '>]Regellik',
+        title: 'Regellik',
         text: m.text,
         createdAt: m.createdAt,
       })
