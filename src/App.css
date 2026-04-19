@@ -6361,6 +6361,337 @@ html {
   box-shadow: 0 4px 20px rgba(255, 255, 255, 0.3);
 }
 
+/* O'TKAZISH — ENERGY TRANSFER */
+.transfer-cta-btn {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  width: 100%;
+  margin-top: 10px;
+  padding: 13px;
+  border-radius: 14px;
+  border: 1px solid rgba(100,180,255,0.25);
+  background: rgba(100,180,255,0.07);
+  color: rgba(100,180,255,0.9);
+  font-size: 14px;
+  font-weight: 700;
+  font-family: var(--font-mono);
+  cursor: pointer;
+  transition: all 0.2s;
+  letter-spacing: 0.03em;
+}
+
+.transfer-cta-btn:hover {
+  background: rgba(100,180,255,0.14);
+  box-shadow: 0 4px 20px rgba(100,180,255,0.2);
+}
+
+.transfer-panel {
+  margin-top: 14px;
+  border-radius: 18px;
+  border: 1px solid rgba(100,180,255,0.15);
+  background: rgba(100,180,255,0.04);
+  overflow: hidden;
+  animation: topupExpand 0.35s cubic-bezier(0.16,1,0.3,1) both;
+}
+
+.transfer-form {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  padding: 16px;
+}
+
+.transfer-form-header {
+  display: flex;
+  align-items: flex-start;
+  gap: 10px;
+  margin-bottom: 4px;
+}
+
+.transfer-form-header strong {
+  font-size: 14px;
+  color: var(--text);
+  display: block;
+}
+
+.transfer-form-header small {
+  font-size: 11px;
+  color: var(--muted);
+  font-family: var(--font-mono);
+}
+
+.transfer-header-icon {
+  color: rgba(100,180,255,0.8);
+  flex-shrink: 0;
+  margin-top: 2px;
+}
+
+.transfer-conditions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  font-size: 11px;
+  color: rgba(255,255,255,0.45);
+  font-family: var(--font-mono);
+}
+
+.transfer-conditions span {
+  padding: 3px 8px;
+  border-radius: 8px;
+  background: rgba(255,255,255,0.04);
+  border: 1px solid rgba(255,255,255,0.07);
+}
+
+.transfer-input {
+  width: 100%;
+  padding: 11px 14px;
+  border-radius: 12px;
+  border: 1px solid rgba(100,180,255,0.2);
+  background: rgba(255,255,255,0.04);
+  color: var(--text);
+  font-size: 14px;
+  outline: none;
+  font-family: inherit;
+}
+
+.transfer-input:focus {
+  border-color: rgba(100,180,255,0.5);
+  background: rgba(100,180,255,0.06);
+}
+
+.transfer-amount-wrap {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.transfer-fee-hint {
+  display: flex;
+  justify-content: space-between;
+  font-size: 11px;
+  color: rgba(255,255,255,0.4);
+  font-family: var(--font-mono);
+  padding: 0 4px;
+}
+
+.transfer-submit-btn {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  padding: 13px;
+  border-radius: 13px;
+  border: none;
+  background: linear-gradient(135deg, rgba(100,180,255,0.9), rgba(80,130,255,0.9));
+  color: #000;
+  font-size: 14px;
+  font-weight: 700;
+  font-family: var(--font-mono);
+  cursor: pointer;
+  transition: all 0.18s;
+  letter-spacing: 0.04em;
+}
+
+.transfer-submit-btn:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+.transfer-submit-btn:not(:disabled):hover {
+  transform: translateY(-1px);
+  box-shadow: 0 6px 24px rgba(100,180,255,0.35);
+}
+
+/* Success animation */
+.transfer-success {
+  padding: 28px 20px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 16px;
+  text-align: center;
+  animation: fadeIn 0.3s ease;
+}
+
+.transfer-success-anim {
+  position: relative;
+  width: 80px;
+  height: 80px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.transfer-zap-ring {
+  position: absolute;
+  inset: 0;
+  border-radius: 50%;
+  border: 2px solid rgba(100,255,180,0.6);
+  animation: zapRingExpand 0.8s ease-out both;
+}
+
+.transfer-zap-ring.r2 {
+  border-color: rgba(100,255,180,0.35);
+  animation-delay: 0.15s;
+}
+
+.transfer-zap-ring.r3 {
+  border-color: rgba(100,255,180,0.2);
+  animation-delay: 0.3s;
+}
+
+@keyframes zapRingExpand {
+  from { transform: scale(0.5); opacity: 1; }
+  to { transform: scale(2.2); opacity: 0; }
+}
+
+.transfer-zap-icon {
+  color: rgb(80,230,150);
+  animation: zapPop 0.5s cubic-bezier(0.16,1,0.3,1) both;
+  position: relative;
+  z-index: 1;
+}
+
+@keyframes zapPop {
+  0% { transform: scale(0) rotate(-30deg); opacity: 0; }
+  60% { transform: scale(1.3) rotate(5deg); opacity: 1; }
+  100% { transform: scale(1) rotate(0deg); opacity: 1; }
+}
+
+.transfer-success-text strong {
+  font-size: 20px;
+  color: rgb(80,230,150);
+  font-family: var(--font-mono);
+  display: block;
+  animation: fadeSlideUp 0.4s ease both;
+  animation-delay: 0.2s;
+}
+
+.transfer-success-text p {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  font-size: 14px;
+  color: var(--text);
+  margin: 6px 0 2px;
+  animation: fadeSlideUp 0.4s ease both;
+  animation-delay: 0.3s;
+}
+
+.transfer-success-text small {
+  font-size: 11px;
+  color: var(--muted);
+  font-family: var(--font-mono);
+  animation: fadeSlideUp 0.4s ease both;
+  animation-delay: 0.4s;
+}
+
+.transfer-handle {
+  color: rgba(100,180,255,0.8);
+  font-family: var(--font-mono);
+}
+
+.transfer-again-btn {
+  padding: 8px 20px;
+  border-radius: 10px;
+  border: 1px solid rgba(255,255,255,0.15);
+  background: transparent;
+  color: var(--muted);
+  font-size: 12px;
+  cursor: pointer;
+  font-family: var(--font-mono);
+  transition: all 0.15s;
+  animation: fadeSlideUp 0.4s ease both;
+  animation-delay: 0.5s;
+}
+
+.transfer-again-btn:hover {
+  background: rgba(255,255,255,0.07);
+  color: var(--text);
+}
+
+@keyframes fadeSlideUp {
+  from { opacity: 0; transform: translateY(10px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+
+/* Error animation */
+.transfer-error {
+  padding: 28px 20px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 16px;
+  text-align: center;
+}
+
+.transfer-error-anim {
+  width: 64px;
+  height: 64px;
+  border-radius: 50%;
+  background: rgba(255,80,80,0.12);
+  border: 2px solid rgba(255,80,80,0.4);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  animation: errorShake 0.5s cubic-bezier(0.36,0.07,0.19,0.97) both;
+}
+
+@keyframes errorShake {
+  0%,100% { transform: translateX(0); }
+  20% { transform: translateX(-8px); }
+  40% { transform: translateX(8px); }
+  60% { transform: translateX(-5px); }
+  80% { transform: translateX(5px); }
+}
+
+.transfer-error-cross {
+  position: relative;
+  width: 24px;
+  height: 24px;
+}
+
+.transfer-error-cross span {
+  position: absolute;
+  width: 100%;
+  height: 2px;
+  background: rgba(255,80,80,0.9);
+  border-radius: 2px;
+  top: 50%;
+  left: 0;
+  animation: crossDraw 0.3s ease both;
+}
+
+.transfer-error-cross span:first-child { transform: rotate(45deg); animation-delay: 0.1s; }
+.transfer-error-cross span:last-child { transform: rotate(-45deg); animation-delay: 0.2s; }
+
+@keyframes crossDraw {
+  from { opacity: 0; transform: scaleX(0) rotate(var(--r, 0deg)); }
+  to { opacity: 1; }
+}
+
+.transfer-error-msg {
+  font-size: 13px;
+  color: rgba(255,120,120,0.9);
+  text-align: center;
+  line-height: 1.5;
+  max-width: 260px;
+  animation: fadeSlideUp 0.3s ease both;
+  animation-delay: 0.3s;
+}
+
+.spin {
+  animation: spinAnim 0.8s linear infinite;
+}
+
+@keyframes spinAnim {
+  from { transform: rotate(0deg); }
+  to { transform: rotate(360deg); }
+}
+
 /* ===== TOPUP â€” INLINE EXPAND ===== */
 .topup-inline {
   margin-top: 14px;
@@ -10028,6 +10359,50 @@ html {
   border-color: rgba(255, 255, 255, 0.2);
   color: rgba(255, 255, 255, 0.7);
   background: rgba(255, 255, 255, 0.07);
+}
+
+/* Repost button */
+.trends-repost-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  padding: 6px 10px;
+  border-radius: 20px;
+  border: 1px solid rgba(255,255,255,0.1);
+  background: transparent;
+  color: rgba(255,255,255,0.4);
+  font-size: 13px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 0.18s;
+  font-family: var(--font-mono);
+}
+
+.trends-repost-btn:hover:not(.disabled) {
+  border-color: rgba(80,220,120,0.4);
+  color: rgba(80,220,120,0.9);
+  background: rgba(80,220,120,0.08);
+}
+
+.trends-repost-btn.reposted {
+  border-color: rgba(80,220,120,0.5);
+  color: rgb(80,220,120);
+  background: rgba(80,220,120,0.1);
+}
+
+.trends-repost-btn.reposted svg {
+  animation: repostSpin 0.4s ease;
+}
+
+@keyframes repostSpin {
+  from { transform: rotate(0deg); }
+  to { transform: rotate(360deg); }
+}
+
+.trends-repost-btn.disabled {
+  opacity: 0.3;
+  cursor: default;
+  pointer-events: none;
 }
 
 /* Comments section */

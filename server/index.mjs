@@ -336,6 +336,8 @@ const defaultState = {
       createdAt: new Date(Date.now() - 2 * 3600000).toISOString(),
       boosts: 7,
       boostedBy: [],
+      reposts: 0,
+      repostedBy: [],
       comments: [],
     },
     {
@@ -769,6 +771,8 @@ function decoratePost(state, post, viewer) {
     imageUrls,
     authorBadges: author ? (author.badges || []) : [],
     boostedByViewer: viewer ? post.boostedBy.includes(viewer.id) : false,
+    repostedByViewer: viewer ? (Array.isArray(post.repostedBy) ? post.repostedBy.includes(viewer.id) : false) : false,
+    reposts: post.reposts || 0,
     commentsCount: Array.isArray(post.comments) ? post.comments.length : 0,
   }
 }
@@ -2774,6 +2778,29 @@ app.post('/api/posts/:id/boost', (request, response) => {
   })
 })
 
+// Repost
+app.post('/api/posts/:id/repost', (request, response) => {
+  const state = readState()
+  const viewer = requireUser(request, response, state)
+  if (!viewer) return
+
+  const post = state.posts.find(p => p.id === request.params.id)
+  if (!post) { response.status(404).json({ error: 'Пост не найден' }); return }
+  if (post.authorId === viewer.id) { response.status(400).json({ error: 'Нельзя репостить свой пост' }); return }
+
+  if (!Array.isArray(post.repostedBy)) post.repostedBy = []
+  const already = post.repostedBy.includes(viewer.id)
+  if (already) {
+    post.repostedBy = post.repostedBy.filter(id => id !== viewer.id)
+    post.reposts = Math.max(0, (post.reposts || 1) - 1)
+  } else {
+    post.repostedBy.push(viewer.id)
+    post.reposts = (post.reposts || 0) + 1
+  }
+  saveState(state)
+  response.json({ post: decoratePost(state, post, viewer), reposted: !already })
+})
+
 app.post('/api/posts/:id/comments', (request, response) => {
   const state = readState()
   const viewer = requireUser(request, response, state)
@@ -2806,6 +2833,92 @@ app.post('/api/posts/:id/comments', (request, response) => {
   response.json({
     comment,
     post: { ...post, boostedByViewer: post.boostedBy.includes(viewer.id), commentsCount: post.comments.length },
+  })
+})
+
+// === ENERGY TRANSFER ===
+const TRANSFER_COOLDOWN_MS = 6 * 60 * 60 * 1000 // 6 hours between transfers
+const TRANSFER_MIN = 10
+const TRANSFER_MAX = 500
+const TRANSFER_FEE_PCT = 0.05 // 5% fee burned
+
+app.post('/api/transfer', (request, response) => {
+  const clientIp = request.headers['x-forwarded-for']?.split(',')[0]?.trim() || request.socket.remoteAddress || 'unknown'
+  if (!rateLimit(`transfer:${clientIp}`, 5, 60000)) {
+    response.status(429).json({ error: 'Слишком много запросов' })
+    return
+  }
+
+  const state = readState()
+  const viewer = requireUser(request, response, state)
+  if (!viewer) return
+
+  const { toHandle, amount } = request.body || {}
+  const amt = Math.floor(Number(amount))
+
+  if (!toHandle) { response.status(400).json({ error: 'Укажи получателя' }); return }
+  if (!Number.isFinite(amt) || amt < TRANSFER_MIN) {
+    response.status(400).json({ error: `Минимальный перевод: ${TRANSFER_MIN} ⚡` }); return
+  }
+  if (amt > TRANSFER_MAX) {
+    response.status(400).json({ error: `Максимальный перевод: ${TRANSFER_MAX} ⚡` }); return
+  }
+
+  // Cooldown check
+  const lastTransfer = viewer.lastTransferAt ? new Date(viewer.lastTransferAt).getTime() : 0
+  const elapsed = Date.now() - lastTransfer
+  if (elapsed < TRANSFER_COOLDOWN_MS) {
+    const wait = Math.ceil((TRANSFER_COOLDOWN_MS - elapsed) / 60000)
+    response.status(429).json({ error: `Следующий перевод доступен через ${wait} мин.` }); return
+  }
+
+  // Find recipient
+  const normalizedHandle = String(toHandle).trim().toLowerCase()
+  const recipient = state.users.find(u =>
+    u.handle?.toLowerCase() === normalizedHandle ||
+    u.handle?.toLowerCase() === `@${normalizedHandle}` ||
+    String(u.numericId) === normalizedHandle
+  )
+  if (!recipient) { response.status(404).json({ error: 'Пользователь не найден' }); return }
+  if (recipient.id === viewer.id) { response.status(400).json({ error: 'Нельзя переводить самому себе' }); return }
+  if (recipient.status !== 'active') { response.status(400).json({ error: 'Аккаунт получателя недоступен' }); return }
+
+  // Minimum account age: 3 days
+  const joinedAge = Date.now() - new Date(viewer.joinedAt || 0).getTime()
+  if (joinedAge < 3 * 24 * 3600 * 1000) {
+    response.status(403).json({ error: 'Переводы доступны через 3 дня после регистрации' }); return
+  }
+
+  // Balance check
+  const fee = Math.max(1, Math.floor(amt * TRANSFER_FEE_PCT))
+  const totalCost = amt + fee
+  if (viewer.powers < totalCost) {
+    response.status(400).json({ error: `Недостаточно энергии. Нужно ${totalCost} ⚡ (с комиссией ${fee} ⚡)` }); return
+  }
+
+  // Perform transfer
+  viewer.powers -= totalCost
+  recipient.powers += amt
+  viewer.lastTransferAt = new Date().toISOString()
+
+  // Log
+  if (!Array.isArray(viewer.powerLog)) viewer.powerLog = []
+  if (!Array.isArray(recipient.powerLog)) recipient.powerLog = []
+  const now = new Date().toISOString()
+  viewer.powerLog.unshift({ type: 'transfer_out', amount: -totalCost, balanceAfter: viewer.powers, label: `O'tkazish → ${recipient.handle}`, note: `Komissiya: ${fee} ⚡`, createdAt: now })
+  recipient.powerLog.unshift({ type: 'transfer_in', amount: amt, balanceAfter: recipient.powers, label: `Qabul ← ${viewer.handle}`, createdAt: now })
+
+  pushAudit(state, 'energy.transfer', viewer.id, recipient.id, `${viewer.handle} → ${recipient.handle}: ${amt} ⚡ (fee ${fee})`)
+  sendSystemNotification(state, recipient.id, `Siz ${viewer.handle} dan ${amt} ⚡ qabul qildingiz!`)
+  saveState(state)
+
+  response.json({
+    ok: true,
+    sentAmount: amt,
+    fee,
+    viewerPowers: viewer.powers,
+    recipientName: recipient.name,
+    recipientHandle: recipient.handle,
   })
 })
 

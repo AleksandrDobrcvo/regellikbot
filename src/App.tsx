@@ -166,6 +166,8 @@ type Post = {
   createdAt: string
   boosts: number
   boostedByViewer: boolean
+  reposts: number
+  repostedByViewer: boolean
   commentsCount: number
   comments: PostComment[]
 }
@@ -561,6 +563,12 @@ function App() {
   const [authConfirmPassword, setAuthConfirmPassword] = useState('')
   const [authPasswordVisible, setAuthPasswordVisible] = useState(false)
   const [isAuthingPassword, setIsAuthingPassword] = useState(false)
+  // Transfer
+  const [transferOpen, setTransferOpen] = useState(false)
+  const [transferHandle, setTransferHandle] = useState('')
+  const [transferAmount, setTransferAmount] = useState('')
+  const [transferLoading, setTransferLoading] = useState(false)
+  const [transferResult, setTransferResult] = useState<{ok: boolean; name?: string; handle?: string; amount?: number; fee?: number; error?: string} | null>(null)
   const [newPostText, setNewPostText] = useState('')
   const [newPostImages, setNewPostImages] = useState<string[]>([])
   const [isCreatingPost, setIsCreatingPost] = useState(false)
@@ -1535,6 +1543,37 @@ function App() {
       setViewedProfile(current => current ? { ...current, posts: current.posts.filter(post => post.id !== postId) } : current)
     } catch (error) {
       showToast(error instanceof Error ? error.message : 'Ошибка удаления', 'error')
+    }
+  }
+
+  const repostPost = async (postId: string) => {
+    if (!viewer || !sessionToken) return
+    try {
+      const data = await apiRequest<{ post: Post; reposted: boolean }>(`/api/posts/${postId}/repost`, { method: 'POST' }, sessionToken)
+      setPosts(prev => prev.map(p => p.id === postId ? { ...p, ...data.post } : p))
+    } catch (error) {
+      showToast(error instanceof Error ? error.message : 'Ошибка', 'error')
+    }
+  }
+
+  const doTransfer = async (e: React.FormEvent) => {
+    e.preventDefault()
+    if (!sessionToken || !transferHandle.trim() || !transferAmount) return
+    setTransferLoading(true)
+    setTransferResult(null)
+    try {
+      const data = await apiRequest<{ok: boolean; sentAmount: number; fee: number; viewerPowers: number; recipientName: string; recipientHandle: string}>('/api/transfer', {
+        method: 'POST',
+        body: JSON.stringify({ toHandle: transferHandle.trim(), amount: Number(transferAmount) }),
+      }, sessionToken)
+      setViewer(prev => prev ? { ...prev, powers: data.viewerPowers } : prev)
+      setTransferResult({ ok: true, name: data.recipientName, handle: data.recipientHandle, amount: data.sentAmount, fee: data.fee })
+      setTransferHandle('')
+      setTransferAmount('')
+    } catch (err) {
+      setTransferResult({ ok: false, error: err instanceof Error ? err.message : 'Ошибка' })
+    } finally {
+      setTransferLoading(false)
     }
   }
 
@@ -2813,6 +2852,14 @@ function App() {
                           <MessageSquare size={16} />
                           <span>{post.commentsCount || post.comments.length}</span>
                         </button>
+                        <button
+                          className={`trends-repost-btn${post.repostedByViewer ? ' reposted' : ''}${post.authorId === viewer?.id ? ' disabled' : ''}`}
+                          onClick={() => post.authorId !== viewer?.id && void repostPost(post.id)}
+                          title={post.repostedByViewer ? 'Убрать репост' : 'Репостнуть'}
+                        >
+                          <RefreshCw size={15} />
+                          <span>{post.reposts || 0}</span>
+                        </button>
                         {isAdmin && (
                           <button className="post-admin-delete-btn" onClick={() => void adminDeletePost(post.id)}>
                             <Trash2 size={14} /> Удалить
@@ -3096,6 +3143,9 @@ function App() {
                         >
                           <MessageSquare size={16} /><span>{selectedOwnPost.commentsCount || selectedOwnPost.comments.length}</span>
                         </button>
+                        <button className="trends-repost-btn disabled" title="Свой пост">
+                          <RefreshCw size={15} /><span>{selectedOwnPost.reposts || 0}</span>
+                        </button>
                         {isAdmin && (
                           <button className="post-admin-delete-btn" onClick={() => { void adminDeletePost(selectedOwnPost.id); setSelectedOwnPost(null) }}>
                             <Trash2 size={14} />
@@ -3213,6 +3263,92 @@ function App() {
                       <div className="topup-note">
                         <span># Оплата скоро станет доступна. Следи за обновлениями!</span>
                       </div>
+                    </div>
+                  )}
+
+                  {/* O'tkazish — energy transfer */}
+                  <button className="transfer-cta-btn" onClick={() => { setTransferOpen(o => !o); setTransferResult(null) }}>
+                    <Send size={17} style={{transform: 'rotate(-45deg)'}} />
+                    {transferOpen ? "Yopish" : "O'tkazish ⚡"}
+                  </button>
+
+                  {transferOpen && (
+                    <div className="transfer-panel">
+                      {transferResult ? (
+                        transferResult.ok ? (
+                          <div className="transfer-success">
+                            <div className="transfer-success-anim">
+                              <div className="transfer-zap-ring" />
+                              <div className="transfer-zap-ring r2" />
+                              <div className="transfer-zap-ring r3" />
+                              <Zap size={36} className="transfer-zap-icon" />
+                            </div>
+                            <div className="transfer-success-text">
+                              <strong>Yuborildi!</strong>
+                              <p>{transferResult.amount} <Zap size={13}/> → {transferResult.name} <span className="transfer-handle">{transferResult.handle}</span></p>
+                              <small>Komissiya: {transferResult.fee} ⚡ yechildi</small>
+                            </div>
+                            <button className="transfer-again-btn" onClick={() => setTransferResult(null)}>Yana o'tkazish</button>
+                          </div>
+                        ) : (
+                          <div className="transfer-error">
+                            <div className="transfer-error-anim">
+                              <div className="transfer-error-cross">
+                                <span /><span />
+                              </div>
+                            </div>
+                            <p className="transfer-error-msg">{transferResult.error}</p>
+                            <button className="transfer-again-btn" onClick={() => setTransferResult(null)}>Qayta urinish</button>
+                          </div>
+                        )
+                      ) : (
+                        <form className="transfer-form" onSubmit={doTransfer}>
+                          <div className="transfer-form-header">
+                            <Zap size={18} className="transfer-header-icon" />
+                            <div>
+                              <strong>Energiya o'tkazish</strong>
+                              <small>Min: 10 ⚡ · Max: 500 ⚡ · Komissiya: 5%</small>
+                            </div>
+                          </div>
+                          <div className="transfer-conditions">
+                            <span>🕐 6 soatda bir marta</span>
+                            <span>📅 3 kun eski akkaunt</span>
+                            <span>🔒 5% komissiya yonadi</span>
+                          </div>
+                          <input
+                            className="transfer-input"
+                            value={transferHandle}
+                            onChange={e => setTransferHandle(e.target.value)}
+                            placeholder="@handle yoki #ID"
+                            required
+                          />
+                          <div className="transfer-amount-wrap">
+                            <input
+                              className="transfer-input transfer-amount"
+                              type="number"
+                              min={10}
+                              max={500}
+                              value={transferAmount}
+                              onChange={e => setTransferAmount(e.target.value)}
+                              placeholder="Miqdor (10–500)"
+                              required
+                            />
+                            {transferAmount && Number(transferAmount) >= 10 && (
+                              <div className="transfer-fee-hint">
+                                <span>Komissiya: {Math.max(1, Math.floor(Number(transferAmount) * 0.05))} ⚡</span>
+                                <span>Jami: {Number(transferAmount) + Math.max(1, Math.floor(Number(transferAmount) * 0.05))} ⚡</span>
+                              </div>
+                            )}
+                          </div>
+                          <button className="transfer-submit-btn" type="submit" disabled={transferLoading}>
+                            {transferLoading ? (
+                              <><RefreshCw size={16} className="spin" /> Yuborilmoqda...</>
+                            ) : (
+                              <><Send size={16} style={{transform:'rotate(-45deg)'}} /> Yuborish</>
+                            )}
+                          </button>
+                        </form>
+                      )}
                     </div>
                   )}
                 </article>
