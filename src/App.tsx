@@ -2205,7 +2205,7 @@ function App() {
                     </button>
                     {isAdmin && (
                       <button className={activeTab === 'admin' ? 'corner-menu-item active' : 'corner-menu-item'} onClick={() => switchTab('admin', closeMenu)}>
-                        <UserCog size={16} /> Adminlar
+                        <UserCog size={16} /> {t.tabAdmin}
                       </button>
                     )}
                     <div className="corner-menu-divider" />
