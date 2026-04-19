@@ -585,9 +585,6 @@ function App() {
   const [powerLog, setPowerLog] = useState<Transaction[]>([])
   const [txLoading, setTxLoading] = useState(false)
 
-  // Top-up modal
-  const [topUpOpen, setTopUpOpen] = useState(false)
-
   // Notifications panel
   const [notifOpen, setNotifOpen] = useState(false)
   const [notifications, setNotifications] = useState<NotificationItem[]>([])
@@ -648,6 +645,13 @@ function App() {
   type SessionInfo = { id: string; isCurrent: boolean; createdAt: string | null; userAgent: string }
   const [userSessions, setUserSessions] = useState<SessionInfo[]>([])
   const [sessionsLoading, setSessionsLoading] = useState(false)
+
+  // Support 24/7
+  const [supportOpen, setSupportOpen] = useState(false)
+  const [supportCategory, setSupportCategory] = useState('technical')
+  const [supportMessage, setSupportMessage] = useState('')
+  const [isSendingSupport, setIsSendingSupport] = useState(false)
+  const [supportSent, setSupportSent] = useState(false)
 
   // Animation state for page transitions
   const [pageExiting, setPageExiting] = useState(false)
@@ -1341,6 +1345,40 @@ function App() {
         ? prev.filter(u => u.id !== user.id)
         : [...prev, user]
     )
+  }
+
+  const submitSupport = async () => {
+    if (!supportMessage.trim() || !sessionToken) return
+    setIsSendingSupport(true)
+    const catLabels: Record<string, string> = {
+      technical: t.supportCatTech,
+      account: t.supportCatAccount,
+      payment: t.supportCatPayment,
+      other: t.supportCatOther,
+    }
+    const catLabel = catLabels[supportCategory] || supportCategory
+    const formattedMsg = `🎫 [${catLabel}]\n\n${supportMessage.trim()}`
+    try {
+      const data = await apiRequest<{ conversationId: string }>('/api/conversations', {
+        method: 'POST',
+        body: JSON.stringify({ recipientId: 'support' }),
+      }, sessionToken)
+      await apiRequest(`/api/conversations/${data.conversationId}/messages`, {
+        method: 'POST',
+        body: JSON.stringify({ text: formattedMsg }),
+      }, sessionToken)
+      setSupportSent(true)
+      setTimeout(() => {
+        setSupportOpen(false)
+        setSupportSent(false)
+        setSupportMessage('')
+        setSupportCategory('technical')
+      }, 2500)
+    } catch {
+      showToast(t.error, 'error')
+    } finally {
+      setIsSendingSupport(false)
+    }
   }
 
   // Admin search users
@@ -2164,6 +2202,24 @@ function App() {
           <>
             <div className={`corner-menu-backdrop${menuExiting ? ' menu-exiting' : ''}`} onClick={closeMenu} />
             <nav className={`corner-menu-dropdown${menuExiting ? ' menu-exiting' : ''}`}>
+              <div className="corner-menu-particles" aria-hidden="true">
+                {[...Array(12)].map((_, i) => (
+                  <div
+                    key={i}
+                    className="corner-menu-particle"
+                    style={{
+                      left: `${8 + (i * 8) % 84}%`,
+                      top: `${10 + (i * 17) % 80}%`,
+                      '--dur': `${6 + (i * 1.3) % 8}s`,
+                      '--delay': `${(i * 0.7) % 4}s`,
+                      '--tx': `${-15 + (i * 5) % 30}px`,
+                      '--ty': `${-20 + (i * 6) % 40}px`,
+                      width: i % 3 === 0 ? '3px' : '2px',
+                      height: i % 3 === 0 ? '3px' : '2px',
+                    } as React.CSSProperties}
+                  />
+                ))}
+              </div>
               <div className="corner-menu-header">
                 <div className="brand-mark">&gt;]</div>
                 <div>
@@ -2212,8 +2268,8 @@ function App() {
                     <button className="corner-menu-item muted-item" onClick={() => { closeMenu(); openReportForPost() }}>
                       <span className="menu-emoji bw">❗️</span> {t.shikoyat}
                     </button>
-                    <button className="corner-menu-item muted-item" onClick={() => { closeMenu(); void startConversation('support') }}>
-                      <span className="menu-emoji bw">😀</span> {t.support}
+                    <button className="corner-menu-item support-item" onClick={() => { closeMenu(); setSupportOpen(true) }}>
+                      <span className="menu-emoji">🛟</span> {t.support}
                     </button>
                     <div className="corner-menu-divider" />
                     <button className="corner-menu-item danger-item" onClick={() => { closeMenu(); void signOut() }}>
@@ -3258,48 +3314,6 @@ function App() {
                     <small>powers</small>
                   </div>
 
-                  <div className="economy-info-grid">
-                    <div className="economy-info-item">
-                      <Send size={16} />
-                      <div>
-                        <strong>−{siteSettings.messageCost}</strong>
-                        <span>{t.msgSendCost}</span>
-                      </div>
-                    </div>
-                    <div className="economy-info-item">
-                      <MessageCircle size={16} />
-                      <div>
-                        <strong>+{siteSettings.messageEarn}</strong>
-                        <span>{t.msgReceiveEarn}</span>
-                      </div>
-                    </div>
-                  </div>
-
-                  <button className="topup-cta-btn" onClick={() => setTopUpOpen(!topUpOpen)}>
-                    {topUpOpen ? <X size={18} /> : <Plus size={18} />}
-                    {topUpOpen ? t.transferClose : 'To\'ldirish'}
-                  </button>
-
-                  {topUpOpen && (
-                    <div className="topup-inline">
-                      <p className="topup-desc">{t.topupChoose}</p>
-                      <div className="topup-options-grid">
-                        {(siteSettings.topUpOptions || [10, 50, 100, 250, 500, 1000]).map(amount => (
-                          <button key={amount} className="topup-option-btn" onClick={() => {
-                            showToast(`${t.topupSoon} ${amount}`, 'info')
-                            setTopUpOpen(false)
-                          }}>
-                            <Zap size={16} />
-                            <span>{amount}</span>
-                          </button>
-                        ))}
-                      </div>
-                      <div className="topup-note">
-                        <span>{t.topupNote}</span>
-                      </div>
-                    </div>
-                  )}
-
                   {/* O'tkazish — energy transfer */}
                   <button className="transfer-cta-btn" onClick={() => { setTransferOpen(o => !o); setTransferResult(null) }}>
                     <Send size={17} style={{transform: 'rotate(-45deg)'}} />
@@ -3459,9 +3473,9 @@ function App() {
             {/* --- НАСТРОЙКИ --- */}
             {activeTab === 'settings' && viewer && (
               <section className="settings-screen page-transition">
-                <div className="settings-header">
+                  <div className="settings-header">
                   <Settings2 size={20} />
-                  <h2>Sozlamalar</h2>
+                  <h2>{t.settings}</h2>
                 </div>
 
                 {/* Сеанс */}
@@ -3585,11 +3599,6 @@ function App() {
                       <MapPin size={16} />
                       <div><strong>{t.showCity}</strong><span>{t.showCityDesc}</span></div>
                       <div className={viewer.preferences.showCity ? 'toggle-pill on' : 'toggle-pill'} />
-                    </button>
-                    <button className={viewer.preferences.neonProfile ? 'settings-toggle-item active' : 'settings-toggle-item'} onClick={() => void updatePreference('neonProfile', !viewer.preferences.neonProfile)}>
-                      <Sparkles size={16} />
-                      <div><strong>{t.neonProfile}</strong><span>{t.neonProfileDesc}</span></div>
-                      <div className={viewer.preferences.neonProfile ? 'toggle-pill on' : 'toggle-pill'} />
                     </button>
                   </div>
                 </article>
@@ -4529,9 +4538,9 @@ function App() {
                     <span className="cpf-handle">{viewedProfile.user.handle}</span>
                     {viewedProfile.user.tagline && <span className="cpf-tagline">{viewedProfile.user.tagline}</span>}
                     <div className="cpf-stats-row">
-                      <span><strong>{viewedProfile.user.postCount}</strong> постов</span>
-                      <span><strong>{viewedProfile.user.followerCount}</strong> подписчиков</span>
-                      <span><strong>{viewedProfile.user.followingCount}</strong> подписок</span>
+                      <span><strong>{viewedProfile.user.postCount}</strong> {t.profilePostsCount}</span>
+                      <span><strong>{viewedProfile.user.followerCount}</strong> {t.profileFollowersCount}</span>
+                      <span><strong>{viewedProfile.user.followingCount}</strong> {t.profileFollowingCount}</span>
                     </div>
                   </div>
                 </div>
@@ -4542,14 +4551,14 @@ function App() {
                 {viewer?.id !== viewedProfile.user.id && (
                   <div className="cpf-actions">
                     <button className="cpf-btn primary" onClick={() => void toggleFollowViewedProfile()} disabled={isProfileActionLoading}>
-                      <Users size={14} /> {isProfileActionLoading ? '...' : viewedProfile.isFollowing ? 'Otpisatsya' : 'Obunachi'}
+                      <Users size={14} /> {isProfileActionLoading ? '...' : viewedProfile.isFollowing ? t.profileUnfollow : t.profileFollow}
                     </button>
                     <button className="cpf-btn" onClick={() => {
                       setViewedProfile(null)
                       setActiveTab('chats')
                       void startConversation(viewedProfile.user.id)
                     }}>
-                      <MessageCircle size={14} /> Yozish
+                      <MessageCircle size={14} /> {t.profileMessage}
                     </button>
                     <button className="cpf-btn danger" onClick={() => openReportForPost()}>
                       <Ban size={14} />
@@ -4569,7 +4578,7 @@ function App() {
 
                 {profileViewTab === 'posts' && (
                   viewedProfile.posts.length === 0 ? (
-                    <div className="profile-posts-empty compact"><p>Hali post yo'q</p></div>
+                    <div className="profile-posts-empty compact"><p>{t.profileNoPosts}</p></div>
                   ) : (
                     <div className="profile-ig-grid cpf-posts-grid">
                       {viewedProfile.posts.map(post => {
@@ -4596,9 +4605,9 @@ function App() {
                 {profileViewTab === 'info' && (
                   <div className="cpf-info-grid">
                     {viewedProfile.user.city && <div className="cpf-info-row"><MapPin size={13}/><span>{viewedProfile.user.city}</span></div>}
-                    <div className="cpf-info-row"><Zap size={13}/><span>{viewedProfile.user.powers ?? 0} энергии</span></div>
-                    <div className="cpf-info-row"><Eye size={13}/><span>{viewedProfile.user.profileViews || 0} просмотров</span></div>
-                    <div className="cpf-info-row"><User size={13}/><span>С нами с {formatDate(viewedProfile.user.joinedAt)}</span></div>
+                    <div className="cpf-info-row"><Zap size={13}/><span>{viewedProfile.user.powers ?? 0} {t.profileEnergyInfo}</span></div>
+                    <div className="cpf-info-row"><Eye size={13}/><span>{viewedProfile.user.profileViews || 0} {t.profileViews}</span></div>
+                    <div className="cpf-info-row"><User size={13}/><span>{t.profileSince} {formatDate(viewedProfile.user.joinedAt)}</span></div>
                     {viewedProfile.user.bio && <div className="cpf-info-row bio"><span>{viewedProfile.user.bio}</span></div>}
                   </div>
                 )}
@@ -4609,21 +4618,27 @@ function App() {
       )}
 
       {reportProfileOpen && viewedProfile && (
-        <div className="compose-modal">
+        <div className="compose-modal report-modal-wrap">
           <div className="compose-modal-backdrop" onClick={() => setReportProfileOpen(false)} />
-          <div className="compose-modal-sheet report-modal-sheet">
-            <div className="sheet-head">
-              <h2>Жалоба</h2>
-              <p>{viewedProfile.user.name} {viewedProfile.user.handle}</p>
+          <div className="compose-modal-sheet report-modal-sheet report-modal-sheet--v2">
+            <div className="report-modal-header">
+              <div className="report-modal-icon-wrap">
+                <span className="report-modal-icon">⚠️</span>
+              </div>
+              <div>
+                <h2>{t.reportTitle}</h2>
+                <p className="report-modal-target">{viewedProfile.user.name} <span>{viewedProfile.user.handle}</span></p>
+              </div>
+              <button className="report-close-btn" onClick={() => setReportProfileOpen(false)}><X size={18} /></button>
             </div>
             {viewedProfile.posts.length > 0 && (
               <label className="input-block">
-                <span>На что жалоба</span>
-                <select value={reportPostId} onChange={(e) => setReportPostId(e.target.value)}>
-                  <option value="">На профиль целиком</option>
+                <span className="report-label">{t.reportTarget}</span>
+                <select className="report-select" value={reportPostId} onChange={(e) => setReportPostId(e.target.value)}>
+                  <option value="">{t.reportFullProfile}</option>
                   {viewedProfile.posts.map((post) => (
                     <option key={post.id} value={post.id}>
-                      {post.text.slice(0, 72) || 'Публикация без текста'}
+                      {post.text.slice(0, 72) || t.publication}
                     </option>
                   ))}
                 </select>
@@ -4631,36 +4646,136 @@ function App() {
             )}
             {reportPostId && (
               <div className="report-selected-post">
-                <strong>Выбрана публикация</strong>
-                <p>{viewedProfile.posts.find((post) => post.id === reportPostId)?.text || 'Публикация'}</p>
+                <strong>{t.reportSelected}</strong>
+                <p>{viewedProfile.posts.find((post) => post.id === reportPostId)?.text || t.publication}</p>
               </div>
             )}
-            <div className="report-reasons-grid">
-              {['Спам', 'Фейк', 'Оскорбления', '18+', 'Мошенничество', 'Своё'].map(reason => (
+            <div className="report-label" style={{marginBottom: '8px', fontSize: '12px', color: 'var(--muted)'}}>{t.reportTarget}</div>
+            <div className="report-reasons-grid-v2">
+              {[
+                { id: 'spam', icon: '📢', label: t.reportSpam },
+                { id: 'fake', icon: '🎭', label: t.reportFake },
+                { id: 'abuse', icon: '💢', label: t.reportAbuse },
+                { id: 'adult', icon: '🔞', label: t.reportAdult },
+                { id: 'fraud', icon: '🚫', label: t.reportFraud },
+                { id: 'custom', icon: '✍️', label: t.reportCustom },
+              ].map(r => (
                 <button
-                  key={reason}
-                  className={reportReason === reason ? 'report-reason-btn active' : 'report-reason-btn'}
-                  onClick={() => setReportReason(reason)}
+                  key={r.id}
+                  className={reportReason === r.label ? 'report-reason-btn-v2 active' : 'report-reason-btn-v2'}
+                  onClick={() => setReportReason(r.label)}
                 >
-                  {reason}
+                  <span className="report-reason-icon">{r.icon}</span>
+                  <span>{r.label}</span>
                 </button>
               ))}
             </div>
-            <label className="input-block">
-              <span>Комментарий</span>
+            <label className="input-block" style={{marginTop: '10px'}}>
+              <span className="report-label">{t.reportComment}</span>
               <textarea
+                className="report-textarea"
                 value={reportText}
                 onChange={(e) => setReportText(e.target.value)}
-                placeholder={reportReason === 'Своё' ? 'Опиши причину подробно' : 'Можно добавить детали'}
+                placeholder={reportReason === t.reportCustom ? t.reportDetailHint : t.reportDetailOptional}
                 maxLength={500}
+                rows={3}
               />
             </label>
             <div className="report-modal-actions">
               <button className="secondary-btn" onClick={() => setReportProfileOpen(false)}>{t.cancel}</button>
-              <button className="primary-btn" onClick={() => void submitProfileReport()} disabled={isSubmittingReport}>
-                <Send size={14} /> {isSubmittingReport ? '...' : 'Отправить'}
+              <button className="primary-btn report-send-btn" onClick={() => void submitProfileReport()} disabled={isSubmittingReport}>
+                <Send size={14} /> {isSubmittingReport ? '...' : t.reportSendBtn}
               </button>
             </div>
+          </div>
+        </div>
+      )}
+
+      {/* === SUPPORT 24/7 MODAL === */}
+      {supportOpen && (
+        <div className="support-modal-wrap">
+          <div className="support-modal-backdrop" onClick={() => { if (!isSendingSupport) { setSupportOpen(false); setSupportSent(false); setSupportMessage('') } }} />
+          <div className="support-modal-sheet">
+            {supportSent ? (
+              <div className="support-sent-state">
+                <div className="support-sent-anim">
+                  <div className="support-sent-ring" />
+                  <div className="support-sent-ring r2" />
+                  <span className="support-sent-icon">✓</span>
+                </div>
+                <h3>{t.supportSentTitle}</h3>
+                <p>{t.supportSentDesc}</p>
+                <button className="primary-btn" onClick={() => {
+                  setSupportOpen(false)
+                  setSupportSent(false)
+                  setSupportMessage('')
+                  setActiveTab('chats')
+                }}>
+                  {t.supportGoChat}
+                </button>
+              </div>
+            ) : (
+              <>
+                <div className="support-modal-header">
+                  <div className="support-modal-brand">
+                    <div className="support-brand-icon">🛟</div>
+                    <div>
+                      <h2>{t.supportTitle}</h2>
+                      <span className="support-online-badge"><span className="online-dot" />{t.supportSubtitle}</span>
+                    </div>
+                  </div>
+                  <button className="support-close-btn" onClick={() => { setSupportOpen(false); setSupportMessage('') }}><X size={20} /></button>
+                </div>
+
+                <div className="support-response-hint">
+                  <span className="support-clock">🕐</span>
+                  <span>{t.supportResponse}</span>
+                </div>
+
+                <div className="support-form-body">
+                  <label className="support-label">{t.supportCategory}</label>
+                  <div className="support-categories">
+                    {[
+                      { id: 'technical', icon: '⚙️', label: t.supportCatTech },
+                      { id: 'account', icon: '👤', label: t.supportCatAccount },
+                      { id: 'payment', icon: '💳', label: t.supportCatPayment },
+                      { id: 'other', icon: '💬', label: t.supportCatOther },
+                    ].map(cat => (
+                      <button
+                        key={cat.id}
+                        className={supportCategory === cat.id ? 'support-cat-btn active' : 'support-cat-btn'}
+                        onClick={() => setSupportCategory(cat.id)}
+                      >
+                        <span className="support-cat-icon">{cat.icon}</span>
+                        <span>{cat.label}</span>
+                      </button>
+                    ))}
+                  </div>
+
+                  <label className="support-label">{t.supportMessage}</label>
+                  <textarea
+                    className="support-textarea"
+                    value={supportMessage}
+                    onChange={e => setSupportMessage(e.target.value)}
+                    placeholder={t.supportMsgPlaceholder}
+                    rows={5}
+                    maxLength={2000}
+                  />
+                  <div className="support-char-counter">{supportMessage.length}/2000</div>
+                </div>
+
+                <div className="support-modal-actions">
+                  <button className="secondary-btn" onClick={() => { setSupportOpen(false); setSupportMessage('') }}>{t.supportCancel}</button>
+                  <button
+                    className="primary-btn support-send-btn"
+                    onClick={() => void submitSupport()}
+                    disabled={isSendingSupport || !supportMessage.trim()}
+                  >
+                    {isSendingSupport ? <><RefreshCw size={14} className="spin" /> ...</> : <><Send size={14} /> {t.supportSend}</>}
+                  </button>
+                </div>
+              </>
+            )}
           </div>
         </div>
       )}
