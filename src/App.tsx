@@ -14,6 +14,8 @@ import {
   EyeOff,
   Flame,
   Hash,
+  LayoutGrid,
+  List,
   LogOut,
   Mail,
   MapPin,
@@ -550,6 +552,8 @@ function App() {
   // Trends / Posts state
   const [posts, setPosts] = useState<Post[]>([])
   const [trendsSort, setTrendsSort] = useState<'top' | 'new'>('top')
+  const [trendsView, setTrendsView] = useState<'grid' | 'feed'>('grid')
+  const [gridSelectedPost, setGridSelectedPost] = useState<Post | null>(null)
   const [newPostText, setNewPostText] = useState('')
   const [newPostImages, setNewPostImages] = useState<string[]>([])
   const [isCreatingPost, setIsCreatingPost] = useState(false)
@@ -2433,19 +2437,29 @@ function App() {
                     <Flame size={20} className="trends-header-icon" />
                     <h2>Global</h2>
                   </div>
-                  <div className="trends-sort-tabs">
-                    <button
-                      className={trendsSort === 'top' ? 'trends-sort-btn active' : 'trends-sort-btn'}
-                      onClick={() => setTrendsSort('top')}
-                    >
-                      <TrendingUp size={14} /> Топ
-                    </button>
-                    <button
-                      className={trendsSort === 'new' ? 'trends-sort-btn active' : 'trends-sort-btn'}
-                      onClick={() => setTrendsSort('new')}
-                    >
-                      <Zap size={14} /> Новые
-                    </button>
+                  <div style={{display:'flex', gap:'8px', alignItems:'center'}}>
+                    <div className="trends-sort-tabs">
+                      <button
+                        className={trendsSort === 'top' ? 'trends-sort-btn active' : 'trends-sort-btn'}
+                        onClick={() => setTrendsSort('top')}
+                      >
+                        <TrendingUp size={14} /> Топ
+                      </button>
+                      <button
+                        className={trendsSort === 'new' ? 'trends-sort-btn active' : 'trends-sort-btn'}
+                        onClick={() => setTrendsSort('new')}
+                      >
+                        <Zap size={14} /> Новые
+                      </button>
+                    </div>
+                    <div className="trends-view-toggle">
+                      <button className={trendsView === 'grid' ? 'trends-view-btn active' : 'trends-view-btn'} onClick={() => setTrendsView('grid')}>
+                        <LayoutGrid size={15} />
+                      </button>
+                      <button className={trendsView === 'feed' ? 'trends-view-btn active' : 'trends-view-btn'} onClick={() => setTrendsView('feed')}>
+                        <List size={15} />
+                      </button>
+                    </div>
                   </div>
                 </div>
 
@@ -2500,6 +2514,114 @@ function App() {
                 </div>
 
                 {/* Feed */}
+                {trendsView === 'grid' ? (
+                  <>
+                    {/* Instagram-style grid */}
+                    {sortedPosts.length === 0 && (
+                      <div className="trends-empty">
+                        <Flame size={40} />
+                        <p>Лента пуста</p>
+                        <span>Будь первым — опубликуй пост!</span>
+                      </div>
+                    )}
+                    <div className="trends-grid">
+                      {sortedPosts.map((post, idx) => {
+                        const thumb = post.imageUrls?.[0] || post.imageUrl || null
+                        return (
+                          <button key={post.id} className="trends-grid-cell" onClick={() => setGridSelectedPost(post)}>
+                            {thumb ? (
+                              <img src={thumb} alt="" className="trends-grid-img" />
+                            ) : (
+                              <div className="trends-grid-text-tile">
+                                <p>{post.text.slice(0, 80)}</p>
+                              </div>
+                            )}
+                            {trendsSort === 'top' && idx < 3 && (
+                              <span className="trends-grid-rank">#{idx + 1}</span>
+                            )}
+                            <div className="trends-grid-overlay">
+                              <Zap size={12} /> <span>{post.boosts}</span>
+                              <MessageSquare size={12} style={{marginLeft: '8px'}} /> <span>{post.commentsCount || post.comments.length}</span>
+                            </div>
+                          </button>
+                        )
+                      })}
+                    </div>
+
+                    {/* Post modal */}
+                    {gridSelectedPost && (
+                      <div className="trends-post-modal-backdrop" onClick={() => setGridSelectedPost(null)}>
+                        <div className="trends-post-modal" onClick={e => e.stopPropagation()}>
+                          <button className="trends-post-modal-close" onClick={() => setGridSelectedPost(null)}><X size={18} /></button>
+                          <div className="trends-post-modal-header">
+                            <div className="trends-post-avatar">
+                              {gridSelectedPost.authorAvatarUrl
+                                ? <img src={gridSelectedPost.authorAvatarUrl} alt="" />
+                                : <span>{gridSelectedPost.authorName[0]}</span>}
+                            </div>
+                            <div className="trends-post-meta">
+                              <strong className="clickable-author" onClick={() => { setGridSelectedPost(null); void openUserProfile(gridSelectedPost.authorId) }}>{gridSelectedPost.authorName}</strong>
+                              <span>{gridSelectedPost.authorHandle}</span>
+                            </div>
+                            <small className="trends-post-time">{formatRelativeTime(gridSelectedPost.createdAt)}</small>
+                          </div>
+                          {(gridSelectedPost.imageUrls?.length || gridSelectedPost.imageUrl) && (
+                            <div className={`trends-post-image-wrap${(gridSelectedPost.imageUrls?.length || 0) > 1 ? ' multi' : ''}`}>
+                              {(gridSelectedPost.imageUrls?.length ? gridSelectedPost.imageUrls : [gridSelectedPost.imageUrl]).filter(Boolean).map((img, i) => (
+                                <img key={i} src={img!} alt="" className="trends-post-image" onClick={() => openImageLightbox((gridSelectedPost.imageUrls?.length ? gridSelectedPost.imageUrls : [gridSelectedPost.imageUrl]).filter(Boolean) as string[], i)} />
+                              ))}
+                            </div>
+                          )}
+                          <p className="trends-post-modal-text">{gridSelectedPost.text}</p>
+                          <div className="trends-post-actions">
+                            <div className="boost-btn-wrap">
+                              <button
+                                className={`trends-boost-btn${gridSelectedPost.boostedByViewer ? ' boosted' : ''}`}
+                                onClick={() => { void boostPost(gridSelectedPost.id); setGridSelectedPost(prev => prev ? {...prev, boostedByViewer: !prev.boostedByViewer, boosts: prev.boosts + (prev.boostedByViewer ? -1 : 1)} : null) }}
+                              >
+                                <Zap size={16} />
+                                <span>{gridSelectedPost.boosts}</span>
+                              </button>
+                            </div>
+                            <button
+                              className={expandedPostComments.has(gridSelectedPost.id) ? 'trends-comment-toggle active' : 'trends-comment-toggle'}
+                              onClick={() => togglePostComments(gridSelectedPost.id)}
+                            >
+                              <MessageSquare size={16} />
+                              <span>{gridSelectedPost.commentsCount || gridSelectedPost.comments.length}</span>
+                            </button>
+                          </div>
+                          {expandedPostComments.has(gridSelectedPost.id) && (
+                            <div className="trends-comments-section">
+                              {gridSelectedPost.comments.map(cmt => (
+                                <div key={cmt.id} className="trends-comment-item">
+                                  <div className="trends-comment-author">
+                                    <strong>{cmt.authorName}</strong>
+                                    <span>{cmt.authorHandle}</span>
+                                    <small>{formatRelativeTime(cmt.createdAt)}</small>
+                                  </div>
+                                  <p>{cmt.text}</p>
+                                </div>
+                              ))}
+                              <div className="trends-comment-input-row">
+                                <input
+                                  value={commentTexts[gridSelectedPost.id] || ''}
+                                  onChange={e => setCommentTexts(prev => ({...prev, [gridSelectedPost.id]: e.target.value}))}
+                                  placeholder="Оставить комментарий..."
+                                  maxLength={300}
+                                  onKeyDown={e => { if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); void addComment(gridSelectedPost.id) } }}
+                                />
+                                <button className="trends-send-comment-btn" onClick={() => void addComment(gridSelectedPost.id)} disabled={!commentTexts[gridSelectedPost.id]?.trim()}>
+                                  <Send size={14} />
+                                </button>
+                              </div>
+                            </div>
+                          )}
+                        </div>
+                      </div>
+                    )}
+                  </>
+                ) : (
                 <div className="trends-feed">
                   {sortedPosts.length === 0 && (
                     <div className="trends-empty">
@@ -2615,6 +2737,7 @@ function App() {
                     </article>
                   ))}
                 </div>
+                )} {/* end trendsView feed */}
               </section>
             )}
 
