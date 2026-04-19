@@ -787,10 +787,11 @@ function getUserPosts(state, userId, viewer) {
 function notifyAdminsAboutReport(state, report, reporter, target) {
   const admins = state.users.filter(user => user.role === 'admin' && user.id !== reporter.id)
   for (const admin of admins) {
-    sendSystemNotification(
+    sendBilingualNotification(
       state,
       admin.id,
-      `Новая жалоба на ${target.name} (${target.handle}). Категория: ${report.category}. От: ${reporter.name}.`
+      `◻ Yangi shikoyat\n\n◻ Kimga: ${target.name} (${target.handle})\n◻ Kategoriya: ${report.category}\n◻ Kimdan: ${reporter.name}\n◻ Muhimlik: ${report.priority || 'medium'}`,
+      `◻ Новая жалоба\n\n◻ На кого: ${target.name} (${target.handle})\n◻ Категория: ${report.category}\n◻ От: ${reporter.name}\n◻ Приоритет: ${report.priority || 'medium'}`
     )
   }
 }
@@ -820,6 +821,18 @@ function sendSystemNotification(state, userId, text) {
     message: { id: msg.id, text: msg.text, senderId: regellikId, senderName: 'Regellik', createdAt: msg.createdAt },
     conversations: getConversationsForUser(state, userId),
   })
+}
+
+/** Get user preferred language */
+function getUserLang(user) {
+  return user?.lang === 'ru' ? 'ru' : 'uz'
+}
+
+/** Send bilingual system notification (picks user lang) */
+function sendBilingualNotification(state, userId, uzText, ruText) {
+  const user = state.users.find(u => u.id === userId)
+  const lang = getUserLang(user)
+  sendSystemNotification(state, userId, lang === 'ru' ? ruText : uzText)
 }
 
 function publicUser(user, state = readState()) {
@@ -1076,6 +1089,12 @@ app.get('/api/bootstrap', (request, response) => {
   const state = readState()
   const token = String(request.query.token || '')
   const viewer = token ? resolveSession(state, token) : null
+  // Sync user language preference
+  const langParam = String(request.query.lang || '').trim()
+  if (viewer && (langParam === 'ru' || langParam === 'uz') && viewer.lang !== langParam) {
+    viewer.lang = langParam
+    saveState(state)
+  }
   response.json(bootstrapPayload(state, viewer))
 })
 
@@ -1792,7 +1811,10 @@ app.post('/api/messages/send', (request, response) => {
   viewer.stats.sent += 1
   recipient.stats.received += 1
   pushAudit(state, 'message.sent', viewer.id, recipient.id, 'Отправлена анонимка.')
-  sendSystemNotification(state, recipient.id, 'Вам пришла новая анонимная открытка! Проверьте входящие.')
+  sendBilingualNotification(state, recipient.id,
+    '◻ Sizga yangi anonim otkritka keldi! Kiruvchilarni tekshiring.',
+    '◻ Вам пришла новая анонимная открытка! Проверьте входящие.'
+  )
   saveState(state)
   response.json(bootstrapPayload(state, viewer))
 })
@@ -1876,10 +1898,16 @@ app.post('/api/admin/users/update', (request, response) => {
     const added = target.badges.filter(b => !oldBadges.includes(b))
     const removed = oldBadges.filter(b => !target.badges.includes(b))
     if (added.length) {
-      sendSystemNotification(state, target.id, `Yangi prefiks berildi: ${added.join(', ')}. Uni sharaf bilan kiy!`)
+      sendBilingualNotification(state, target.id,
+        `◻ Yangi prefiks berildi: ${added.join(', ')}\n◻ Admin: ${viewer.name}\n\nUni sharaf bilan taqing!`,
+        `◻ Новый префикс: ${added.join(', ')}\n◻ Администратор: ${viewer.name}\n\nНосите с гордостью!`
+      )
     }
     if (removed.length) {
-      sendSystemNotification(state, target.id, `◌ Префикс ${removed.join(', ')} был отозван администратором.`)
+      sendBilingualNotification(state, target.id,
+        `◻ Prefiks olib tashlandi: ${removed.join(', ')}\n◻ Admin: ${viewer.name}`,
+        `◻ Префикс отозван: ${removed.join(', ')}\n◻ Администратор: ${viewer.name}`
+      )
     }
   }
   if (payload.preferences && typeof payload.preferences === 'object') {
@@ -1895,24 +1923,28 @@ app.post('/api/admin/users/update', (request, response) => {
 
   pushAudit(state, 'admin.user.update', viewer.id, target.id, `Обновлён пользователь ${target.handle}.`)
 
-  // Build detailed notification
-  const changes = []
-  if (payload.name) changes.push(`имя → ${target.name}`)
-  if (payload.handle) changes.push(`хэндл → @${target.handle}`)
-  if ('powers' in payload) changes.push(`энергия → ${target.powers}`)
-  if (payload.city !== undefined) changes.push(`город → ${target.city || '—'}`)
-  if (payload.country !== undefined) changes.push(`страна → ${target.country || '—'}`)
-  if (payload.role) changes.push(`роль → ${target.role}`)
-  if (payload.status) changes.push(`статус → ${target.status}`)
-  if ('isVisible' in payload) changes.push(`видимость → ${target.isVisible ? 'вкл' : 'выкл'}`)
-  if (typeof payload.bio === 'string') changes.push('био обновлено')
-  if (typeof payload.tagline === 'string') changes.push('тэглайн обновлён')
-  if (payload.preferences) changes.push('настройки обновлены')
+  // Build detailed notification (bilingual)
+  const changesRu = []
+  const changesUz = []
+  if (payload.name) { changesRu.push(`имя → ${target.name}`); changesUz.push(`ism → ${target.name}`) }
+  if (payload.handle) { changesRu.push(`хэндл → @${target.handle}`); changesUz.push(`handle → @${target.handle}`) }
+  if ('powers' in payload) { changesRu.push(`энергия → ${target.powers}`); changesUz.push(`energiya → ${target.powers}`) }
+  if (payload.city !== undefined) { changesRu.push(`город → ${target.city || '—'}`); changesUz.push(`shahar → ${target.city || '—'}`) }
+  if (payload.country !== undefined) { changesRu.push(`страна → ${target.country || '—'}`); changesUz.push(`davlat → ${target.country || '—'}`) }
+  if (payload.role) { changesRu.push(`роль → ${target.role}`); changesUz.push(`rol → ${target.role}`) }
+  if (payload.status) { changesRu.push(`статус → ${target.status}`); changesUz.push(`status → ${target.status}`) }
+  if ('isVisible' in payload) { changesRu.push(`видимость → ${target.isVisible ? 'вкл' : 'выкл'}`); changesUz.push(`ko'rinish → ${target.isVisible ? 'yoq' : 'o\'ch'}`) }
+  if (typeof payload.bio === 'string') { changesRu.push('био обновлено'); changesUz.push('bio yangilandi') }
+  if (typeof payload.tagline === 'string') { changesRu.push('тэглайн обновлён'); changesUz.push('tagline yangilandi') }
+  if (payload.preferences) { changesRu.push('настройки обновлены'); changesUz.push('sozlamalar yangilandi') }
 
-  const detailText = changes.length > 0
-    ? `Администратор ${viewer.name} (@${viewer.handle}) обновил ваш профиль: ${changes.join(', ')}.`
-    : `Ваш профиль был обновлён администратором ${viewer.name} (@${viewer.handle}).`
-  sendSystemNotification(state, target.id, detailText)
+  const ruText = changesRu.length > 0
+    ? `◻ Профиль обновлён\n◻ Администратор: ${viewer.name}\n\n${changesRu.map(c => '◻ ' + c).join('\n')}`
+    : `◻ Ваш профиль был обновлён\n◻ Администратор: ${viewer.name}`
+  const uzText = changesUz.length > 0
+    ? `◻ Profil yangilandi\n◻ Admin: ${viewer.name}\n\n${changesUz.map(c => '◻ ' + c).join('\n')}`
+    : `◻ Profilingiz yangilandi\n◻ Admin: ${viewer.name}`
+  sendBilingualNotification(state, target.id, uzText, ruText)
   saveState(state)
   response.json(bootstrapPayload(state, viewer))
 })
@@ -1944,7 +1976,10 @@ app.post('/api/admin/grant', (request, response) => {
     target.badges.unshift('ADMIN')
   }
   pushAudit(state, 'admin.role.grant', viewer.id, target.id, `Выданы права admin пользователю ${target.handle}.`)
-  sendSystemNotification(state, target.id, 'Вам выданы права администратора!')
+  sendBilingualNotification(state, target.id,
+    `◻ Sizga administrator huquqlari berildi!\n◻ Admin: ${viewer.name}`,
+    `◻ Вам выданы права администратора!\n◻ Администратор: ${viewer.name}`
+  )
   saveState(state)
   response.json(bootstrapPayload(state, viewer))
 })
@@ -1983,10 +2018,15 @@ app.post('/api/admin/ban', (request, response) => {
   }
 
   const durationText = until ? `на ${duration} мин` : 'навсегда'
+  const durationTextUz = until ? `${duration} min ga` : 'doimiy'
   pushAudit(state, `admin.ban.${banType}`, viewer.id, target.id, `${banType === 'global' ? 'Глобальный бан' : 'Бан чата'} ${target.handle} ${durationText}. Причина: ${target.ban.reason}`)
-  sendSystemNotification(state, target.id, banType === 'global'
-    ? `Ваш аккаунт заблокирован ${durationText}.\nПричина: ${target.ban.reason}`
-    : `Чат заблокирован ${durationText}.\nПричина: ${target.ban.reason}`
+  sendBilingualNotification(state, target.id,
+    banType === 'global'
+      ? `◻ Akkauntingiz bloklandi ${durationTextUz}\n◻ Sabab: ${target.ban.reason}\n◻ Admin: ${viewer.name}`
+      : `◻ Chat bloklandi ${durationTextUz}\n◻ Sabab: ${target.ban.reason}\n◻ Admin: ${viewer.name}`,
+    banType === 'global'
+      ? `◻ Ваш аккаунт заблокирован ${durationText}\n◻ Причина: ${target.ban.reason}\n◻ Администратор: ${viewer.name}`
+      : `◻ Чат заблокирован ${durationText}\n◻ Причина: ${target.ban.reason}\n◻ Администратор: ${viewer.name}`
   )
   saveState(state)
   response.json(bootstrapPayload(state, viewer))
@@ -2008,7 +2048,10 @@ app.post('/api/admin/unban', (request, response) => {
   const hadBan = target.ban
   target.ban = null
   pushAudit(state, 'admin.unban', viewer.id, target.id, `Разбан ${target.handle}${hadBan ? ` (был: ${hadBan.type})` : ''}.`)
-  sendSystemNotification(state, target.id, 'Ваш аккаунт разблокирован. Добро пожаловать обратно!')
+  sendBilingualNotification(state, target.id,
+    `◻ Akkauntingiz blokdan chiqarildi\n◻ Admin: ${viewer.name}\n\nXush kelibsiz qaytib!`,
+    `◻ Ваш аккаунт разблокирован\n◻ Администратор: ${viewer.name}\n\nДобро пожаловать обратно!`
+  )
   saveState(state)
   response.json(bootstrapPayload(state, viewer))
 })
@@ -2030,11 +2073,17 @@ app.post('/api/admin/freeze', (request, response) => {
     target.status = 'suspended'
     state.sessions = state.sessions.filter(s => s.userId !== target.id)
     pushAudit(state, 'admin.freeze', viewer.id, target.id, `Заморозка аккаунта ${target.handle}.`)
-    sendSystemNotification(state, target.id, 'Ваш аккаунт временно заморожен администрацией.')
+    sendBilingualNotification(state, target.id,
+      `◻ Akkauntingiz vaqtincha muzlatildi\n◻ Admin: ${viewer.name}`,
+      `◻ Ваш аккаунт временно заморожен\n◻ Администратор: ${viewer.name}`
+    )
   } else {
     target.status = 'active'
     pushAudit(state, 'admin.unfreeze', viewer.id, target.id, `Разморозка аккаунта ${target.handle}.`)
-    sendSystemNotification(state, target.id, 'Ваш аккаунт разморожен. Добро пожаловать обратно!')
+    sendBilingualNotification(state, target.id,
+      `◻ Akkauntingiz muzlatishdan chiqarildi\n◻ Admin: ${viewer.name}\n\nXush kelibsiz qaytib!`,
+      `◻ Ваш аккаунт разморожен\n◻ Администратор: ${viewer.name}\n\nДобро пожаловать обратно!`
+    )
   }
 
   saveState(state)
@@ -2102,9 +2151,13 @@ app.post('/api/admin/topup', (request, response) => {
   pushPowerLog(target, numAmount > 0 ? 'topup' : 'deduct', numAmount, reason || (numAmount > 0 ? 'Пополнение от администратора' : 'Списание администратором'))
 
   pushAudit(state, numAmount > 0 ? 'admin.topup' : 'admin.deduct', viewer.id, target.id, `${numAmount > 0 ? '+' : ''}${numAmount}⚡ пользователю ${target.handle} (было ${oldPowers}, стало ${target.powers}). ${reason ? 'Причина: ' + reason : ''}`)
-  sendSystemNotification(state, target.id, numAmount > 0
-    ? `Ваш баланс пополнен на ${numAmount}⚡\nТекущий баланс: ${target.powers}⚡${reason ? '\nПричина: ' + reason : ''}`
-    : `С вашего баланса списано ${Math.abs(numAmount)}⚡\nТекущий баланс: ${target.powers}⚡${reason ? '\nПричина: ' + reason : ''}`
+  sendBilingualNotification(state, target.id,
+    numAmount > 0
+      ? `◻ Balansingiz to'ldirildi: +${numAmount}⚡\n◻ Joriy balans: ${target.powers}⚡\n◻ Admin: ${viewer.name}${reason ? '\n◻ Sabab: ' + reason : ''}`
+      : `◻ Balansingizdan yechildi: ${Math.abs(numAmount)}⚡\n◻ Joriy balans: ${target.powers}⚡\n◻ Admin: ${viewer.name}${reason ? '\n◻ Sabab: ' + reason : ''}`,
+    numAmount > 0
+      ? `◻ Ваш баланс пополнен: +${numAmount}⚡\n◻ Текущий баланс: ${target.powers}⚡\n◻ Администратор: ${viewer.name}${reason ? '\n◻ Причина: ' + reason : ''}`
+      : `◻ С баланса списано: ${Math.abs(numAmount)}⚡\n◻ Текущий баланс: ${target.powers}⚡\n◻ Администратор: ${viewer.name}${reason ? '\n◻ Причина: ' + reason : ''}`
   )
   saveState(state)
   response.json(bootstrapPayload(state, viewer))
@@ -2263,7 +2316,10 @@ app.post('/api/users/:userId/follow', (request, response) => {
     })
     isFollowing = true
     pushAudit(state, 'follow.create', viewer.id, target.id, `${viewer.handle} подписался на ${target.handle}.`)
-    sendSystemNotification(state, target.id, `${viewer.name} (${viewer.handle}) подписался на ваш профиль.`)
+    sendBilingualNotification(state, target.id,
+      `◻ ${viewer.name} (@${viewer.handle}) profilingizga obuna bo'ldi`,
+      `◻ ${viewer.name} (@${viewer.handle}) подписался на ваш профиль`
+    )
   }
 
   if (!shouldFollow && existingIndex !== -1) {
@@ -2328,6 +2384,8 @@ app.post('/api/users/:userId/report', (request, response) => {
     postPreview: reportedPost ? String(reportedPost.text || '').slice(0, 180) : null,
     category: category || 'Другое',
     text,
+    priority: String(request.body?.priority || 'medium').slice(0, 20),
+    contact: String(request.body?.contact || '').trim().slice(0, 100) || null,
     status: 'open',
     createdAt: new Date().toISOString(),
     updatedAt: new Date().toISOString(),
@@ -2360,9 +2418,110 @@ app.post('/api/admin/reports/:reportId/status', (request, response) => {
 
   report.status = status
   report.updatedAt = new Date().toISOString()
+  report.resolvedBy = viewer.id
+  report.resolvedByName = viewer.name
   pushAudit(state, `report.${status}`, viewer.id, report.targetUserId, `Жалоба ${report.id} переведена в статус ${status}.`)
+  // Notify reporter about resolution
+  if (status === 'resolved' || status === 'dismissed') {
+    const statusLabelRu = status === 'resolved' ? 'решена' : 'отклонена'
+    const statusLabelUz = status === 'resolved' ? 'hal qilindi' : 'rad etildi'
+    sendBilingualNotification(state, report.reporterId,
+      `◻ Sizning shikoyatingiz ${statusLabelUz}\n◻ Kimga: ${report.targetUserName}\n◻ Admin: ${viewer.name}`,
+      `◻ Ваша жалоба ${statusLabelRu}\n◻ На кого: ${report.targetUserName}\n◻ Администратор: ${viewer.name}`
+    )
+  }
   saveState(state)
   response.json({ ok: true, reports: adminData(state).reports })
+})
+
+// Admin: list all support tickets (system conversations with messages containing 🎫)
+app.get('/api/admin/support', (request, response) => {
+  const state = readState()
+  const viewer = requireAdmin(request, response, state)
+  if (!viewer) return
+
+  const regellikId = 'seed-regellik'
+  const tickets = []
+
+  // Find all system conversations
+  const systemConvos = state.conversations.filter(c => c.isSystem && c.participants.includes(regellikId))
+  for (const convo of systemConvos) {
+    const userId = convo.participants.find(p => p !== regellikId)
+    const user = state.users.find(u => u.id === userId)
+    if (!user) continue
+
+    const messages = state.chatMessages
+      .filter(m => m.conversationId === convo.id)
+      .sort((a, b) => a.createdAt.localeCompare(b.createdAt))
+
+    // Only include conversations that have a support ticket message (🎫)
+    const supportMsg = messages.find(m => m.text && m.text.includes('🎫'))
+    if (!supportMsg) continue
+
+    tickets.push({
+      conversationId: convo.id,
+      userId: user.id,
+      userName: user.name,
+      userHandle: user.handle,
+      userAvatar: user.avatarUrl,
+      createdAt: supportMsg.createdAt,
+      lastMessageAt: messages[messages.length - 1]?.createdAt || convo.createdAt,
+      messages: messages.slice(-30).map(m => ({
+        id: m.id,
+        senderId: m.senderId,
+        text: m.text,
+        createdAt: m.createdAt,
+      })),
+    })
+  }
+
+  tickets.sort((a, b) => b.lastMessageAt.localeCompare(a.lastMessageAt))
+  response.json({ tickets: tickets.slice(0, 50) })
+})
+
+// Admin: reply to support ticket
+app.post('/api/admin/support/:conversationId/reply', (request, response) => {
+  const state = readState()
+  const viewer = requireAdmin(request, response, state)
+  if (!viewer) return
+
+  const convo = state.conversations.find(c => c.id === request.params.conversationId && c.isSystem)
+  if (!convo) {
+    response.status(404).json({ error: 'Тикет не найден' })
+    return
+  }
+
+  const text = String(request.body?.text || '').trim().slice(0, 2000)
+  if (!text) {
+    response.status(400).json({ error: 'Текст ответа обязателен' })
+    return
+  }
+
+  const regellikId = 'seed-regellik'
+  const userId = convo.participants.find(p => p !== regellikId)
+  const replyText = `◻ ${viewer.name} (Поддержка):\n${text}`
+
+  const msg = {
+    id: createToken(),
+    conversationId: convo.id,
+    senderId: regellikId,
+    text: replyText,
+    createdAt: new Date().toISOString(),
+  }
+  state.chatMessages.push(msg)
+
+  if (userId) {
+    sendToUser(userId, {
+      type: 'new_message',
+      conversationId: convo.id,
+      message: { id: msg.id, text: replyText, senderId: regellikId, senderName: 'Regellik', createdAt: msg.createdAt },
+      conversations: getConversationsForUser(state, userId),
+    })
+  }
+
+  pushAudit(state, 'admin.support.reply', viewer.id, userId, `Ответ на тикет поддержки.`)
+  saveState(state)
+  response.json({ ok: true })
 })
 
 app.post('/api/session/logout', (request, response) => {
@@ -2505,12 +2664,35 @@ app.post('/api/conversations', (request, response) => {
     }
   }
 
-  const { recipientId } = request.body || {}
-  if (!recipientId) {
+  const { recipientId: rawRecipientId } = request.body || {}
+  if (!rawRecipientId) {
     response.status(400).json({ error: 'Укажи получателя' })
     return
   }
 
+  // Support ticket — route to system Regellik conversation
+  if (rawRecipientId === 'support') {
+    const regellikId = 'seed-regellik'
+    const existing = state.conversations.find(c =>
+      c.isSystem && c.participants.includes(viewer.id) && c.participants.includes(regellikId)
+    )
+    if (existing) {
+      response.json({ conversationId: existing.id })
+      return
+    }
+    const convoId = createToken()
+    state.conversations.push({
+      id: convoId,
+      participants: [regellikId, viewer.id],
+      isSystem: true,
+      createdAt: new Date().toISOString(),
+    })
+    saveState(state)
+    response.json({ conversationId: convoId })
+    return
+  }
+
+  const recipientId = rawRecipientId
   const recipient = state.users.find(u => u.id === recipientId)
   if (!recipient || recipient.status !== 'active') {
     response.status(404).json({ error: 'Пользователь не найден' })
@@ -2539,7 +2721,10 @@ app.post('/api/conversations', (request, response) => {
     isSystem: false,
     createdAt: new Date().toISOString(),
   })
-  sendSystemNotification(state, recipientId, `${viewer.name} (@${viewer.handle}) начал с вами чат.`)
+  sendBilingualNotification(state, recipientId,
+    `◻ ${viewer.name} (@${viewer.handle}) siz bilan chat boshladi`,
+    `◻ ${viewer.name} (@${viewer.handle}) начал с вами чат`
+  )
   saveState(state)
   response.json({ conversationId: convoId })
 })
@@ -2909,7 +3094,10 @@ app.post('/api/transfer', (request, response) => {
   recipient.powerLog.unshift({ type: 'transfer_in', amount: amt, balanceAfter: recipient.powers, label: `Qabul ← ${viewer.handle}`, createdAt: now })
 
   pushAudit(state, 'energy.transfer', viewer.id, recipient.id, `${viewer.handle} → ${recipient.handle}: ${amt} ⚡ (fee ${fee})`)
-  sendSystemNotification(state, recipient.id, `Siz ${viewer.handle} dan ${amt} ⚡ qabul qildingiz!`)
+  sendBilingualNotification(state, recipient.id,
+    `◻ Siz ${viewer.name} (@${viewer.handle}) dan ${amt}⚡ qabul qildingiz!\n◻ Joriy balans: ${recipient.powers}⚡`,
+    `◻ Вы получили ${amt}⚡ от ${viewer.name} (@${viewer.handle})\n◻ Текущий баланс: ${recipient.powers}⚡`
+  )
   saveState(state)
 
   response.json({

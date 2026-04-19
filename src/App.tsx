@@ -7,6 +7,7 @@ import {
   Ban,
   Bell,
   Camera,
+  ChevronDown,
   Copy,
   Dices,
   DollarSign,
@@ -237,7 +238,11 @@ type UserReport = {
   postPreview?: string | null
   category: string
   text: string
+  priority?: string
+  contact?: string | null
   status: ReportStatus
+  resolvedBy?: string
+  resolvedByName?: string
   createdAt: string
   updatedAt: string
   relatedPosts?: Post[]
@@ -609,12 +614,29 @@ function App() {
   const [adminConfirmAction, setAdminConfirmAction] = useState<{ label: string; action: () => void } | null>(null)
 
   // Admin section navigation
-  type AdminSectionId = 'none' | 'economy' | 'site' | 'roles' | 'topup' | 'users' | 'bans' | 'audit' | 'broadcast' | 'badges' | 'reports'
+  type AdminSectionId = 'none' | 'economy' | 'site' | 'roles' | 'topup' | 'users' | 'bans' | 'audit' | 'broadcast' | 'badges' | 'reports' | 'support'
   const [adminSection, setAdminSection] = useState<AdminSectionId>('none')
   const [adminBadgeTab, setAdminBadgeTab] = useState<'catalog' | 'custom'>('catalog')
   const [customBadgeIcon, setCustomBadgeIcon] = useState('◆')
   const [customBadgeLabel, setCustomBadgeLabel] = useState('')
   const [customBadgeCss, setCustomBadgeCss] = useState('badge-vip')
+
+  // Support tickets
+  type SupportTicket = {
+    conversationId: string
+    userId: string
+    userName: string
+    userHandle: string
+    userAvatar: string | null
+    createdAt: string
+    lastMessageAt: string
+    messages: { id: string; senderId: string; text: string; createdAt: string }[]
+  }
+  const [supportTickets, setSupportTickets] = useState<SupportTicket[]>([])
+  const [supportLoading, setSupportLoading] = useState(false)
+  const [supportReplyText, setSupportReplyText] = useState('')
+  const [supportActiveTicket, setSupportActiveTicket] = useState<string | null>(null)
+  const [supportReplying, setSupportReplying] = useState(false)
 
   // Profile viewer (for admins)
   const [viewedProfile, setViewedProfile] = useState<ProfileViewData | null>(null)
@@ -832,7 +854,8 @@ function App() {
 
     const loadBootstrap = async () => {
       try {
-        const query = sessionToken ? `/api/bootstrap?token=${encodeURIComponent(sessionToken)}` : '/api/bootstrap'
+        const langQ = lang ? `&lang=${lang}` : ''
+        const query = sessionToken ? `/api/bootstrap?token=${encodeURIComponent(sessionToken)}${langQ}` : `/api/bootstrap?lang=${lang}`
         const data = await apiRequest<BootstrapResponse>(query)
         if (cancelled) {
           return
@@ -1380,6 +1403,37 @@ function App() {
       showToast(t.error, 'error')
     } finally {
       setIsSendingSupport(false)
+    }
+  }
+
+  // Load admin support tickets
+  const loadSupportTickets = async () => {
+    if (!sessionToken) return
+    setSupportLoading(true)
+    try {
+      const data = await apiRequest<{ tickets: SupportTicket[] }>('/api/admin/support', undefined, sessionToken)
+      setSupportTickets(data.tickets)
+    } catch { /* ignore */ } finally {
+      setSupportLoading(false)
+    }
+  }
+
+  // Admin reply to support ticket
+  const replySupportTicket = async (conversationId: string) => {
+    if (!supportReplyText.trim() || !sessionToken) return
+    setSupportReplying(true)
+    try {
+      await apiRequest(`/api/admin/support/${conversationId}/reply`, {
+        method: 'POST',
+        body: JSON.stringify({ text: supportReplyText.trim() }),
+      }, sessionToken)
+      setSupportReplyText('')
+      await loadSupportTickets()
+      showToast('Ответ отправлен', 'success')
+    } catch {
+      showToast('Ошибка отправки', 'error')
+    } finally {
+      setSupportReplying(false)
     }
   }
 
@@ -2574,17 +2628,17 @@ function App() {
                   <button className="chat-back-btn" onClick={() => setOpenConvoId(null)}>
                     <ArrowLeft size={20} />
                   </button>
-                  <div className="chat-header-user">
+                  <div className="chat-header-user" onClick={() => { if (chatOtherUser && !isSystemChat) void openUserProfile(chatOtherUser.id) }}>
                     {chatOtherUser?.avatarUrl ? (
                       <img className="chat-header-avatar" src={chatOtherUser.avatarUrl} alt="" />
                     ) : (
                       <div className={isSystemChat ? 'chat-header-avatar-placeholder system' : 'chat-header-avatar-placeholder'}>
-                        {isSystemChat ? '>]' : chatOtherUser?.name?.[0] || '?'}
+                        {isSystemChat ? '◻' : chatOtherUser?.name?.[0] || '?'}
                       </div>
                     )}
                     <div>
-                      <strong>{isSystemChat ? '>]Regellik' : chatOtherUser?.name || t.chatlar}</strong>
-                      <small>{isSystemChat ? t.systemChat : chatOtherUser?.handle || ''}</small>
+                      <strong>{isSystemChat ? '◻ Regellik' : chatOtherUser?.name || t.chatlar}</strong>
+                      <small>{isSystemChat ? t.systemChat : `@${chatOtherUser?.handle || ''}`}</small>
                     </div>
                   </div>
                   {isSystemChat && <span className="chat-system-badge">SYSTEM</span>}
@@ -2596,6 +2650,10 @@ function App() {
                     const isMine = msg.senderId === viewer?.id
                     const isSystem = !isMine && isSystemChat
                     const showDate = idx === 0 || new Date(msg.createdAt).toDateString() !== new Date(chatMessages[idx - 1].createdAt).toDateString()
+                    const prevMsg = chatMessages[idx - 1]
+                    const nextMsg = chatMessages[idx + 1]
+                    const isFirstInGroup = !prevMsg || prevMsg.senderId !== msg.senderId || (new Date(msg.createdAt).getTime() - new Date(prevMsg.createdAt).getTime() > 120000)
+                    const isLastInGroup = !nextMsg || nextMsg.senderId !== msg.senderId || (new Date(nextMsg.createdAt).getTime() - new Date(msg.createdAt).getTime() > 120000)
                     return (
                       <div key={msg.id}>
                         {showDate && (
@@ -2603,10 +2661,10 @@ function App() {
                             <span>{new Date(msg.createdAt).toLocaleDateString('ru-RU', { day: 'numeric', month: 'long' })}</span>
                           </div>
                         )}
-                        <div className={`chat-bubble ${isMine ? 'mine' : 'theirs'}${isSystem ? ' system' : ''}`} style={isMine ? {marginLeft:'auto'} : {marginRight:'auto'}}>
-                          {isSystem && <span className="chat-bubble-sender">{'Regellik'}</span>}
+                        <div className={`chat-bubble ${isMine ? 'mine' : 'theirs'}${isSystem ? ' system' : ''}${isFirstInGroup ? ' first' : ''}${isLastInGroup ? ' last' : ''}`}>
+                          {isSystem && isFirstInGroup && <span className="chat-bubble-sender">◻ Regellik</span>}
                           <p>{msg.text}</p>
-                          <small>{frt(msg.createdAt)}</small>
+                          {isLastInGroup && <small className="chat-bubble-time">{frt(msg.createdAt)}</small>}
                         </div>
                       </div>
                     )
@@ -3622,6 +3680,7 @@ function App() {
                     { id: 'topup' as const, icon: <Zap size={18} />, label: 'Начисление', desc: 'Top-up баланса' },
                     { id: 'users' as const, icon: <Users size={18} />, label: 'Пользователи', desc: 'Управление' },
                     { id: 'reports' as const, icon: <Ban size={18} />, label: 'Жалобы', desc: 'Репорты на пользователей' },
+                    { id: 'support' as const, icon: <MessageCircle size={18} />, label: 'Поддержка', desc: 'Заявки пользователей' },
                     { id: 'bans' as const, icon: <Ban size={18} />, label: 'Баны', desc: 'Блокировки' },
                     { id: 'badges' as const, icon: <BadgeCheck size={18} />, label: 'Префиксы', desc: 'Каталог и выдача' },
                     { id: 'audit' as const, icon: <Search size={18} />, label: 'Журнал', desc: 'Audit log' },
@@ -3630,7 +3689,7 @@ function App() {
                     <button
                       key={sec.id}
                       className="admin-nav-btn"
-                      onClick={() => setAdminSection(sec.id)}
+                      onClick={() => { setAdminSection(sec.id); if (sec.id === 'support') void loadSupportTickets() }}
                     >
                       <div className="admin-nav-icon">{sec.icon}</div>
                       <div className="admin-nav-text">
@@ -4184,30 +4243,83 @@ function App() {
                     <div className="admin-section-head">
                       <Ban size={18} /> Жалобы на пользователей
                     </div>
+
+                    {/* Filter tabs */}
+                    <div className="report-filter-tabs">
+                      {(['all', 'open', 'resolved', 'dismissed'] as const).map(f => (
+                        <button key={f} className={`report-filter-tab ${f === 'all' ? 'active' : ''}`}
+                          onClick={e => {
+                            e.currentTarget.parentElement?.querySelectorAll('.report-filter-tab').forEach(b => b.classList.remove('active'))
+                            e.currentTarget.classList.add('active')
+                            e.currentTarget.parentElement?.parentElement?.querySelectorAll('.report-card').forEach(c => {
+                              const el = c as HTMLElement
+                              if (f === 'all') { el.style.display = '' }
+                              else { el.style.display = el.classList.contains(`status-${f}`) ? '' : 'none' }
+                            })
+                          }}>
+                          {f === 'all' ? 'Все' : f === 'open' ? '◻ Открытые' : f === 'resolved' ? '◻ Решённые' : '◻ Отклонённые'}
+                          <span className="report-filter-count">
+                            {f === 'all' ? reports.length : reports.filter(r => r.status === f).length}
+                          </span>
+                        </button>
+                      ))}
+                    </div>
+
                     {reports.length === 0 ? (
                       <div className="chats-empty" style={{ padding: '20px' }}>
-                        <p>Жалоб пока нет</p>
-                        <span>Новые обращения пользователей появятся здесь.</span>
+                        <p>◻ Жалоб пока нет</p>
+                        <span>Новые обращения пользователей появятся здесь</span>
                       </div>
                     ) : (
                       <div className="reports-list">
                         {reports.map(report => (
                           <article key={report.id} className={`report-card status-${report.status}`}>
-                            <div className="report-card-head">
-                              <div>
-                                <strong>{report.targetUserName}</strong>
-                                <span>{report.targetUserHandle}</span>
+                            <div className="report-card-header">
+                              <div className="report-card-target">
+                                <div className="report-card-avatar">{report.targetUserName?.[0]?.toUpperCase() || '?'}</div>
+                                <div className="report-card-info">
+                                  <strong>{report.targetUserName}</strong>
+                                  <span>@{report.targetUserHandle}</span>
+                                </div>
                               </div>
-                              <span className={`report-status-pill ${report.status}`}>{report.status}</span>
+                              <div className="report-card-badges">
+                                {report.priority && report.priority !== 'medium' && (
+                                  <span className={`report-priority-badge ${report.priority}`}>
+                                    {report.priority === 'low' ? '◻ Низкий' : report.priority === 'high' ? '◻ Высокий' : report.priority === 'critical' ? '◻ Критичный' : '◻ Средний'}
+                                  </span>
+                                )}
+                                <span className={`report-status-pill ${report.status}`}>
+                                  {report.status === 'open' ? '◻ Открыт' : report.status === 'resolved' ? '◻ Решён' : '◻ Отклонён'}
+                                </span>
+                              </div>
                             </div>
-                            <div className="report-card-meta">
-                              <span>Категория: {report.category}</span>
-                              <span>Отправил: {report.reporterName} ({report.reporterHandle})</span>
-                              <span>{frt(report.createdAt)}</span>
+
+                            <div className="report-card-category">
+                              <span className="report-cat-label">◻ {report.category}</span>
+                              <span className="report-card-date">{frt(report.createdAt)}</span>
                             </div>
+
                             {report.text && <p className="report-card-text">{report.text}</p>}
+
+                            {report.contact && (
+                              <div className="report-card-contact">
+                                <small>◻ Контакт:</small> {report.contact}
+                              </div>
+                            )}
+
+                            <div className="report-card-reporter">
+                              <small>◻ Отправил:</small> {report.reporterName} (@{report.reporterHandle})
+                            </div>
+
+                            {report.resolvedByName && (
+                              <div className="report-card-resolver">
+                                <small>◻ Обработал:</small> {report.resolvedByName}
+                              </div>
+                            )}
+
                             {report.relatedPosts && report.relatedPosts.length > 0 && (
                               <div className="report-related-posts">
+                                <small className="report-posts-label">◻ Связанные посты:</small>
                                 {report.relatedPosts.map(post => (
                                   <div key={post.id} className="report-related-post">
                                     <div className="report-related-post-body">
@@ -4215,24 +4327,100 @@ function App() {
                                       <p>{post.text}</p>
                                     </div>
                                     <button className="secondary-btn compact-btn danger" onClick={() => void adminDeletePost(post.id)}>
-                                      <Trash2 size={14} /> Удалить пост
+                                      <Trash2 size={14} />
                                     </button>
                                   </div>
                                 ))}
                               </div>
                             )}
-                            <div className="report-card-actions">
-                              <button className="secondary-btn compact-btn" onClick={() => void openUserProfile(report.targetUserId)}>
-                                <User size={14} /> Профиль
-                              </button>
-                              <button className="secondary-btn compact-btn" onClick={() => void updateReportStatus(report.id, 'resolved')}>
-                                <BadgeCheck size={14} /> Решено
-                              </button>
-                              <button className="secondary-btn compact-btn danger" onClick={() => void updateReportStatus(report.id, 'dismissed')}>
-                                <X size={14} /> Отклонить
-                              </button>
-                            </div>
+
+                            {report.status === 'open' && (
+                              <div className="report-card-actions">
+                                <button className="secondary-btn compact-btn" onClick={() => void openUserProfile(report.targetUserId)}>
+                                  <User size={14} /> Профиль
+                                </button>
+                                <button className="primary-btn compact-btn" onClick={() => void updateReportStatus(report.id, 'resolved')}>
+                                  <BadgeCheck size={14} /> Решено
+                                </button>
+                                <button className="secondary-btn compact-btn danger" onClick={() => void updateReportStatus(report.id, 'dismissed')}>
+                                  <X size={14} /> Отклонить
+                                </button>
+                              </div>
+                            )}
                           </article>
+                        ))}
+                      </div>
+                    )}
+                  </div>
+                )}
+
+                {/* Support Tickets */}
+                {adminSection === 'support' && (
+                  <div className="admin-section-view">
+                    <div className="admin-section-head">
+                      <MessageCircle size={18} /> Заявки в поддержку
+                      <button className="secondary-btn compact-btn" style={{marginLeft:'auto'}} onClick={() => void loadSupportTickets()}>
+                        <RefreshCw size={14} />
+                      </button>
+                    </div>
+
+                    {supportLoading ? (
+                      <div className="chats-empty" style={{ padding: '20px' }}><p>Загрузка...</p></div>
+                    ) : supportTickets.length === 0 ? (
+                      <div className="chats-empty" style={{ padding: '20px' }}>
+                        <p>◻ Заявок пока нет</p>
+                        <span>Обращения пользователей в поддержку появятся здесь</span>
+                      </div>
+                    ) : (
+                      <div className="support-tickets-list">
+                        {supportTickets.map(ticket => (
+                          <div key={ticket.conversationId} className="support-ticket-card">
+                            <div className="support-ticket-header" onClick={() => setSupportActiveTicket(supportActiveTicket === ticket.conversationId ? null : ticket.conversationId)}>
+                              <div className="support-ticket-user">
+                                {ticket.userAvatar ? (
+                                  <img src={ticket.userAvatar} alt="" className="support-ticket-avatar" />
+                                ) : (
+                                  <div className="support-ticket-avatar-fallback">{ticket.userName?.[0]?.toUpperCase() || '?'}</div>
+                                )}
+                                <div className="support-ticket-info">
+                                  <strong>{ticket.userName}</strong>
+                                  <span>@{ticket.userHandle}</span>
+                                </div>
+                              </div>
+                              <div className="support-ticket-meta">
+                                <span>{frt(ticket.lastMessageAt)}</span>
+                                <ChevronDown size={16} style={{ transform: supportActiveTicket === ticket.conversationId ? 'rotate(180deg)' : 'none', transition: 'transform 0.2s' }} />
+                              </div>
+                            </div>
+
+                            {supportActiveTicket === ticket.conversationId && (
+                              <div className="support-ticket-body">
+                                <div className="support-ticket-messages">
+                                  {ticket.messages.map(msg => (
+                                    <div key={msg.id} className={`support-msg ${msg.senderId === 'seed-regellik' ? 'admin-msg' : 'user-msg'}`}>
+                                      <p>{msg.text}</p>
+                                      <small>{frt(msg.createdAt)}</small>
+                                    </div>
+                                  ))}
+                                </div>
+                                <div className="support-reply-bar">
+                                  <input
+                                    value={supportReplyText}
+                                    onChange={e => setSupportReplyText(e.target.value)}
+                                    placeholder="Ответить пользователю..."
+                                    onKeyDown={e => { if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); void replySupportTicket(ticket.conversationId) } }}
+                                  />
+                                  <button
+                                    className="primary-btn compact-btn"
+                                    disabled={!supportReplyText.trim() || supportReplying}
+                                    onClick={() => void replySupportTicket(ticket.conversationId)}
+                                  >
+                                    <Send size={14} />
+                                  </button>
+                                </div>
+                              </div>
+                            )}
+                          </div>
                         ))}
                       </div>
                     )}
