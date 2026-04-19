@@ -554,6 +554,13 @@ function App() {
   const [trendsSort, setTrendsSort] = useState<'top' | 'new'>('top')
   const [trendsView, setTrendsView] = useState<'grid' | 'feed'>('grid')
   const [gridSelectedPost, setGridSelectedPost] = useState<Post | null>(null)
+  const [selectedOwnPost, setSelectedOwnPost] = useState<Post | null>(null)
+  // Auth password
+  const [authMethod, setAuthMethod] = useState<'password' | 'code'>('password')
+  const [authPassword, setAuthPassword] = useState('')
+  const [authConfirmPassword, setAuthConfirmPassword] = useState('')
+  const [authPasswordVisible, setAuthPasswordVisible] = useState(false)
+  const [isAuthingPassword, setIsAuthingPassword] = useState(false)
   const [newPostText, setNewPostText] = useState('')
   const [newPostImages, setNewPostImages] = useState<string[]>([])
   const [isCreatingPost, setIsCreatingPost] = useState(false)
@@ -1072,6 +1079,43 @@ function App() {
       }
     } catch (error) {
       showToast(error instanceof Error ? error.message : 'Ошибка авторизации', 'error')
+    }
+  }
+
+  const loginWithPassword = async (e: React.FormEvent) => {
+    e.preventDefault()
+    if (!emailValue.trim() || !authPassword) return
+    setIsAuthingPassword(true)
+    try {
+      const data = await apiRequest<AuthResponse>('/api/auth/password', {
+        method: 'POST',
+        body: JSON.stringify({ mode: 'login', email: emailValue.trim(), password: authPassword }),
+      })
+      await completeAuth(data)
+    } catch (err) {
+      showToast(err instanceof Error ? err.message : 'Ошибка входа', 'error')
+    } finally {
+      setIsAuthingPassword(false)
+    }
+  }
+
+  const registerWithPassword = async (e: React.FormEvent) => {
+    e.preventDefault()
+    if (!emailName.trim() || !emailValue.trim() || !authPassword) return
+    if (authPassword.length < 8) { showToast('Пароль минимум 8 символов', 'info'); return }
+    if (authPassword !== authConfirmPassword) { showToast('Пароли не совпадают', 'info'); return }
+    setIsAuthingPassword(true)
+    try {
+      const data = await apiRequest<AuthResponse>('/api/auth/password', {
+        method: 'POST',
+        body: JSON.stringify({ mode: 'register', email: emailValue.trim(), name: emailName.trim(), password: authPassword }),
+      })
+      await completeAuth(data)
+      showToast('Аккаунт создан!', 'success')
+    } catch (err) {
+      showToast(err instanceof Error ? err.message : 'Ошибка регистрации', 'error')
+    } finally {
+      setIsAuthingPassword(false)
     }
   }
 
@@ -1843,8 +1887,79 @@ function App() {
               <button className={authMode === 'register' ? 'auth-mode-tab active' : 'auth-mode-tab'} onClick={() => { setAuthMode('register'); setEmailStep('email'); setEmailCode('') }}>Регистрация</button>
             </div>
 
+            {/* Method selector */}
+            <div className="auth-method-tabs">
+              <button className={authMethod === 'password' ? 'auth-method-tab active' : 'auth-method-tab'} onClick={() => setAuthMethod('password')}>
+                <ShieldCheck size={13} /> Пароль
+              </button>
+              <button className={authMethod === 'code' ? 'auth-method-tab active' : 'auth-method-tab'} onClick={() => setAuthMethod('code')}>
+                <Mail size={13} /> Email-код
+              </button>
+            </div>
+
             <div className="auth-stack">
-              {emailStep === 'email' ? (
+              {authMethod === 'password' ? (
+                authMode === 'login' ? (
+                  <form className="email-card" onSubmit={loginWithPassword}>
+                    <div className="auth-title"><ShieldCheck size={16} />Вход по паролю</div>
+                    <input value={emailValue} onChange={e => setEmailValue(e.target.value)} placeholder="Email" type="email" required autoComplete="email" />
+                    <div className="auth-password-wrap">
+                      <input
+                        value={authPassword}
+                        onChange={e => setAuthPassword(e.target.value)}
+                        placeholder="Пароль"
+                        type={authPasswordVisible ? 'text' : 'password'}
+                        required
+                        autoComplete="current-password"
+                        minLength={8}
+                      />
+                      <button type="button" className="auth-eye-btn" onClick={() => setAuthPasswordVisible(v => !v)}>
+                        {authPasswordVisible ? <EyeOff size={15} /> : <Eye size={15} />}
+                      </button>
+                    </div>
+                    <button className="primary-btn wide" type="submit" disabled={isAuthingPassword || !emailValue.trim() || !authPassword}>
+                      {isAuthingPassword ? 'Входим...' : 'Войти'}
+                    </button>
+                  </form>
+                ) : (
+                  <form className="email-card" onSubmit={registerWithPassword}>
+                    <div className="auth-title"><ShieldCheck size={16} />Регистрация с паролем</div>
+                    <div className="auth-note">Пароль минимум 8 символов</div>
+                    <input value={emailName} onChange={e => setEmailName(e.target.value)} placeholder="Имя" required />
+                    <input value={emailValue} onChange={e => setEmailValue(e.target.value)} placeholder="Email" type="email" required autoComplete="email" />
+                    <div className="auth-password-wrap">
+                      <input
+                        value={authPassword}
+                        onChange={e => setAuthPassword(e.target.value)}
+                        placeholder="Пароль (мин. 8 символов)"
+                        type={authPasswordVisible ? 'text' : 'password'}
+                        required
+                        autoComplete="new-password"
+                        minLength={8}
+                      />
+                      <button type="button" className="auth-eye-btn" onClick={() => setAuthPasswordVisible(v => !v)}>
+                        {authPasswordVisible ? <EyeOff size={15} /> : <Eye size={15} />}
+                      </button>
+                    </div>
+                    <div className="auth-password-wrap">
+                      <input
+                        value={authConfirmPassword}
+                        onChange={e => setAuthConfirmPassword(e.target.value)}
+                        placeholder="Повторить пароль"
+                        type={authPasswordVisible ? 'text' : 'password'}
+                        required
+                        autoComplete="new-password"
+                      />
+                    </div>
+                    {authPassword && authConfirmPassword && authPassword !== authConfirmPassword && (
+                      <div className="auth-pass-mismatch">Пароли не совпадают</div>
+                    )}
+                    <button className="primary-btn wide" type="submit" disabled={isAuthingPassword || authPassword !== authConfirmPassword || authPassword.length < 8}>
+                      {isAuthingPassword ? 'Создаём...' : 'Создать аккаунт'}
+                    </button>
+                  </form>
+                )
+              ) : emailStep === 'email' ? (
                 <form className="email-card" onSubmit={sendEmailCode}>
                   <div className="auth-title">
                     <Mail size={16} />
@@ -2140,12 +2255,6 @@ function App() {
                 <div className="chats-header-row">
                   <h2 className="chats-title">Chatlar</h2>
                   <div className="chats-header-actions">
-                    {isAdmin && (
-                      <button className="chats-admin-btn" onClick={() => switchTab('admin', () => setAdminSection('broadcast'))} title="Рассылка">
-                        <ShieldCheck size={14} />
-                        <span>Рассылка</span>
-                      </button>
-                    )}
                     <button className="chats-radar-btn" onClick={() => switchTab('radar', () => void loadRadar())} title="Atrofimda kim?">
                       <Radar size={16} />
                       <span>Atrofimda kim?</span>
@@ -2528,21 +2637,28 @@ function App() {
                       {sortedPosts.map((post, idx) => {
                         const thumb = post.imageUrls?.[0] || post.imageUrl || null
                         return (
-                          <button key={post.id} className="trends-grid-cell" onClick={() => setGridSelectedPost(post)}>
+                          <button key={post.id} className={`trends-grid-cell${thumb ? ' has-image' : ' text-only'}`} onClick={() => setGridSelectedPost(post)}>
                             {thumb ? (
                               <img src={thumb} alt="" className="trends-grid-img" />
                             ) : (
                               <div className="trends-grid-text-tile">
-                                <p>{post.text.slice(0, 80)}</p>
+                                <div className="trends-grid-text-author">{post.authorName}</div>
+                                <p>{post.text.slice(0, 120)}</p>
+                                <div className="trends-grid-text-footer">
+                                  <span><Zap size={10} /> {post.boosts}</span>
+                                  <span><MessageSquare size={10} /> {post.commentsCount || post.comments.length}</span>
+                                </div>
                               </div>
                             )}
-                            {trendsSort === 'top' && idx < 3 && (
+                            {thumb && trendsSort === 'top' && idx < 3 && (
                               <span className="trends-grid-rank">#{idx + 1}</span>
                             )}
-                            <div className="trends-grid-overlay">
-                              <Zap size={12} /> <span>{post.boosts}</span>
-                              <MessageSquare size={12} style={{marginLeft: '8px'}} /> <span>{post.commentsCount || post.comments.length}</span>
-                            </div>
+                            {thumb && (
+                              <div className="trends-grid-overlay">
+                                <Zap size={12} /> <span>{post.boosts}</span>
+                                <MessageSquare size={12} style={{marginLeft: '8px'}} /> <span>{post.commentsCount || post.comments.length}</span>
+                              </div>
+                            )}
                           </button>
                         )
                       })}
@@ -2830,6 +2946,21 @@ function App() {
                     </div>
                   )}
 
+                  {/* Compact meta chips row */}
+                  <div className="profile-meta-chips">
+                    <span className="profile-meta-chip"><Hash size={11} />#{viewer.numericId || '—'}</span>
+                    {viewer.telegramId && <span className="profile-meta-chip tg"><Smartphone size={11} />{viewer.telegramId}</span>}
+                    {isAdmin && <span className="profile-meta-chip admin"><ShieldCheck size={11} />Admin</span>}
+                    <span className="profile-meta-chip">
+                      {viewer.preferences.showContact !== false ? (viewer.email || 'Telegram') : '—'}
+                      <button className="profile-meta-eye" type="button" onClick={() => void updatePreference('showContact' as keyof UserPreferences, viewer.preferences.showContact === false)}>
+                        {viewer.preferences.showContact !== false ? <Eye size={10} /> : <EyeOff size={10} />}
+                      </button>
+                    </span>
+                    <span className="profile-meta-chip muted"><MapPin size={11} />{viewerLocation !== 'Гео не включено' ? viewerLocation : '—'}</span>
+                    <span className="profile-meta-chip muted">{formatDate(viewer.joinedAt)}</span>
+                  </div>
+
                   <div className="profile-quick-stats four-col">
                     <div><strong>{viewer.postCount}</strong><span>публикаций</span></div>
                     <div><strong>{viewer.followerCount}</strong><span>подписчиков</span></div>
@@ -2891,83 +3022,114 @@ function App() {
                   </div>
                 </article>
 
-                {/* Инфо */}
-                <article className="panel-card profile-meta-card">
-                  <div className="meta-row">
-                    <span>ID профиля</span>
-                    <strong>#{viewer.numericId || '—'}</strong>
-                  </div>
-                  {viewer.telegramId && (
-                    <div className="meta-row">
-                      <span>Telegram ID</span>
-                      <strong>{viewer.telegramId}</strong>
-                    </div>
-                  )}
-                  {isAdmin && (
-                    <div className="meta-row">
-                      <span>Роль</span>
-                      <strong className="meta-admin-badge">Администратор</strong>
-                    </div>
-                  )}
-                  <div className="meta-row">
-                    <span>Контакт</span>
-                    <div className="meta-row-actions">
-                      {viewer.preferences.showContact !== false && <strong>{viewer.email || 'Telegram'}</strong>}
-                      <button
-                        className={viewer.preferences.showContact !== false ? 'toggle-mini active' : 'toggle-mini'}
-                        type="button"
-                        onClick={() => void updatePreference('showContact' as keyof UserPreferences, viewer.preferences.showContact === false)}
-                      >
-                        {viewer.preferences.showContact !== false ? <Eye size={14} /> : <EyeOff size={14} />}
-                        <span>{viewer.preferences.showContact !== false ? 'Видно' : 'Скрыто'}</span>
-                      </button>
-                    </div>
-                  </div>
-                  <div className="meta-row">
-                    <span>Дата регистрации</span>
-                    <strong>{formatDate(viewer.joinedAt)}</strong>
-                  </div>
-                </article>
-
                 <article className="panel-card profile-publications-card">
                   <div className="panel-head">
                     <div>
                       <span className="eyebrow"># профиль</span>
-                      <h2>Мои публикации</h2>
+                      <h2>Mening postlarim</h2>
                     </div>
                     <span className="profile-posts-counter">{ownPosts.length}</span>
                   </div>
                   {ownPosts.length === 0 ? (
                     <div className="profile-posts-empty">
                       <Flame size={26} />
-                      <p>Пока нет публикаций</p>
-                      <span>Создай пост в Global, и он появится здесь.</span>
+                      <p>Hali post yo'q</p>
+                      <span>Global bo'limida post yarating.</span>
                     </div>
                   ) : (
-                    <div className="profile-posts-grid">
-                      {ownPosts.map(post => (
-                        <article key={post.id} className="profile-post-tile">
-                          {(post.imageUrls?.length || post.imageUrl) ? (
-                            <div className={`profile-post-tile-gallery${(post.imageUrls?.length || 0) > 1 ? ' multi' : ''}`}>
-                              {(post.imageUrls?.length ? post.imageUrls : [post.imageUrl]).filter(Boolean).map((image, index) => (
-                                <img key={`${post.id}-${index}`} src={image!} alt="Публикация" className="profile-post-tile-image" />
-                              ))}
+                    <div className="profile-ig-grid">
+                      {ownPosts.map(post => {
+                        const thumb = post.imageUrls?.[0] || post.imageUrl || null
+                        return (
+                          <button key={post.id} className={`profile-ig-cell${thumb ? '' : ' text-only'}`} onClick={() => setSelectedOwnPost(post)}>
+                            {thumb ? (
+                              <img src={thumb} alt="" className="profile-ig-thumb" />
+                            ) : (
+                              <div className="profile-ig-text">
+                                <p>{post.text.slice(0, 80)}</p>
+                              </div>
+                            )}
+                            <div className="profile-ig-overlay">
+                              <Zap size={11} /><span>{post.boosts}</span>
+                              <MessageSquare size={11} style={{marginLeft:'6px'}} /><span>{post.commentsCount || post.comments.length}</span>
                             </div>
-                          ) : (
-                            <div className="profile-post-tile-fallback">{post.text.slice(0, 120)}</div>
-                          )}
-                          <div className="profile-post-tile-overlay">
-                            <div className="profile-post-tile-stats">
-                              <span><Zap size={13} /> {post.boosts}</span>
-                              <span><MessageSquare size={13} /> {post.commentsCount || post.comments.length}</span>
-                            </div>
-                            <p>{post.text}</p>
-                          </div>
-                        </article>
-                      ))}
+                          </button>
+                        )
+                      })}
                     </div>
                   )}
                 </article>
+
+                {/* Own post modal */}
+                {selectedOwnPost && (
+                  <div className="trends-post-modal-backdrop" onClick={() => setSelectedOwnPost(null)}>
+                    <div className="trends-post-modal" onClick={e => e.stopPropagation()}>
+                      <button className="trends-post-modal-close" onClick={() => setSelectedOwnPost(null)}><X size={18} /></button>
+                      <div className="trends-post-modal-header">
+                        <div className="trends-post-avatar">
+                          {viewer.avatarUrl ? <img src={viewer.avatarUrl} alt="" /> : <span>{viewer.name[0]}</span>}
+                        </div>
+                        <div className="trends-post-meta">
+                          <strong>{viewer.name}</strong>
+                          <span>{viewer.handle}</span>
+                        </div>
+                        <small className="trends-post-time">{formatRelativeTime(selectedOwnPost.createdAt)}</small>
+                      </div>
+                      {(selectedOwnPost.imageUrls?.length || selectedOwnPost.imageUrl) && (
+                        <div className={`trends-post-image-wrap${(selectedOwnPost.imageUrls?.length || 0) > 1 ? ' multi' : ''}`}>
+                          {(selectedOwnPost.imageUrls?.length ? selectedOwnPost.imageUrls : [selectedOwnPost.imageUrl]).filter(Boolean).map((img, i) => (
+                            <img key={i} src={img!} alt="" className="trends-post-image" onClick={() => openImageLightbox((selectedOwnPost.imageUrls?.length ? selectedOwnPost.imageUrls : [selectedOwnPost.imageUrl]).filter(Boolean) as string[], i)} />
+                          ))}
+                        </div>
+                      )}
+                      <p className="trends-post-modal-text">{selectedOwnPost.text}</p>
+                      <div className="trends-post-actions">
+                        <button
+                          className={`trends-boost-btn${selectedOwnPost.boostedByViewer ? ' boosted' : ''}`}
+                          onClick={() => { void boostPost(selectedOwnPost.id); setSelectedOwnPost(prev => prev ? {...prev, boostedByViewer: !prev.boostedByViewer, boosts: prev.boosts + (prev.boostedByViewer ? -1 : 1)} : null) }}
+                        >
+                          <Zap size={16} /><span>{selectedOwnPost.boosts}</span>
+                        </button>
+                        <button
+                          className={expandedPostComments.has(selectedOwnPost.id) ? 'trends-comment-toggle active' : 'trends-comment-toggle'}
+                          onClick={() => togglePostComments(selectedOwnPost.id)}
+                        >
+                          <MessageSquare size={16} /><span>{selectedOwnPost.commentsCount || selectedOwnPost.comments.length}</span>
+                        </button>
+                        {isAdmin && (
+                          <button className="post-admin-delete-btn" onClick={() => { void adminDeletePost(selectedOwnPost.id); setSelectedOwnPost(null) }}>
+                            <Trash2 size={14} />
+                          </button>
+                        )}
+                      </div>
+                      {expandedPostComments.has(selectedOwnPost.id) && (
+                        <div className="trends-comments-section">
+                          {selectedOwnPost.comments.map(cmt => (
+                            <div key={cmt.id} className="trends-comment-item">
+                              <div className="trends-comment-author">
+                                <strong>{cmt.authorName}</strong><span>{cmt.authorHandle}</span>
+                                <small>{formatRelativeTime(cmt.createdAt)}</small>
+                              </div>
+                              <p>{cmt.text}</p>
+                            </div>
+                          ))}
+                          <div className="trends-comment-input-row">
+                            <input
+                              value={commentTexts[selectedOwnPost.id] || ''}
+                              onChange={e => setCommentTexts(prev => ({...prev, [selectedOwnPost.id]: e.target.value}))}
+                              placeholder="Kommentariy..."
+                              maxLength={300}
+                              onKeyDown={e => { if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); void addComment(selectedOwnPost.id) } }}
+                            />
+                            <button className="trends-send-comment-btn" onClick={() => void addComment(selectedOwnPost.id)} disabled={!commentTexts[selectedOwnPost.id]?.trim()}>
+                              <Send size={14} />
+                            </button>
+                          </div>
+                        </div>
+                      )}
+                    </div>
+                  </div>
+                )}
               </section>
             )}
 

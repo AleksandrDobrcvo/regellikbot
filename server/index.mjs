@@ -1298,6 +1298,106 @@ app.post('/api/auth/email', (request, response) => {
   response.json({ token, viewer: publicUser(user, state), isNewUser: false })
 })
 
+// Password-based login / register
+app.post('/api/auth/password', (request, response) => {
+  const clientIp = request.headers['x-forwarded-for']?.split(',')[0]?.trim() || request.socket.remoteAddress || 'unknown'
+  if (!rateLimit(`auth:${clientIp}`, 10, 60000)) {
+    response.status(429).json({ error: 'Слишком много попыток. Подожди минуту.' })
+    return
+  }
+
+  const state = readState()
+  const { mode, email, password, name, location: loc } = request.body || {}
+
+  if (!email || !password) {
+    response.status(400).json({ error: 'Email и пароль обязательны' })
+    return
+  }
+  if (String(password).length < 8) {
+    response.status(400).json({ error: 'Пароль минимум 8 символов' })
+    return
+  }
+
+  const emailNorm = String(email).trim().toLowerCase()
+  if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(emailNorm)) {
+    response.status(400).json({ error: 'Некорректный формат email' })
+    return
+  }
+
+  if (mode === 'register') {
+    if (!state.siteSettings.registrationsOpen) {
+      response.status(403).json({ error: 'Регистрация временно закрыта' })
+      return
+    }
+    if (!name || !String(name).trim()) {
+      response.status(400).json({ error: 'Имя обязательно' })
+      return
+    }
+    const existing = state.users.find(u => u.email?.toLowerCase() === emailNorm)
+    if (existing) {
+      response.status(409).json({ error: 'Аккаунт с этой почтой уже существует' })
+      return
+    }
+    const { salt, hash } = createPasswordHash(String(password))
+    const numericId = generateNumericId(state)
+    const cleanName = String(name).trim().slice(0, 40)
+    const user = createSeedUser({
+      id: createToken(),
+      numericId,
+      provider: 'email',
+      providerId: emailNorm,
+      name: cleanName,
+      handle: ensureUniqueHandle(state, cleanName),
+      avatarUrl: `https://ui-avatars.com/api/?name=${encodeURIComponent(cleanName)}&background=111111&color=ffffff&bold=true`,
+      email: emailNorm,
+      city: loc?.city || null,
+      country: loc?.country || null,
+      latitude: Number.isFinite(loc?.latitude) ? Number(loc.latitude) : null,
+      longitude: Number.isFinite(loc?.longitude) ? Number(loc.longitude) : null,
+      geoAllowed: Boolean(loc?.city),
+      bio: 'Новый профиль.',
+      tagline: 'fresh profile',
+      badges: ['NEW'],
+      passwordHash: hash,
+      passwordSalt: salt,
+    })
+    if (ADMIN_EMAILS.includes(emailNorm)) {
+      user.role = 'admin'
+      if (!user.badges.includes('ADMIN')) user.badges.unshift('ADMIN')
+    }
+    state.users.push(user)
+    createWelcomeConversation(state, user.id)
+    pushAudit(state, 'auth.password.register', user.id, user.id, 'Регистрация с паролем.')
+    const token = createSessionForUser(state, user.id, request.headers['user-agent'])
+    saveState(state)
+    response.json({ token, viewer: publicUser(user, state), isNewUser: true, conversations: getConversationsForUser(state, user.id) })
+    return
+  }
+
+  // Login
+  const user = state.users.find(u => u.email?.toLowerCase() === emailNorm)
+  if (!user) {
+    response.status(404).json({ error: 'Аккаунт не найден' })
+    return
+  }
+  if (!user.passwordHash || !user.passwordSalt) {
+    response.status(400).json({ error: 'У этого аккаунта нет пароля. Используй вход по Email-коду.' })
+    return
+  }
+  if (!verifyPassword(String(password), user.passwordSalt, user.passwordHash)) {
+    response.status(401).json({ error: 'Неверный пароль' })
+    return
+  }
+  if (!canSignIn(state, user)) {
+    response.status(403).json({ error: 'Вход ограничен' })
+    return
+  }
+  const token = createSessionForUser(state, user.id, request.headers['user-agent'])
+  pushAudit(state, 'auth.password.login', user.id, user.id, 'Вход по паролю.')
+  saveState(state)
+  response.json({ token, viewer: publicUser(user, state), isNewUser: false })
+})
+
 app.post('/api/auth/telegram', (request, response) => {
   const clientIp = request.headers['x-forwarded-for']?.split(',')[0]?.trim() || request.socket.remoteAddress || 'unknown'
   if (!rateLimit(`auth:${clientIp}`, 10, 60000)) {
