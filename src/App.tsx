@@ -14,7 +14,6 @@ import {
   EyeOff,
   Flame,
   Hash,
-  Home,
   LogOut,
   Mail,
   MapPin,
@@ -454,7 +453,7 @@ function getStoredSessionToken() {
 }
 
 function getNotifIcon(type: NotificationItem['type']) {
-  if (type === 'system') return '🤖'
+  if (type === 'system') return '>]'
   if (type === 'inbox') return '→'
   return '←'
 }
@@ -803,7 +802,7 @@ function App() {
 
         applyBootstrap(data)
 
-        if (data.viewer && activeTab === 'feed') {
+        if (data.viewer && (activeTab === 'feed' || activeTab === 'home')) {
           setActiveTab('chats')
         }
 
@@ -1310,7 +1309,7 @@ function App() {
         body: JSON.stringify({ userId: adminTopUpUserId, amount: Number(adminTopUpAmount), reason: adminTopUpReason }),
       }, sessionToken)
       applyBootstrap(data)
-      showToast(`Баланс обновлён: ${adminTopUpAmount > '0' ? '+' : ''}${adminTopUpAmount}⚡`, 'success')
+      showToast(`Баланс обновлён: ${adminTopUpAmount > '0' ? '+' : ''}${adminTopUpAmount}`, 'success')
       setAdminTopUpUserId('')
       setAdminTopUpAmount('')
       setAdminTopUpReason('')
@@ -1942,7 +1941,7 @@ function App() {
             <button className="header-hamburger" onClick={() => setMenuOpen(!menuOpen)}>
               {menuOpen ? <X size={20} /> : <Menu size={20} />}
             </button>
-            <span className="header-brand" onClick={() => { switchTab('home'); closeMenu(); }} style={{cursor:'pointer'}}>
+            <span className="header-brand" onClick={() => { switchTab('chats'); closeMenu(); }} style={{cursor:'pointer'}}>
               <span className="header-brand-icon">&gt;]</span>Regellik
             </span>
           </div>
@@ -1982,46 +1981,34 @@ function App() {
               <div className="corner-menu-nav">
                 {!isSignedIn && (
                   <button className="corner-menu-item accent-item" onClick={() => { closeMenu(); setAuthOpen(true) }}>
-                    🔽 Зайти в Регель
+                    Зайти в Регель
                   </button>
                 )}
 
                 {isSignedIn && (
                   <>
-                    <button className={activeTab === 'home' ? 'corner-menu-item active' : 'corner-menu-item'} onClick={() => switchTab('home', closeMenu)}>
-                      <Home size={16} /> Главная
-                    </button>
                     <button className={activeTab === 'chats' ? 'corner-menu-item active' : 'corner-menu-item'} onClick={() => switchTab('chats', closeMenu)}>
-                      <MessageCircle size={16} /> Чаты
+                      <MessageCircle size={16} /> Chatlar
                       {totalUnread > 0 && <span className="menu-badge">{totalUnread}</span>}
                     </button>
-                    <button className="corner-menu-item" onClick={() => { switchTab('chats', () => { closeMenu(); setComposeOpen(true) }) }}>
-                      <PenSquare size={16} /> Написать
-                    </button>
-                    <button className={activeTab === 'radar' ? 'corner-menu-item active' : 'corner-menu-item'} onClick={() => switchTab('radar', () => { void loadRadar(); closeMenu() })}>
-                      <Radar size={16} /> Радар
-                    </button>
                     <button className={activeTab === 'trends' ? 'corner-menu-item active' : 'corner-menu-item'} onClick={() => switchTab('trends', closeMenu)}>
-                      <Flame size={16} /> Пульс
+                      <Flame size={16} /> Global
                       {posts.length > 0 && <span className="menu-badge-muted">{posts.length}</span>}
                     </button>
-                    <button className={activeTab === 'profile' ? 'corner-menu-item active' : 'corner-menu-item'} onClick={() => switchTab('profile', closeMenu)}>
-                      <User size={16} /> Профиль
-                    </button>
                     <button className={activeTab === 'transactions' ? 'corner-menu-item active' : 'corner-menu-item'} onClick={() => switchTab('transactions', closeMenu)}>
-                      <Wallet size={16} /> Транзакции
+                      <Wallet size={16} /> O'tkazmalar
                     </button>
                     <button className={activeTab === 'settings' ? 'corner-menu-item active' : 'corner-menu-item'} onClick={() => switchTab('settings', closeMenu)}>
-                      <Settings2 size={16} /> Настройки
+                      <Settings2 size={16} /> Sozlamalar
                     </button>
                     {isAdmin && (
                       <button className={activeTab === 'admin' ? 'corner-menu-item active' : 'corner-menu-item'} onClick={() => switchTab('admin', closeMenu)}>
-                        <UserCog size={16} /> Админка
+                        <UserCog size={16} /> Adminlar
                       </button>
                     )}
                     <div className="corner-menu-divider" />
                     <button className="corner-menu-item danger-item" onClick={() => { closeMenu(); void signOut() }}>
-                      <LogOut size={16} /> Выйти
+                      <LogOut size={16} /> Chiqish
                     </button>
                   </>
                 )}
@@ -2104,7 +2091,7 @@ function App() {
                 <div className="home-stats-row">
                   <div className="home-stat">
                     <strong>{viewer.powers.toFixed(1)}</strong>
-                    <span>⚡ Powers</span>
+                    <span>POWERS</span>
                   </div>
                   <div className="home-stat">
                     <strong>{conversations.length}</strong>
@@ -2119,28 +2106,23 @@ function App() {
                 <div className="home-nav-grid">
                   <button className="home-nav-btn" onClick={() => switchTab('chats')}>
                     <MessageCircle size={24} />
-                    <strong>Чаты</strong>
-                    <span>Сообщения</span>
+                    <strong>Chatlar</strong>
+                    <span>Xabarlar</span>
                   </button>
                   <button className="home-nav-btn" onClick={() => switchTab('trends')}>
                     <Flame size={24} />
-                    <strong>Пульс</strong>
-                    <span>Публичные посты</span>
-                  </button>
-                  <button className="home-nav-btn" onClick={() => switchTab('radar', () => void loadRadar())}>
-                    <Radar size={24} />
-                    <strong>Радар</strong>
-                    <span>Люди рядом</span>
+                    <strong>Global</strong>
+                    <span>Ommaviy postlar</span>
                   </button>
                   <button className="home-nav-btn" onClick={() => switchTab('profile')}>
                     <User size={24} />
-                    <strong>Профиль</strong>
-                    <span>Настройка</span>
+                    <strong>Profil</strong>
+                    <span>Sozlash</span>
                   </button>
                   <button className="home-nav-btn" onClick={() => switchTab('transactions')}>
                     <Wallet size={24} />
-                    <strong>Баланс</strong>
-                    <span>Транзакции</span>
+                    <strong>Balans</strong>
+                    <span>O'tkazmalar</span>
                   </button>
                 </div>
               </section>
@@ -2150,7 +2132,7 @@ function App() {
             {activeTab === 'chats' && !openConvoId && !composeOpen && (
               <section className="chats-screen page-transition">
                 <div className="chats-header-row">
-                  <h2 className="chats-title">Чаты</h2>
+                  <h2 className="chats-title">Chatlar</h2>
                   <div className="chats-header-actions">
                     {isAdmin && (
                       <button className="chats-admin-btn" onClick={() => switchTab('admin', () => setAdminSection('broadcast'))} title="Рассылка">
@@ -2366,7 +2348,7 @@ function App() {
                 <div className="trends-header">
                   <div className="trends-header-left">
                     <Flame size={20} className="trends-header-icon" />
-                    <h2>Пульс</h2>
+                    <h2>Global</h2>
                   </div>
                   <div className="trends-sort-tabs">
                     <button
@@ -2397,7 +2379,7 @@ function App() {
                       className="trends-composer-input"
                       value={newPostText}
                       onChange={(e) => setNewPostText(e.target.value)}
-                      placeholder="Поделись мыслью — получи ⚡ за бусты..."
+                      placeholder="Поделись мыслью — получи powers за бусты..."
                       rows={3}
                       maxLength={500}
                     />
@@ -2753,7 +2735,7 @@ function App() {
                     <div className="profile-posts-empty">
                       <Flame size={26} />
                       <p>Пока нет публикаций</p>
-                      <span>Создай пост в Пульсе, и он появится здесь.</span>
+                      <span>Создай пост в Global, и он появится здесь.</span>
                     </div>
                   ) : (
                     <div className="profile-posts-grid">
@@ -2813,7 +2795,7 @@ function App() {
                   <div className="panel-head">
                     <div>
                       <span className="eyebrow"># баланс</span>
-                      <h2>Энергия ⚡</h2>
+                      <h2>Энергия</h2>
                     </div>
                   </div>
                   <div className="balance-hero">
@@ -2828,14 +2810,14 @@ function App() {
                     <div className="economy-info-item">
                       <Send size={16} />
                       <div>
-                        <strong>−{siteSettings.messageCost}⚡</strong>
+                        <strong>−{siteSettings.messageCost}</strong>
                         <span>за отправку сообщения</span>
                       </div>
                     </div>
                     <div className="economy-info-item">
                       <MessageCircle size={16} />
                       <div>
-                        <strong>+{siteSettings.messageEarn}⚡</strong>
+                        <strong>+{siteSettings.messageEarn}</strong>
                         <span>за полученное сообщение</span>
                       </div>
                     </div>
@@ -2848,11 +2830,11 @@ function App() {
 
                   {topUpOpen && (
                     <div className="topup-inline">
-                      <p className="topup-desc">Выбери сумму пополнения ⚡</p>
+                      <p className="topup-desc">Выбери сумму пополнения</p>
                       <div className="topup-options-grid">
                         {(siteSettings.topUpOptions || [10, 50, 100, 250, 500, 1000]).map(amount => (
                           <button key={amount} className="topup-option-btn" onClick={() => {
-                            showToast(`Пополнение на ${amount}⚡ — скоро будет доступно!`, 'info')
+                            showToast(`Пополнение на ${amount} — скоро будет доступно!`, 'info')
                             setTopUpOpen(false)
                           }}>
                             <Zap size={16} />
@@ -2954,9 +2936,9 @@ function App() {
                             </div>
                             <div className="tx-amount">
                               <span className={isPositive ? 'tx-plus' : 'tx-minus'}>
-                                {isPositive ? '+' : ''}{tx.delta}⚡
+                                {isPositive ? '+' : ''}{tx.delta}
                               </span>
-                              <small className="tx-balance-after">{tx.balanceAfter}⚡</small>
+                              <small className="tx-balance-after">{tx.balanceAfter}</small>
                             </div>
                           </div>
                         )
@@ -2974,13 +2956,13 @@ function App() {
               <section className="settings-screen page-transition">
                 <div className="settings-header">
                   <Settings2 size={20} />
-                  <h2>Настройки</h2>
+                  <h2>Sozlamalar</h2>
                 </div>
 
                 {/* Сеанс */}
                 <article className="panel-card settings-card">
                   <div className="panel-head compact-head">
-                    <span className="eyebrow">🔐 сеанс</span>
+                    <span className="eyebrow"># сеанс</span>
                   </div>
                   <div className="settings-info-rows">
                     <div className="meta-row">
@@ -3005,7 +2987,7 @@ function App() {
                 {/* Активные сессии */}
                 <article className="panel-card settings-card">
                   <div className="panel-head compact-head">
-                    <span className="eyebrow">📱 активные сессии</span>
+                    <span className="eyebrow"># активные сессии</span>
                   </div>
                   {userSessions.length === 0 && !sessionsLoading && (
                     <button className="secondary-btn wide" onClick={() => void loadSessions()}>
@@ -3043,7 +3025,7 @@ function App() {
                 {/* Геолокация */}
                 <article className="panel-card settings-card">
                   <div className="panel-head compact-head">
-                    <span className="eyebrow">📍 геолокация</span>
+                    <span className="eyebrow"># геолокация</span>
                   </div>
                   <div className="settings-info-rows">
                     <div className="meta-row">
@@ -3052,11 +3034,11 @@ function App() {
                     </div>
                     <div className="meta-row">
                       <span>Разрешение</span>
-                      <strong>{locationState === 'granted' ? '✅ Включено' : locationState === 'denied' ? '❌ Отклонено' : '⏳ Не запрашивалось'}</strong>
+                      <strong>{locationState === 'granted' ? 'Включено' : locationState === 'denied' ? 'Отклонено' : 'Не запрашивалось'}</strong>
                     </div>
                     <div className="meta-row">
                       <span>Видимость в профиле</span>
-                      <strong>{viewer.geoAllowed ? '👁 Видно' : '🔒 Скрыто'}</strong>
+                      <strong>{viewer.geoAllowed ? 'Видно' : 'Скрыто'}</strong>
                     </div>
                   </div>
                   <div className="settings-actions-row">
@@ -3131,6 +3113,48 @@ function App() {
                     </div>
                   </div>
                 </article>
+
+                {/* Kontaktlar */}
+                <article className="panel-card settings-card">
+                  <div className="panel-head compact-head">
+                    <span className="eyebrow"># kontaktlar</span>
+                  </div>
+                  <div className="kontaktlar-invite-wrap">
+                    <div className="kontaktlar-desc">
+                      <Users size={32} />
+                      <div>
+                        <strong>Do'stlarni taklif qiling</strong>
+                        <span>Regellikni do'stlaringiz bilan ulashing — birgalikda qiziqarli</span>
+                      </div>
+                    </div>
+                    {viewer?.referralCode && (
+                      <div className="kontaktlar-code-row">
+                        <span className="kontaktlar-code-label">Referal kod</span>
+                        <code className="kontaktlar-code">{viewer.referralCode}</code>
+                        <button className="kontaktlar-copy-btn" onClick={() => {
+                          void navigator.clipboard.writeText(viewer.referralCode ?? '')
+                          showToast('Kod nusxalandi', 'success')
+                        }}>
+                          <Copy size={14} />
+                        </button>
+                      </div>
+                    )}
+                    <button className="kontaktlar-share-btn" onClick={() => {
+                      const shareText = 'Regellikka qo\'shiling — anonim xabarlar, profil va ko\'proq!'
+                      const shareUrl = 'https://regellikbot.onrender.com'
+                      const tgShareUrl = `https://t.me/share/url?url=${encodeURIComponent(shareUrl)}&text=${encodeURIComponent(shareText)}`
+                      const tg = (window as { Telegram?: { WebApp?: { openTelegramLink?: (url: string) => void } } }).Telegram?.WebApp
+                      if (tg?.openTelegramLink) {
+                        tg.openTelegramLink(tgShareUrl)
+                      } else {
+                        window.open(tgShareUrl, '_blank')
+                      }
+                    }}>
+                      <Send size={16} />
+                      Telegram orqali ulashing
+                    </button>
+                  </div>
+                </article>
               </section>
             )}
 
@@ -3166,7 +3190,7 @@ function App() {
                   <div className="admin-qs-item">
                     <Zap size={14} />
                     <strong>{adminUsers.reduce((s, u) => s + u.powers, 0).toFixed(0)}</strong>
-                    <span>⚡</span>
+                    <span>PWR</span>
                   </div>
                   <div className="admin-qs-item">
                     <Ban size={14} />
@@ -3217,11 +3241,11 @@ function App() {
                     </div>
                     <div className="field-grid-2">
                       <label className="input-block">
-                        <span>Стоимость сообщения ⚡</span>
+                        <span>Стоимость сообщения</span>
                         <input type="number" step="0.01" min="0" value={siteSettings.messageCost} onChange={e => setSiteSettings(s => ({ ...s, messageCost: Number(e.target.value) || 0 }))} />
                       </label>
                       <label className="input-block">
-                        <span>Заработок за сообщение ⚡</span>
+                        <span>Заработок за сообщение</span>
                         <input type="number" step="0.01" min="0" value={siteSettings.messageEarn} onChange={e => setSiteSettings(s => ({ ...s, messageEarn: Number(e.target.value) || 0 }))} />
                       </label>
                     </div>
@@ -3292,7 +3316,7 @@ function App() {
                     </label>
                     <div className="field-grid-2">
                       <label className="input-block">
-                        <span>Сумма ⚡</span>
+                        <span>Сумма</span>
                         <input type="number" step="0.01" value={adminTopUpAmount} onChange={e => setAdminTopUpAmount(e.target.value)} placeholder="+100 или -50" />
                       </label>
                       <label className="input-block">
@@ -3302,7 +3326,7 @@ function App() {
                     </div>
                     <button className="primary-btn wide" type="button" onClick={() => {
                       setAdminConfirmAction({
-                        label: `${Number(adminTopUpAmount) > 0 ? '+' : ''}${adminTopUpAmount}⚡ пользователю ${adminTopUpUserId}`,
+                        label: `${Number(adminTopUpAmount) > 0 ? '+' : ''}${adminTopUpAmount} пользователю ${adminTopUpUserId}`,
                         action: () => { void adminTopUp(); setAdminConfirmAction(null) }
                       })
                     }} disabled={!adminTopUpUserId || !adminTopUpAmount}>
@@ -3424,7 +3448,7 @@ function App() {
                             <input value={adminDraft.handle} onChange={e => setAdminDraft(c => c ? { ...c, handle: e.target.value } : c)} />
                           </label>
                           <label className="input-block">
-                            <span>Баланс ⚡</span>
+                            <span>Баланс</span>
                             <input type="number" value={adminDraft.powers} onChange={e => setAdminDraft(c => c ? { ...c, powers: Number(e.target.value) || 0 } : c)} />
                           </label>
                         </div>
@@ -4140,7 +4164,7 @@ function App() {
                 </div>
                 <div className="profile-sheet-info-card">
                   <span>Энергия</span>
-                  <strong>{viewedProfile.user.powers} ⚡</strong>
+                  <strong>{viewedProfile.user.powers}</strong>
                 </div>
                 <div className="profile-sheet-info-card">
                   <span>Зарегистрирован</span>

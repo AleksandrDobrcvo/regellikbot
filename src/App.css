@@ -862,9 +862,9 @@ html {
   width: 24px;
   height: 24px;
   border-radius: 50%;
-  border: 1px solid rgba(255, 80, 80, 0.5);
-  background: rgba(20, 0, 0, 0.85);
-  color: #ff5050;
+  border: 1px solid rgba(255, 255, 255, 0.15);
+  background: rgba(20, 20, 20, 0.85);
+  color: rgba(255, 255, 255, 0.6);
   display: flex;
   align-items: center;
   justify-content: center;
@@ -874,7 +874,7 @@ html {
 }
 
 .avatar-delete-btn:hover {
-  background: rgba(255, 80, 80, 0.2);
+  background: rgba(255, 255, 255, 0.12);
   transform: scale(1.15);
 }
 
@@ -1550,13 +1550,13 @@ html {
 }
 
 .handle-status.taken {
-  color: #ff5555;
-  background: rgba(255,60,60,0.1);
-  border-color: rgba(255,60,60,0.3);
+  color: rgba(255,255,255,0.5);
+  background: rgba(255,255,255,0.04);
+  border-color: rgba(255,255,255,0.1);
 }
 .handle-status.taken::before {
-  background: #ff5555;
-  box-shadow: 0 0 5px #ff5555;
+  background: rgba(255,255,255,0.5);
+  box-shadow: 0 0 5px rgba(255,255,255,0.25);
 }
 
 .toggle-grid {
@@ -2681,7 +2681,7 @@ html {
 }
 
 .report-card.status-resolved {
-  border-color: rgba(80, 220, 140, 0.28);
+  border-color: rgba(255, 255, 255, 0.15);
 }
 
 .report-card.status-dismissed {
@@ -2732,8 +2732,8 @@ html {
 }
 
 .report-status-pill.resolved {
-  background: rgba(80, 220, 140, 0.16);
-  color: #8cf0b2;
+  background: rgba(255, 255, 255, 0.08);
+  color: rgba(255,255,255,0.7);
 }
 
 .report-status-pill.dismissed {
@@ -3191,12 +3191,12 @@ html {
 }
 
 .corner-menu-item.danger-item {
-  color: rgba(255, 100, 100, 0.75);
+  color: rgba(255, 255, 255, 0.5);
 }
 
 .corner-menu-item.danger-item:hover {
-  background: rgba(255, 100, 100, 0.08);
-  color: #ff6464;
+  background: rgba(255, 255, 255, 0.06);
+  color: rgba(255, 255, 255, 0.75);
 }
 
 /* Menu notification badges */
@@ -3208,8 +3208,8 @@ html {
   align-items: center;
   justify-content: center;
   border-radius: 10px;
-  background: #ff4444;
-  color: #fff;
+  background: rgba(255,255,255,0.2);
+  color: #000;
   font-size: 11px;
   font-weight: 700;
   font-family: var(--font-mono);
@@ -4899,9 +4899,9 @@ html {
 }
 
 .convo-delete-btn:hover {
-  background: rgba(255, 80, 80, 0.15);
-  color: #ff5050;
-  border-color: rgba(255, 80, 80, 0.3);
+  background: rgba(255, 255, 255, 0.08);
+  color: rgba(255, 255, 255, 0.7);
+  border-color: rgba(255, 255, 255, 0.15);
 }
 
 .convo-delete-confirm {
@@ -4928,13 +4928,13 @@ html {
 }
 
 .convo-del-yes {
-  background: rgba(255, 80, 80, 0.15);
-  border-color: rgba(255, 80, 80, 0.4);
-  color: #ff5050;
+  background: rgba(255, 255, 255, 0.08);
+  border-color: rgba(255, 255, 255, 0.2);
+  color: rgba(255, 255, 255, 0.8);
 }
 
 .convo-del-yes:hover {
-  background: rgba(255, 80, 80, 0.25);
+  background: rgba(255, 255, 255, 0.14);
 }
 
 .convo-del-no {
@@ -5298,9 +5298,9 @@ html {
 }
 
 .compose-close-btn:hover {
-  background: rgba(255, 80, 80, 0.15);
-  border-color: rgba(255, 80, 80, 0.3);
-  color: #ff5050;
+  background: rgba(255, 255, 255, 0.08);
+  border-color: rgba(255, 255, 255, 0.15);
+  color: rgba(255, 255, 255, 0.8);
 }
 
 .compose-search-row {
@@ -6120,10 +6120,10 @@ html {
   justify-content: center;
 }
 
-.tx-stat-out  { background: rgba(255,80,80,0.12);  color: #ff5050; }
-.tx-stat-in   { background: rgba(80,220,80,0.12);  color: #4de880; }
-.tx-stat-boost{ background: rgba(255,200,0,0.12);  color: #ffc800; }
-.tx-stat-topup{ background: rgba(120,180,255,0.12); color: #78b4ff; }
+.tx-stat-out  { background: rgba(255,255,255,0.05);  color: rgba(255,255,255,0.5); }
+.tx-stat-in   { background: rgba(255,255,255,0.05);  color: rgba(255,255,255,0.7); }
+.tx-stat-boost{ background: rgba(255,255,255,0.05);  color: rgba(255,255,255,0.7); }
+.tx-stat-topup{ background: rgba(255,255,255,0.05);  color: rgba(255,255,255,0.7); }
 
 .tx-stat-item strong {
   font-size: 22px;
@@ -6299,8 +6299,8 @@ html {
   flex-shrink: 0;
 }
 
-.tx-icon-in  { background: rgba(80,220,80,0.12);  color: #4de880; }
-.tx-icon-out { background: rgba(255,80,80,0.12);  color: #ff5050; }
+.tx-icon-in  { background: rgba(255,255,255,0.05);  color: rgba(255,255,255,0.7); }
+.tx-icon-out { background: rgba(255,255,255,0.05);  color: rgba(255,255,255,0.5); }
 
 .tx-info {
   flex: 1;
@@ -6344,14 +6344,14 @@ html {
   font-size: 14px;
   font-weight: 800;
   font-family: var(--font-mono);
-  color: #4de880;
+  color: rgba(255,255,255,0.9);
 }
 
 .tx-minus {
   font-size: 14px;
   font-weight: 800;
   font-family: var(--font-mono);
-  color: #ff5050;
+  color: rgba(255,255,255,0.4);
 }
 
 .tx-balance-after {
@@ -6652,8 +6652,8 @@ html {
 }
 
 .admin-status-pill.suspended {
-  background: rgba(255, 80, 80, 0.1);
-  color: #ff5050;
+  background: rgba(255, 255, 255, 0.06);
+  color: rgba(255,255,255,0.5);
 }
 
 .admin-powers-pill {
@@ -6688,12 +6688,12 @@ html {
 }
 
 .secondary-btn.danger {
-  color: #ff5050;
-  border-color: rgba(255, 80, 80, 0.15);
+  color: rgba(255, 255, 255, 0.55);
+  border-color: rgba(255, 255, 255, 0.12);
 }
 
 .secondary-btn.danger:hover {
-  background: rgba(255, 80, 80, 0.1);
+  background: rgba(255, 255, 255, 0.06);
 }
 
 /* Admin confirm modal */
@@ -6978,11 +6978,11 @@ html {
 
 /* ADMIN */
 .badge-admin {
-  background: linear-gradient(135deg, #1a1a1a 0%, #2d0000 100%);
-  color: #ff4444;
-  border-color: rgba(255,60,60,0.4);
+  background: linear-gradient(135deg, #1a1a1a 0%, #2d2d2d 100%);
+  color: rgba(255,255,255,0.8);
+  border-color: rgba(255,255,255,0.25);
   animation: badgePulse 2.4s ease-in-out infinite;
-  color: #ff5555;
+  color: rgba(255,255,255,0.8);
 }
 
 /* CORE */
@@ -7015,13 +7015,13 @@ html {
 
 /* LIVE */
 .badge-live {
-  background: rgba(255,40,40,0.12);
-  color: #ff4444;
-  border-color: rgba(255,40,40,0.3);
+  background: rgba(255,255,255,0.06);
+  color: rgba(255,255,255,0.7);
+  border-color: rgba(255,255,255,0.2);
 }
 .badge-live .badge-icon {
   animation: badgeLiveDot 1s ease-in-out infinite;
-  color: #ff3333;
+  color: rgba(255,255,255,0.8);
 }
 
 /* NEW */
@@ -7335,6 +7335,115 @@ html {
   margin-top: 10px;
   width: 100%;
   justify-content: center;
+}
+
+/* ===== KONTAKTLAR INVITE SECTION ===== */
+.kontaktlar-invite-wrap {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+}
+
+.kontaktlar-desc {
+  display: flex;
+  align-items: flex-start;
+  gap: 14px;
+  color: var(--muted);
+}
+
+.kontaktlar-desc svg {
+  flex-shrink: 0;
+  opacity: 0.5;
+  margin-top: 2px;
+}
+
+.kontaktlar-desc strong {
+  display: block;
+  font-size: 15px;
+  font-weight: 700;
+  color: var(--text);
+  margin-bottom: 4px;
+}
+
+.kontaktlar-desc span {
+  font-size: 12px;
+  line-height: 1.4;
+  color: var(--muted);
+}
+
+.kontaktlar-code-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 10px 14px;
+  border-radius: 12px;
+  background: rgba(255,255,255,0.04);
+  border: 1px solid rgba(255,255,255,0.08);
+}
+
+.kontaktlar-code-label {
+  font-size: 11px;
+  color: var(--muted);
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  flex-shrink: 0;
+}
+
+.kontaktlar-code {
+  flex: 1;
+  font-family: var(--font-mono);
+  font-size: 14px;
+  font-weight: 700;
+  color: var(--text);
+  letter-spacing: 0.1em;
+}
+
+.kontaktlar-copy-btn {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 28px;
+  height: 28px;
+  border-radius: 8px;
+  background: rgba(255,255,255,0.06);
+  border: 1px solid rgba(255,255,255,0.1);
+  color: var(--muted);
+  cursor: pointer;
+  transition: background 0.15s, color 0.15s;
+  flex-shrink: 0;
+}
+
+.kontaktlar-copy-btn:hover {
+  background: rgba(255,255,255,0.12);
+  color: var(--text);
+}
+
+.kontaktlar-share-btn {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  width: 100%;
+  padding: 12px 20px;
+  border-radius: 14px;
+  background: rgba(255,255,255,0.07);
+  border: 1px solid rgba(255,255,255,0.14);
+  color: var(--text);
+  font-size: 14px;
+  font-weight: 700;
+  font-family: var(--font-mono);
+  cursor: pointer;
+  transition: background 0.2s, transform 0.15s;
+  letter-spacing: 0.01em;
+}
+
+.kontaktlar-share-btn:hover {
+  background: rgba(255,255,255,0.12);
+  transform: translateY(-1px);
+}
+
+.kontaktlar-share-btn:active {
+  transform: scale(0.97);
 }
 
 .settings-actions-row {
@@ -7750,8 +7859,8 @@ html {
   gap: 10px;
   padding: 10px 12px;
   border-radius: 12px;
-  border: 1px solid rgba(255, 80, 80, 0.12);
-  background: rgba(255, 80, 80, 0.04);
+  border: 1px solid rgba(255, 255, 255, 0.06);
+  background: rgba(255, 255, 255, 0.02);
 }
 
 .admin-ban-info {
@@ -7777,7 +7886,7 @@ html {
 }
 
 .admin-ban-type.global {
-  color: #ff5050;
+  color: rgba(255,255,255,0.65);
 }
 
 .admin-ban-type.chat {
@@ -7806,12 +7915,12 @@ html {
   border-radius: 5px;
   font-size: 10px;
   font-weight: 700;
-  background: rgba(255, 80, 80, 0.12);
-  color: #ff5050;
+  background: rgba(255, 255, 255, 0.07);
+  color: rgba(255,255,255,0.55);
 }
 
 .admin-user-item.banned {
-  border-color: rgba(255, 80, 80, 0.15);
+  border-color: rgba(255, 255, 255, 0.08);
 }
 
 @media (max-width: 480px) {
@@ -7868,15 +7977,15 @@ html {
   height: 18px;
   border-radius: 50%;
   border: none;
-  background: rgba(255,80,80,0.15);
-  color: #ff5555;
+  background: rgba(255,255,255,0.08);
+  color: rgba(255,255,255,0.6);
   cursor: pointer;
   flex-shrink: 0;
   transition: background 0.15s;
 }
 
 .admin-badge-remove-btn:hover {
-  background: rgba(255,80,80,0.3);
+  background: rgba(255,255,255,0.15);
 }
 
 .badge-editor-tabs {
@@ -7999,12 +8108,12 @@ html {
 
 /* Danger button */
 .secondary-btn.danger {
-  border-color: rgba(255, 80, 80, 0.3);
-  color: #ff5050;
+  border-color: rgba(255, 255, 255, 0.12);
+  color: rgba(255,255,255,0.55);
 }
 
 .secondary-btn.danger:hover {
-  background: rgba(255, 80, 80, 0.1);
+  background: rgba(255, 255, 255, 0.06);
 }
 
 .secondary-btn.wide {
@@ -8790,9 +8899,9 @@ html {
 .session-kill-btn {
   padding: 6px 12px;
   border-radius: 10px;
-  border: 1px solid rgba(255, 80, 80, 0.3);
-  background: rgba(255, 80, 80, 0.08);
-  color: #ff5050;
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  background: rgba(255, 255, 255, 0.05);
+  color: rgba(255,255,255,0.55);
   font-size: 11px;
   font-weight: 600;
   cursor: pointer;
@@ -8801,8 +8910,8 @@ html {
 }
 
 .session-kill-btn:hover {
-  background: rgba(255, 80, 80, 0.18);
-  border-color: rgba(255, 80, 80, 0.5);
+  background: rgba(255, 255, 255, 0.1);
+  border-color: rgba(255, 255, 255, 0.25);
 }
 
 /* ===== PROFILE HERO INLINE EDIT ===== */
@@ -9098,8 +9207,8 @@ html {
 }
 
 @keyframes zapGlow {
-  0%,100% { filter: drop-shadow(0 0 0px #ffc800); }
-  50%     { filter: drop-shadow(0 0 7px #ffc800); }
+  0%,100% { filter: drop-shadow(0 0 0px rgba(255,255,255,0)); }
+  50%     { filter: drop-shadow(0 0 7px rgba(255,255,255,0.6)); }
 }
 
 @keyframes inputUnderline {
@@ -9146,9 +9255,9 @@ html {
 }
 
 .trends-rank.rank-1 {
-  background: rgba(255, 200, 0, 0.12);
-  color: #ffc800;
-  border: 1px solid rgba(255, 200, 0, 0.25);
+  background: rgba(255, 255, 255, 0.08);
+  color: rgba(255,255,255,0.85);
+  border: 1px solid rgba(255, 255, 255, 0.2);
   animation: zapGlow 2s ease infinite;
 }
 
@@ -9255,9 +9364,9 @@ html {
 }
 
 .trends-boost-btn:hover {
-  border-color: rgba(255, 180, 0, 0.4);
-  color: #ffc800;
-  background: rgba(255, 180, 0, 0.06);
+  border-color: rgba(255, 255, 255, 0.25);
+  color: rgba(255, 255, 255, 0.9);
+  background: rgba(255, 255, 255, 0.06);
 }
 
 .trends-boost-btn:active {
@@ -9265,9 +9374,9 @@ html {
 }
 
 .trends-boost-btn.boosted {
-  border-color: rgba(255, 180, 0, 0.5);
-  background: rgba(255, 180, 0, 0.1);
-  color: #ffc800;
+  border-color: rgba(255, 255, 255, 0.3);
+  background: rgba(255, 255, 255, 0.08);
+  color: #ffffff;
 }
 
 .trends-boost-btn.boosted svg {
@@ -9294,9 +9403,9 @@ html {
 }
 
 @keyframes boostBtnFlash {
-  0%   { box-shadow: 0 0 0 0 rgba(255,200,0,0.6), inset 0 0 0 0 rgba(255,200,0,0.2); }
-  40%  { box-shadow: 0 0 12px 6px rgba(255,200,0,0.35), inset 0 0 8px 2px rgba(255,200,0,0.15); }
-  100% { box-shadow: 0 0 0 0 rgba(255,200,0,0), inset 0 0 0 0 rgba(255,200,0,0); }
+  0%   { box-shadow: 0 0 0 0 rgba(255,255,255,0.4), inset 0 0 0 0 rgba(255,255,255,0.1); }
+  40%  { box-shadow: 0 0 12px 6px rgba(255,255,255,0.2), inset 0 0 8px 2px rgba(255,255,255,0.08); }
+  100% { box-shadow: 0 0 0 0 rgba(255,255,255,0), inset 0 0 0 0 rgba(255,255,255,0); }
 }
 
 .boost-btn-wrap {
@@ -9321,12 +9430,12 @@ html {
   height: 32px;
   margin: -16px 0 0 -16px;
   border-radius: 50%;
-  border: 1.5px solid #ffc800;
+  border: 1.5px solid rgba(255,255,255,0.5);
   animation: boostRingOut 0.5s cubic-bezier(0.2, 0.6, 0.3, 1) both;
 }
 
 .boost-ring.boost-ring-2 {
-  border-color: rgba(255,170,0,0.55);
+  border-color: rgba(255,255,255,0.3);
   animation: boostRingOut2 0.4s 0.07s cubic-bezier(0.2, 0.6, 0.3, 1) both;
 }
 
@@ -9339,11 +9448,11 @@ html {
   height: 9px;
   margin: 0 0 0 -1.25px;
   border-radius: 2px;
-  background: linear-gradient(to top, #ffc800, #ffe566);
+  background: linear-gradient(to top, rgba(255,255,255,0.6), #ffffff);
   transform-origin: center bottom;
   transform: rotate(var(--ba)) translateY(0);
   animation: bspFly 0.52s cubic-bezier(0.15, 0.7, 0.25, 1) both;
-  box-shadow: 0 0 4px #ffc800;
+  box-shadow: 0 0 4px rgba(255,255,255,0.4);
 }
 
 .boost-btn-wrap > button.boosted-flash {
@@ -9488,9 +9597,9 @@ html {
   align-items: center;
   gap: 4px;
   font-size: 12px;
-  color: #ff5555;
-  background: rgba(255,50,50,0.08);
-  border: 1px solid rgba(255,50,50,0.15);
+  color: rgba(255,255,255,0.55);
+  background: rgba(255,255,255,0.05);
+  border: 1px solid rgba(255,255,255,0.1);
   border-radius: 8px;
   padding: 4px 10px;
   cursor: pointer;
@@ -9498,7 +9607,7 @@ html {
   transition: background 0.15s;
 }
 .post-admin-delete-btn:hover {
-  background: rgba(255,50,50,0.18);
+  background: rgba(255,255,255,0.1);
 }
 
 /* ===== PROFILE SHEET OVERLAY ===== */
