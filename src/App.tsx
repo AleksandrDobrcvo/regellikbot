@@ -929,21 +929,9 @@ function App() {
   }, [viewer])
 
   useEffect(() => {
-    if (!selectedAdminUserId && adminUsers.length > 0) {
-      setSelectedAdminUserId(adminUsers[0].id)
-    }
-  }, [adminUsers, selectedAdminUserId])
-
-  useEffect(() => {
     if (!selectedAdminUser) {
       setAdminDraft(null)
-      return
     }
-
-    setAdminDraft({
-      ...selectedAdminUser,
-      badgesText: selectedAdminUser.badges.join(', '),
-    })
   }, [selectedAdminUser])
 
   const syncLocation = async (location: ResolvedLocation) => {
@@ -3414,7 +3402,10 @@ function App() {
                     {adminSearchResults.length > 0 && (
                       <div className="admin-search-results">
                         {adminSearchResults.map(u => (
-                          <button key={u.id} className={selectedAdminUserId === u.id ? 'admin-search-result-item active' : 'admin-search-result-item'} onClick={() => setSelectedAdminUserId(u.id)}>
+                          <button key={u.id} className={selectedAdminUserId === u.id ? 'admin-search-result-item active' : 'admin-search-result-item'} onClick={() => {
+                            setSelectedAdminUserId(u.id)
+                            setAdminDraft({ ...u, badgesText: u.badges.join(', ') })
+                          }}>
                             <div className="admin-sr-left">
                               <strong>{u.name}</strong>
                               <span>{u.handle}</span>
@@ -3434,7 +3425,13 @@ function App() {
                         <button
                           key={item.id}
                           className={`admin-user-item${selectedAdminUserId === item.id ? ' active' : ''}${item.ban ? ' banned' : ''}`}
-                          onClick={() => setSelectedAdminUserId(item.id)}
+                          onClick={() => {
+                            setSelectedAdminUserId(item.id)
+                            setAdminDraft({
+                              ...item,
+                              badgesText: item.badges.join(', '),
+                            })
+                          }}
                         >
                           <div className="admin-user-left">
                             <strong>{item.name}</strong>
