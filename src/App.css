@@ -3333,6 +3333,73 @@ html {
   line-height: 1;
   flex-shrink: 0;
 }
+.menu-emoji.bw {
+  filter: grayscale(1) brightness(1.2);
+}
+
+/* Settings language picker */
+.settings-lang-row {
+  display: flex;
+  gap: 10px;
+  padding: 4px 0;
+}
+.settings-lang-btn {
+  flex: 1;
+  padding: 10px 16px;
+  border-radius: 12px;
+  border: 1px solid rgba(255,255,255,0.10);
+  background: transparent;
+  color: var(--muted);
+  font-size: 13px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 0.15s;
+}
+.settings-lang-btn.active {
+  background: rgba(255,255,255,0.08);
+  color: var(--text);
+  border-color: rgba(255,255,255,0.22);
+}
+
+/* Registration language step */
+.reg-lang-step {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  padding: 16px 0 4px;
+}
+.reg-lang-title {
+  font-size: 15px;
+  font-weight: 700;
+  color: var(--text);
+}
+.reg-lang-hint {
+  font-size: 12px;
+  color: var(--muted);
+  margin: 0;
+}
+.reg-lang-btns {
+  display: flex;
+  gap: 10px;
+}
+.reg-lang-btn {
+  flex: 1;
+  padding: 12px;
+  border-radius: 12px;
+  border: 1px solid rgba(255,255,255,0.10);
+  background: transparent;
+  color: var(--muted);
+  font-size: 14px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 0.15s;
+  text-align: center;
+}
+.reg-lang-btn.active {
+  background: rgba(255,255,255,0.10);
+  color: var(--text);
+  border-color: rgba(255,255,255,0.25);
+}
 
 /* Menu notification badges */
 .menu-badge {

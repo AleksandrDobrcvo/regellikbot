@@ -46,6 +46,8 @@ import {
   Zap,
 } from 'lucide-react'
 import './App.css'
+import { translations } from './i18n'
+import type { Lang } from './i18n'
 
 type TabId = 'feed' | 'home' | 'chats' | 'profile' | 'transactions' | 'admin' | 'radar' | 'settings' | 'trends' | 'profile-view'
 type AuthProvider = 'email'
@@ -506,6 +508,9 @@ function App() {
   const [reports, setReports] = useState<UserReport[]>([])
   const [onlineCount, setOnlineCount] = useState(0)
   const [activeTab, setActiveTab] = useState<TabId>('feed')
+  const [lang, setLang] = useState<Lang>(() => (localStorage.getItem('regellik_lang') as Lang) || 'uz')
+  const t = translations[lang]
+  const switchLang = (l: Lang) => { setLang(l); localStorage.setItem('regellik_lang', l) }
   const [authOpen, setAuthOpen] = useState(false)
   const [authMode, setAuthMode] = useState<'login' | 'register'>('login')
   const [menuOpen, setMenuOpen] = useState(false)
@@ -559,6 +564,7 @@ function App() {
   const [selectedOwnPost, setSelectedOwnPost] = useState<Post | null>(null)
   // Auth password
   const [authMethod, setAuthMethod] = useState<'password' | 'code'>('password')
+  const [regLangStep, setRegLangStep] = useState(false)
   const [authPassword, setAuthPassword] = useState('')
   const [authConfirmPassword, setAuthConfirmPassword] = useState('')
   const [authPasswordVisible, setAuthPasswordVisible] = useState(false)
@@ -1909,44 +1915,63 @@ function App() {
 
       {authOpen && (
         <div className="auth-layer">
-          <div className="auth-backdrop" onClick={() => { setAuthOpen(false); setEmailStep('email'); setEmailCode('') }} />
+          <div className="auth-backdrop" onClick={() => { setAuthOpen(false); setEmailStep('email'); setEmailCode(''); setRegLangStep(false) }} />
           <section className="auth-sheet">
             <div className="sheet-head">
               <div>
-                <span className="eyebrow">{authMode === 'register' ? 'Регистрация' : 'Вход'}</span>
-                <h2>{authMode === 'register' ? 'Создать аккаунт' : 'Войти в аккаунт'}</h2>
+                <span className="eyebrow">{authMode === 'register' ? t.register : t.login}</span>
+                <h2>{authMode === 'register' ? t.createAccount : t.enterAccount}</h2>
               </div>
-              <button className="ghost-icon" onClick={() => { setAuthOpen(false); setEmailStep('email'); setEmailCode('') }}>
+              <button className="ghost-icon" onClick={() => { setAuthOpen(false); setEmailStep('email'); setEmailCode(''); setRegLangStep(false) }}>
                 ×
               </button>
             </div>
 
             <div className="auth-mode-tabs">
-              <button className={authMode === 'login' ? 'auth-mode-tab active' : 'auth-mode-tab'} onClick={() => { setAuthMode('login'); setEmailStep('email'); setEmailCode('') }}>Вход</button>
-              <button className={authMode === 'register' ? 'auth-mode-tab active' : 'auth-mode-tab'} onClick={() => { setAuthMode('register'); setEmailStep('email'); setEmailCode('') }}>Регистрация</button>
+              <button className={authMode === 'login' ? 'auth-mode-tab active' : 'auth-mode-tab'} onClick={() => { setAuthMode('login'); setEmailStep('email'); setEmailCode(''); setRegLangStep(false) }}>{t.login}</button>
+              <button className={authMode === 'register' ? 'auth-mode-tab active' : 'auth-mode-tab'} onClick={() => { setAuthMode('register'); setEmailStep('email'); setEmailCode(''); setRegLangStep(false) }}>{t.register}</button>
             </div>
 
-            {/* Method selector */}
+            {/* Language selection step shown before registration form */}
+            {authMode === 'register' && regLangStep === false && (
+              <div className="reg-lang-step">
+                <div className="reg-lang-title">{t.chooseLanguage}</div>
+                <p className="reg-lang-hint">{t.languageHint}</p>
+                <div className="reg-lang-btns">
+                  <button className={lang === 'uz' ? 'reg-lang-btn active' : 'reg-lang-btn'} onClick={() => { switchLang('uz'); setRegLangStep(true) }}>
+                    🇺🇿 {t.languageUz}
+                  </button>
+                  <button className={lang === 'ru' ? 'reg-lang-btn active' : 'reg-lang-btn'} onClick={() => { switchLang('ru'); setRegLangStep(true) }}>
+                    🇷🇺 {t.languageRu}
+                  </button>
+                </div>
+              </div>
+            )}
+
+            {/* Method selector — shown after lang step (or for login) */}
+            {(authMode === 'login' || regLangStep) && (
             <div className="auth-method-tabs">
               <button className={authMethod === 'password' ? 'auth-method-tab active' : 'auth-method-tab'} onClick={() => setAuthMethod('password')}>
-                <ShieldCheck size={13} /> Пароль
+                <ShieldCheck size={13} /> {t.password}
               </button>
               <button className={authMethod === 'code' ? 'auth-method-tab active' : 'auth-method-tab'} onClick={() => setAuthMethod('code')}>
-                <Mail size={13} /> Email-код
+                <Mail size={13} /> Email-{t.sendCode}
               </button>
             </div>
+            )}
 
+            {(authMode === 'login' || regLangStep) && (
             <div className="auth-stack">
               {authMethod === 'password' ? (
                 authMode === 'login' ? (
                   <form className="email-card" onSubmit={loginWithPassword}>
-                    <div className="auth-title"><ShieldCheck size={16} />Вход по паролю</div>
-                    <input value={emailValue} onChange={e => setEmailValue(e.target.value)} placeholder="Email" type="email" required autoComplete="email" />
+                    <div className="auth-title"><ShieldCheck size={16} />{t.loginByPassword}</div>
+                    <input value={emailValue} onChange={e => setEmailValue(e.target.value)} placeholder={t.email} type="email" required autoComplete="email" />
                     <div className="auth-password-wrap">
                       <input
                         value={authPassword}
                         onChange={e => setAuthPassword(e.target.value)}
-                        placeholder="Пароль"
+                        placeholder={t.password}
                         type={authPasswordVisible ? 'text' : 'password'}
                         required
                         autoComplete="current-password"
@@ -1957,20 +1982,20 @@ function App() {
                       </button>
                     </div>
                     <button className="primary-btn wide" type="submit" disabled={isAuthingPassword || !emailValue.trim() || !authPassword}>
-                      {isAuthingPassword ? 'Входим...' : 'Войти'}
+                      {isAuthingPassword ? t.signingIn : t.loginBtn}
                     </button>
                   </form>
                 ) : (
                   <form className="email-card" onSubmit={registerWithPassword}>
-                    <div className="auth-title"><ShieldCheck size={16} />Регистрация с паролем</div>
-                    <div className="auth-note">Пароль минимум 8 символов</div>
-                    <input value={emailName} onChange={e => setEmailName(e.target.value)} placeholder="Имя" required />
-                    <input value={emailValue} onChange={e => setEmailValue(e.target.value)} placeholder="Email" type="email" required autoComplete="email" />
+                    <div className="auth-title"><ShieldCheck size={16} />{t.registerByPassword}</div>
+                    <div className="auth-note">{t.passwordMin}</div>
+                    <input value={emailName} onChange={e => setEmailName(e.target.value)} placeholder={t.name} required />
+                    <input value={emailValue} onChange={e => setEmailValue(e.target.value)} placeholder={t.email} type="email" required autoComplete="email" />
                     <div className="auth-password-wrap">
                       <input
                         value={authPassword}
                         onChange={e => setAuthPassword(e.target.value)}
-                        placeholder="Пароль (мин. 8 символов)"
+                        placeholder={t.password}
                         type={authPasswordVisible ? 'text' : 'password'}
                         required
                         autoComplete="new-password"
@@ -1984,17 +2009,17 @@ function App() {
                       <input
                         value={authConfirmPassword}
                         onChange={e => setAuthConfirmPassword(e.target.value)}
-                        placeholder="Повторить пароль"
+                        placeholder={t.passwordRepeat}
                         type={authPasswordVisible ? 'text' : 'password'}
                         required
                         autoComplete="new-password"
                       />
                     </div>
                     {authPassword && authConfirmPassword && authPassword !== authConfirmPassword && (
-                      <div className="auth-pass-mismatch">Пароли не совпадают</div>
+                      <div className="auth-pass-mismatch">{t.passwordMismatch}</div>
                     )}
                     <button className="primary-btn wide" type="submit" disabled={isAuthingPassword || authPassword !== authConfirmPassword || authPassword.length < 8}>
-                      {isAuthingPassword ? 'Создаём...' : 'Создать аккаунт'}
+                      {isAuthingPassword ? t.creating : t.registerBtn}
                     </button>
                   </form>
                 )
@@ -2002,30 +2027,28 @@ function App() {
                 <form className="email-card" onSubmit={sendEmailCode}>
                   <div className="auth-title">
                     <Mail size={16} />
-                    {authMode === 'register' ? 'Регистрация по Email' : 'Вход по Email'}
+                    {authMode === 'register' ? t.registerByEmail : t.enterByEmail}
                   </div>
                   <div className="auth-note">
-                    {authMode === 'register'
-                      ? 'Укажи имя и email — пришлём код подтверждения'
-                      : 'Введи email — пришлём 6-значный код для входа'}
+                    {authMode === 'register' ? t.enterNameAndEmail : t.enterEmail}
                   </div>
                   {authMode === 'register' && (
-                    <input value={emailName} onChange={(e) => setEmailName(e.target.value)} placeholder="Имя" required />
+                    <input value={emailName} onChange={(e) => setEmailName(e.target.value)} placeholder={t.name} required />
                   )}
-                  <input value={emailValue} onChange={(e) => setEmailValue(e.target.value)} placeholder="Email" type="email" required />
+                  <input value={emailValue} onChange={(e) => setEmailValue(e.target.value)} placeholder={t.email} type="email" required />
                   <button className="primary-btn wide" type="submit" disabled={isSendingCode || !siteSettings.emailAuthEnabled}>
                     <Mail size={16} />
-                    {isSendingCode ? 'Отправляем...' : 'Получить код'}
+                    {isSendingCode ? t.sending : t.sendCode}
                   </button>
                 </form>
               ) : (
                 <form className="email-card" onSubmit={signInEmail}>
                   <div className="auth-title">
                     <ShieldCheck size={16} />
-                    Подтверждение
+                    {t.confirm}
                   </div>
                   <div className="auth-note code-sent-note">
-                    Код отправлен на <strong>{emailValue}</strong>
+                    {t.codeSentTo} <strong>{emailValue}</strong>
                   </div>
                   <input
                     className="code-input"
@@ -2041,22 +2064,23 @@ function App() {
                   />
                   <button className="primary-btn wide" type="submit" disabled={emailCode.length < 6}>
                     <ShieldCheck size={16} />
-                    {authMode === 'register' ? 'Создать аккаунт' : 'Войти'}
+                    {authMode === 'register' ? t.registerBtn : t.loginBtn}
                   </button>
                   <button type="button" className="auth-switch-btn back-btn" onClick={() => { setEmailStep('email'); setEmailCode('') }}>
-                    ← Назад
+                    {t.back}
                   </button>
                 </form>
               )}
 
               <div className="auth-switch">
                 {authMode === 'login' ? (
-                  <span>Нет аккаунта? <button className="auth-switch-btn" onClick={() => { setAuthMode('register'); setEmailStep('email'); setEmailCode('') }}>Зарегистрируйся</button></span>
+                  <span>{t.noAccount} <button className="auth-switch-btn" onClick={() => { setAuthMode('register'); setEmailStep('email'); setEmailCode(''); setRegLangStep(false) }}>{t.signUp}</button></span>
                 ) : (
-                  <span>Уже есть аккаунт? <button className="auth-switch-btn" onClick={() => { setAuthMode('login'); setEmailStep('email'); setEmailCode('') }}>Войди</button></span>
+                  <span>{t.hasAccount} <button className="auth-switch-btn" onClick={() => { setAuthMode('login'); setEmailStep('email'); setEmailCode(''); setRegLangStep(false) }}>{t.signIn}</button></span>
                 )}
               </div>
             </div>
+            )}
           </section>
         </div>
       )}
@@ -2102,7 +2126,17 @@ function App() {
               {menuOpen ? <X size={20} /> : <Menu size={20} />}
             </button>
             <span className="header-brand" onClick={() => { switchTab('chats'); closeMenu(); }} style={{cursor:'pointer'}}>
-              <span className="header-brand-icon">&gt;]</span>Chatlar
+              <span className="header-brand-icon">&gt;]</span>{
+                activeTab === 'home' ? t.tabHome :
+                activeTab === 'chats' ? t.tabChats :
+                activeTab === 'trends' ? t.tabTrends :
+                activeTab === 'radar' ? t.tabRadar :
+                activeTab === 'transactions' ? t.tabTransactions :
+                activeTab === 'settings' ? t.tabSettings :
+                activeTab === 'admin' ? t.tabAdmin :
+                activeTab === 'profile' || activeTab === 'profile-view' ? t.tabProfile :
+                'Regellik'
+              }
             </span>
           </div>
           <div className="header-right">
@@ -2141,33 +2175,33 @@ function App() {
               <div className="corner-menu-nav">
                 {!isSignedIn && (
                   <button className="corner-menu-item accent-item" onClick={() => { closeMenu(); setAuthOpen(true) }}>
-                    Зайти в Регель
+                    {t.enterRegel}
                   </button>
                 )}
 
                 {isSignedIn && (
                   <>
                     <button className={activeTab === 'home' ? 'corner-menu-item active' : 'corner-menu-item'} onClick={() => switchTab('home', closeMenu)}>
-                      <span className="menu-emoji">🖊</span> Kabinet
+                      <span className="menu-emoji bw">🖊</span> {t.kabinet}
                     </button>
                     <button className={activeTab === 'chats' ? 'corner-menu-item active' : 'corner-menu-item'} onClick={() => switchTab('chats', closeMenu)}>
-                      <span className="menu-emoji">💬</span> Chatlar
+                      <span className="menu-emoji bw">💬</span> {t.chatlar}
                       {totalUnread > 0 && <span className="menu-badge">{totalUnread}</span>}
                     </button>
                     <button className={activeTab === 'trends' ? 'corner-menu-item active' : 'corner-menu-item'} onClick={() => switchTab('trends', closeMenu)}>
-                      <span className="menu-emoji">#️⃣</span> Global
+                      <span className="menu-emoji bw">#️⃣</span> {t.global}
                     </button>
                     <button className={activeTab === 'radar' ? 'corner-menu-item active' : 'corner-menu-item'} onClick={() => switchTab('radar', () => { closeMenu(); void loadRadar() })}>
-                      <span className="menu-emoji">👤</span> Kontaktlar
+                      <span className="menu-emoji bw">👤</span> {t.kontaktlar}
                     </button>
                     <button className={activeTab === 'transactions' ? 'corner-menu-item active' : 'corner-menu-item'} onClick={() => switchTab('transactions', closeMenu)}>
-                      <span className="menu-emoji">👤</span> O'tkazmalar
+                      <span className="menu-emoji bw">👤</span> {t.otkazmalar}
                     </button>
                     <button className={activeTab === 'transactions' ? 'corner-menu-item active' : 'corner-menu-item'} onClick={() => { switchTab('transactions', closeMenu) }}>
-                      <span className="menu-emoji">⚡️</span> QUVVAT
+                      <span className="menu-emoji bw">⚡️</span> {t.quvvat}
                     </button>
                     <button className={activeTab === 'settings' ? 'corner-menu-item active' : 'corner-menu-item'} onClick={() => switchTab('settings', closeMenu)}>
-                      <span className="menu-emoji">⚙</span> Sozlamalar
+                      <span className="menu-emoji bw">⚙</span> {t.sozlamalar}
                     </button>
                     {isAdmin && (
                       <button className={activeTab === 'admin' ? 'corner-menu-item active' : 'corner-menu-item'} onClick={() => switchTab('admin', closeMenu)}>
@@ -2176,14 +2210,14 @@ function App() {
                     )}
                     <div className="corner-menu-divider" />
                     <button className="corner-menu-item muted-item" onClick={() => { closeMenu(); openReportForPost() }}>
-                      <span className="menu-emoji">❗️</span> Shikoyat qilish
+                      <span className="menu-emoji bw">❗️</span> {t.shikoyat}
                     </button>
                     <button className="corner-menu-item muted-item" onClick={() => { closeMenu(); void startConversation('support') }}>
-                      <span className="menu-emoji">😀</span> Qo'llab quvvatlash 24/7
+                      <span className="menu-emoji bw">😀</span> {t.support}
                     </button>
                     <div className="corner-menu-divider" />
                     <button className="corner-menu-item danger-item" onClick={() => { closeMenu(); void signOut() }}>
-                      <LogOut size={16} /> Chiqish
+                      <LogOut size={16} /> {t.exit}
                     </button>
                   </>
                 )}
@@ -3243,7 +3277,7 @@ function App() {
 
                   <button className="topup-cta-btn" onClick={() => setTopUpOpen(!topUpOpen)}>
                     {topUpOpen ? <X size={18} /> : <Plus size={18} />}
-                    {topUpOpen ? 'Скрыть' : 'Пополнить баланс'}
+                    {topUpOpen ? t.transferClose : 'To\'ldirish'}
                   </button>
 
                   {topUpOpen && (
@@ -3269,7 +3303,7 @@ function App() {
                   {/* O'tkazish — energy transfer */}
                   <button className="transfer-cta-btn" onClick={() => { setTransferOpen(o => !o); setTransferResult(null) }}>
                     <Send size={17} style={{transform: 'rotate(-45deg)'}} />
-                    {transferOpen ? "Yopish" : "O'tkazish ⚡"}
+                    {transferOpen ? t.transferClose : `${t.transfer} ⚡`}
                   </button>
 
                   {transferOpen && (
@@ -3284,11 +3318,11 @@ function App() {
                               <Zap size={36} className="transfer-zap-icon" />
                             </div>
                             <div className="transfer-success-text">
-                              <strong>Yuborildi!</strong>
+                              <strong>{t.transferSuccess}</strong>
                               <p>{transferResult.amount} <Zap size={13}/> → {transferResult.name} <span className="transfer-handle">{transferResult.handle}</span></p>
-                              <small>Komissiya: {transferResult.fee} ⚡ yechildi</small>
+                              <small>{t.transferFeeLabel}: {transferResult.fee} ⚡</small>
                             </div>
-                            <button className="transfer-again-btn" onClick={() => setTransferResult(null)}>Yana o'tkazish</button>
+                            <button className="transfer-again-btn" onClick={() => setTransferResult(null)}>{t.transferAgain}</button>
                           </div>
                         ) : (
                           <div className="transfer-error">
@@ -3298,7 +3332,7 @@ function App() {
                               </div>
                             </div>
                             <p className="transfer-error-msg">{transferResult.error}</p>
-                            <button className="transfer-again-btn" onClick={() => setTransferResult(null)}>Qayta urinish</button>
+                            <button className="transfer-again-btn" onClick={() => setTransferResult(null)}>{t.transferRetry}</button>
                           </div>
                         )
                       ) : (
@@ -3306,20 +3340,20 @@ function App() {
                           <div className="transfer-form-header">
                             <Zap size={18} className="transfer-header-icon" />
                             <div>
-                              <strong>Energiya o'tkazish</strong>
-                              <small>Min: 10 ⚡ · Max: 500 ⚡ · Komissiya: 5%</small>
+                              <strong>{t.transferTitle}</strong>
+                              <small>{t.transferHint}</small>
                             </div>
                           </div>
                           <div className="transfer-conditions">
-                            <span>🕐 6 soatda bir marta</span>
-                            <span>📅 3 kun eski akkaunt</span>
-                            <span>🔒 5% komissiya yonadi</span>
+                            <span>{t.transferCooldown}</span>
+                            <span>{t.transferAge}</span>
+                            <span>{t.transferFee}</span>
                           </div>
                           <input
                             className="transfer-input"
                             value={transferHandle}
                             onChange={e => setTransferHandle(e.target.value)}
-                            placeholder="@handle yoki #ID"
+                            placeholder={t.transferRecipient}
                             required
                           />
                           <div className="transfer-amount-wrap">
@@ -3330,21 +3364,21 @@ function App() {
                               max={500}
                               value={transferAmount}
                               onChange={e => setTransferAmount(e.target.value)}
-                              placeholder="Miqdor (10–500)"
+                              placeholder={t.transferAmount}
                               required
                             />
                             {transferAmount && Number(transferAmount) >= 10 && (
                               <div className="transfer-fee-hint">
-                                <span>Komissiya: {Math.max(1, Math.floor(Number(transferAmount) * 0.05))} ⚡</span>
-                                <span>Jami: {Number(transferAmount) + Math.max(1, Math.floor(Number(transferAmount) * 0.05))} ⚡</span>
+                                <span>{t.transferCommission}: {Math.max(1, Math.floor(Number(transferAmount) * 0.05))} ⚡</span>
+                                <span>{t.transferTotal}: {Number(transferAmount) + Math.max(1, Math.floor(Number(transferAmount) * 0.05))} ⚡</span>
                               </div>
                             )}
                           </div>
                           <button className="transfer-submit-btn" type="submit" disabled={transferLoading}>
                             {transferLoading ? (
-                              <><RefreshCw size={16} className="spin" /> Yuborilmoqda...</>
+                              <><RefreshCw size={16} className="spin" /> {t.transferSending}</>
                             ) : (
-                              <><Send size={16} style={{transform:'rotate(-45deg)'}} /> Yuborish</>
+                              <><Send size={16} style={{transform:'rotate(-45deg)'}} /> {t.transferSend}</>
                             )}
                           </button>
                         </form>
@@ -3434,35 +3468,35 @@ function App() {
                 {/* Сеанс */}
                 <article className="panel-card settings-card">
                   <div className="panel-head compact-head">
-                    <span className="eyebrow"># сеанс</span>
+                    <span className="eyebrow"># {t.session}</span>
                   </div>
                   <div className="settings-info-rows">
                     <div className="meta-row">
-                      <span>Вход через</span>
+                      <span>{t.loginVia}</span>
                       <strong>Email</strong>
                     </div>
                     <div className="meta-row">
-                      <span>Telegram привязан</span>
-                      <strong>{viewer.telegramLinked ? 'Да' : 'Нет'}</strong>
+                      <span>{t.telegramLinked}</span>
+                      <strong>{viewer.telegramLinked ? t.yes : t.no}</strong>
                     </div>
                   </div>
                   <button className="secondary-btn danger wide settings-logout-btn" onClick={() => void signOut()}>
                     <LogOut size={16} />
-                    Выйти из аккаунта
+                    {t.logout}
                   </button>
                 </article>
 
                 {/* Активные сессии */}
                 <article className="panel-card settings-card">
                   <div className="panel-head compact-head">
-                    <span className="eyebrow"># активные сессии</span>
+                    <span className="eyebrow"># {t.activeSessions}</span>
                   </div>
                   {userSessions.length === 0 && !sessionsLoading && (
                     <button className="secondary-btn wide" onClick={() => void loadSessions()}>
-                      Загрузить сессии
+                      {t.loadSessions}
                     </button>
                   )}
-                  {sessionsLoading && <p style={{ color: 'var(--muted)', fontSize: '13px', textAlign: 'center' }}>Загрузка...</p>}
+                  {sessionsLoading && <p style={{ color: 'var(--muted)', fontSize: '13px', textAlign: 'center' }}>{t.loading}</p>}
                   {userSessions.length > 0 && (
                     <div className="sessions-list">
                       {userSessions.map(s => (
@@ -3475,9 +3509,9 @@ function App() {
                             <span>{s.createdAt ? new Date(s.createdAt).toLocaleDateString('ru-RU', { day: 'numeric', month: 'short', year: 'numeric', hour: '2-digit', minute: '2-digit' }) : '—'}</span>
                           </div>
                           {s.isCurrent ? (
-                            <span className="session-current-badge">текущая</span>
+                            <span className="session-current-badge">{t.current}</span>
                           ) : (
-                            <button className="session-kill-btn" onClick={() => void killSession(s.id)}>Завершить</button>
+                            <button className="session-kill-btn" onClick={() => void killSession(s.id)}>{t.terminate}</button>
                           )}
                         </div>
                       ))}
@@ -3485,7 +3519,7 @@ function App() {
                   )}
                   {userSessions.length > 0 && (
                     <button className="secondary-btn wide" style={{ marginTop: '8px' }} onClick={() => void loadSessions()}>
-                      Обновить
+                      {t.refresh}
                     </button>
                   )}
                 </article>
@@ -3493,26 +3527,26 @@ function App() {
                 {/* Геолокация */}
                 <article className="panel-card settings-card">
                   <div className="panel-head compact-head">
-                    <span className="eyebrow"># геолокация</span>
+                    <span className="eyebrow"># {t.geolocation}</span>
                   </div>
                   <div className="settings-info-rows">
                     <div className="meta-row">
-                      <span>Текущее гео</span>
+                      <span>{t.currentGeo}</span>
                       <strong>{viewerLocation}</strong>
                     </div>
                     <div className="meta-row">
-                      <span>Разрешение</span>
-                      <strong>{locationState === 'granted' ? 'Включено' : locationState === 'denied' ? 'Отклонено' : 'Не запрашивалось'}</strong>
+                      <span>{t.permission}</span>
+                      <strong>{locationState === 'granted' ? t.geoEnabled : locationState === 'denied' ? t.geoDenied : t.geoNotAsked}</strong>
                     </div>
                     <div className="meta-row">
-                      <span>Видимость в профиле</span>
-                      <strong>{viewer.geoAllowed ? 'Видно' : 'Скрыто'}</strong>
+                      <span>{t.geoVisible}</span>
+                      <strong>{viewer.geoAllowed ? t.geoShow : t.geoHide}</strong>
                     </div>
                   </div>
                   <div className="settings-actions-row">
                     {locationState !== 'granted' && (
                       <button className="secondary-btn" onClick={requestLocation}>
-                        <MapPin size={14} /> Включить гео
+                        <MapPin size={14} /> {t.enableGeo}
                       </button>
                     )}
                     <button className={viewer.geoAllowed ? 'secondary-btn' : 'secondary-btn danger'} onClick={async () => {
@@ -3527,36 +3561,51 @@ function App() {
                           }),
                         }, sessionToken)
                         setViewer(prev => prev ? { ...prev, geoAllowed: !prev.geoAllowed } : prev)
-                        showToast(viewer.geoAllowed ? 'Гео скрыто из профиля' : 'Гео показывается в профиле', 'success')
+                        showToast(viewer.geoAllowed ? t.geoHideProfile : t.geoShowProfile, 'success')
                       } catch {
-                        showToast('Не удалось изменить настройку', 'error')
+                        showToast(t.error, 'error')
                       }
                     }}>
-                      {viewer.geoAllowed ? <><EyeOff size={14} /> Скрыть гео</> : <><Eye size={14} /> Показать гео</>}
+                      {viewer.geoAllowed ? <><EyeOff size={14} /> {t.geoHideProfile}</> : <><Eye size={14} /> {t.geoShowProfile}</>}
                     </button>
                   </div>
                 </article>
 
-                {/* Уведомления / Приватность */}
+                {/* Privacy */}
                 <article className="panel-card settings-card">
                   <div className="panel-head compact-head">
-                    <span className="eyebrow"># приватность</span>
+                    <span className="eyebrow"># {t.privacy}</span>
                   </div>
                   <div className="settings-toggle-list">
                     <button className={viewer.preferences.allowInbox ? 'settings-toggle-item active' : 'settings-toggle-item'} onClick={() => void updatePreference('allowInbox', !viewer.preferences.allowInbox)}>
                       <MessageCircle size={16} />
-                      <div><strong>Личные сообщения</strong><span>Разрешить другим писать тебе</span></div>
+                      <div><strong>{t.allowMessages}</strong><span>{t.allowMessagesDesc}</span></div>
                       <div className={viewer.preferences.allowInbox ? 'toggle-pill on' : 'toggle-pill'} />
                     </button>
                     <button className={viewer.preferences.showCity ? 'settings-toggle-item active' : 'settings-toggle-item'} onClick={() => void updatePreference('showCity', !viewer.preferences.showCity)}>
                       <MapPin size={16} />
-                      <div><strong>Показывать город</strong><span>В профиле и ленте</span></div>
+                      <div><strong>{t.showCity}</strong><span>{t.showCityDesc}</span></div>
                       <div className={viewer.preferences.showCity ? 'toggle-pill on' : 'toggle-pill'} />
                     </button>
                     <button className={viewer.preferences.neonProfile ? 'settings-toggle-item active' : 'settings-toggle-item'} onClick={() => void updatePreference('neonProfile', !viewer.preferences.neonProfile)}>
                       <Sparkles size={16} />
-                      <div><strong>Неоновый профиль</strong><span>Яркая подсветка аватара</span></div>
+                      <div><strong>{t.neonProfile}</strong><span>{t.neonProfileDesc}</span></div>
                       <div className={viewer.preferences.neonProfile ? 'toggle-pill on' : 'toggle-pill'} />
+                    </button>
+                  </div>
+                </article>
+
+                {/* Language switcher */}
+                <article className="panel-card settings-card">
+                  <div className="panel-head compact-head">
+                    <span className="eyebrow"># {t.language}</span>
+                  </div>
+                  <div className="settings-lang-row">
+                    <button className={lang === 'uz' ? 'settings-lang-btn active' : 'settings-lang-btn'} onClick={() => switchLang('uz')}>
+                      🇺🇿 {t.languageUz}
+                    </button>
+                    <button className={lang === 'ru' ? 'settings-lang-btn active' : 'settings-lang-btn'} onClick={() => switchLang('ru')}>
+                      🇷🇺 {t.languageRu}
                     </button>
                   </div>
                 </article>
