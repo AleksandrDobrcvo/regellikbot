@@ -608,6 +608,11 @@ function App() {
   const [lightboxImages, setLightboxImages] = useState<string[]>([])
   const [lightboxIndex, setLightboxIndex] = useState(0)
 
+  // Recently viewed contacts
+  const [recentlyViewedUsers, setRecentlyViewedUsers] = useState<{id: string, name: string, handle: string, avatarUrl: string | null}[]>(() => {
+    try { return JSON.parse(localStorage.getItem('rvu') || '[]') as {id: string, name: string, handle: string, avatarUrl: string | null}[] } catch { return [] }
+  })
+
   // Ban management
   const [banUserId, setBanUserId] = useState('')
   const [banType, setBanType] = useState<BanType>('global')
@@ -687,7 +692,6 @@ function App() {
 
   const isSignedIn = Boolean(viewer)
   const isAdmin = viewer?.role === 'admin'
-  const sortedDirectory = useMemo(() => [...directory].sort((left, right) => right.stats.received - left.stats.received), [directory])
   const viewerLocation = useMemo(() => {
     if (viewer?.city) {
       return `${viewer.city}${viewer.country ? `, ${viewer.country}` : ''}`
@@ -1507,6 +1511,13 @@ function App() {
       setViewedProfile(data)
       setProfileViewTab('posts')
       setReportPostId('')
+      // Track recently viewed
+      const entry = { id: data.user.id, name: data.user.name, handle: data.user.handle, avatarUrl: data.user.avatarUrl || null }
+      setRecentlyViewedUsers(prev => {
+        const updated = [entry, ...prev.filter(u => u.id !== data.user.id)].slice(0, 20)
+        localStorage.setItem('rvu', JSON.stringify(updated))
+        return updated
+      })
       switchTab('profile-view')
     } catch (error) {
       showToast(error instanceof Error ? error.message : 'Ошибка', 'error')
@@ -2237,39 +2248,96 @@ function App() {
               </section>
             )}
 
-            {/* --- COMPOSE (новый чат — заменяет экран чатов) --- */}
-            {activeTab === 'chats' && !openConvoId && composeOpen && (
+            {/* --- KONTAKTLAR (sobiq compose) --- */}
+            {activeTab === 'chats' && !openConvoId && composeOpen && (() => {
+              const contactIds = new Set(conversations.filter(c => !c.isSystem).map(c => c.otherUser?.id).filter(Boolean))
+              const contactUsers = conversations
+                .filter(c => !c.isSystem && c.otherUser)
+                .map(c => c.otherUser!)
+              const recentNotInContacts = recentlyViewedUsers.filter(u => !contactIds.has(u.id) && u.id !== viewer?.id)
+              const allKontaktlar = [
+                ...contactUsers,
+                ...recentNotInContacts.map(u => ({ id: u.id, name: u.name, handle: u.handle, avatarUrl: u.avatarUrl, stats: { sent: 0, received: 0, boosts: 0 } }))
+              ]
+              const filteredKontaktlar = composeSearch
+                ? allKontaktlar.filter(u =>
+                    u.name.toLowerCase().includes(composeSearch.toLowerCase()) ||
+                    u.handle.toLowerCase().includes(composeSearch.toLowerCase())
+                  )
+                : allKontaktlar
+              return (
               <section className={`chats-screen compose-screen page-transition${composeExiting ? ' compose-page-exit' : ''}`}>
                 <div className="chats-header-row">
                   <button className="compose-back-btn" onClick={closeCompose}>
                     <ArrowLeft size={20} />
                   </button>
-                  <h2 className="chats-title">Новый чат</h2>
+                  <h2 className="chats-title">Kontaktlar</h2>
                 </div>
+
+                {/* Invite button */}
+                <button className="kontaktlar-share-btn" style={{marginBottom: '12px'}} onClick={() => {
+                  const shareText = 'Regellikka qo\'shiling — anonim xabarlar, profil va ko\'proq!'
+                  const shareUrl = 'https://t.me/regellikbot'
+                  const tgShareUrl = `https://t.me/share/url?url=${encodeURIComponent(shareUrl)}&text=${encodeURIComponent(shareText)}`
+                  const tg = (window as { Telegram?: { WebApp?: { openTelegramLink?: (url: string) => void } } }).Telegram?.WebApp
+                  if (tg?.openTelegramLink) tg.openTelegramLink(tgShareUrl)
+                  else window.open(tgShareUrl, '_blank')
+                }}>
+                  <Send size={16} />
+                  Do'stlarni taklif qilish
+                </button>
+
                 <div className="compose-search-row">
                   <Search size={16} />
-                  <input value={composeSearch} onChange={e => setComposeSearch(e.target.value)} placeholder="Поиск по имени или handle..." autoFocus />
+                  <input value={composeSearch} onChange={e => setComposeSearch(e.target.value)} placeholder="Kontaktlarni qidirish..." autoFocus />
                 </div>
+
+                {filteredKontaktlar.length === 0 && (
+                  <div className="chats-empty" style={{marginTop: '24px'}}>
+                    <Users size={36} />
+                    <p>Kontaktlar yo'q</p>
+                    <span>Chat boshlaganingizda kontaktlar shu yerda ko'rinadi</span>
+                  </div>
+                )}
+
+                {contactUsers.length > 0 && !composeSearch && (
+                  <div className="compose-section-label">Kontaktlar</div>
+                )}
                 <div className="compose-user-list">
-                  {sortedDirectory
-                    .filter(u => u.id !== viewer?.id && (
-                      u.name.toLowerCase().includes(composeSearch.toLowerCase()) ||
-                      u.handle.toLowerCase().includes(composeSearch.toLowerCase())
-                    ))
-                    .map(u => (
-                      <button key={u.id} className="compose-user-item" onClick={() => void startConversation(u.id)}>
-                        <div className="compose-user-avatar">
-                          {u.avatarUrl ? <img src={u.avatarUrl} alt="" /> : <span>{u.name[0]}</span>}
-                        </div>
-                        <div>
-                          <strong>{u.name}</strong>
-                          <span>{u.handle}</span>
-                        </div>
-                      </button>
-                    ))}
+                  {(composeSearch ? filteredKontaktlar : contactUsers).map(u => (
+                    <button key={u.id} className="compose-user-item" onClick={() => void startConversation(u.id)}>
+                      <div className="compose-user-avatar">
+                        {u.avatarUrl ? <img src={u.avatarUrl} alt="" /> : <span>{u.name[0]}</span>}
+                      </div>
+                      <div>
+                        <strong>{u.name}</strong>
+                        <span>{u.handle}</span>
+                      </div>
+                    </button>
+                  ))}
                 </div>
+
+                {recentNotInContacts.length > 0 && !composeSearch && (
+                  <>
+                    <div className="compose-section-label">So'nggi ko'rilganlar</div>
+                    <div className="compose-user-list">
+                      {recentNotInContacts.map(u => (
+                        <button key={u.id} className="compose-user-item" onClick={() => void startConversation(u.id)}>
+                          <div className="compose-user-avatar">
+                            {u.avatarUrl ? <img src={u.avatarUrl} alt="" /> : <span>{u.name[0]}</span>}
+                          </div>
+                          <div>
+                            <strong>{u.name}</strong>
+                            <span>{u.handle}</span>
+                          </div>
+                        </button>
+                      ))}
+                    </div>
+                  </>
+                )}
               </section>
-            )}
+              )
+            })()}
 
             {/* --- ОТКРЫТЫЙ ЧАТ --- */}
             {activeTab === 'chats' && openConvoId && (() => {
@@ -3151,47 +3219,6 @@ function App() {
                   </div>
                 </article>
 
-                {/* Kontaktlar */}
-                <article className="panel-card settings-card">
-                  <div className="panel-head compact-head">
-                    <span className="eyebrow"># kontaktlar</span>
-                  </div>
-                  <div className="kontaktlar-invite-wrap">
-                    <div className="kontaktlar-desc">
-                      <Users size={32} />
-                      <div>
-                        <strong>Do'stlarni taklif qiling</strong>
-                        <span>Regellikni do'stlaringiz bilan ulashing — birgalikda qiziqarli</span>
-                      </div>
-                    </div>
-                    {viewer?.referralCode && (
-                      <div className="kontaktlar-code-row">
-                        <span className="kontaktlar-code-label">Referal kod</span>
-                        <code className="kontaktlar-code">{viewer.referralCode}</code>
-                        <button className="kontaktlar-copy-btn" onClick={() => {
-                          void navigator.clipboard.writeText(viewer.referralCode ?? '')
-                          showToast('Kod nusxalandi', 'success')
-                        }}>
-                          <Copy size={14} />
-                        </button>
-                      </div>
-                    )}
-                    <button className="kontaktlar-share-btn" onClick={() => {
-                      const shareText = 'Regellikka qo\'shiling — anonim xabarlar, profil va ko\'proq!'
-                      const shareUrl = 'https://regellikbot.onrender.com'
-                      const tgShareUrl = `https://t.me/share/url?url=${encodeURIComponent(shareUrl)}&text=${encodeURIComponent(shareText)}`
-                      const tg = (window as { Telegram?: { WebApp?: { openTelegramLink?: (url: string) => void } } }).Telegram?.WebApp
-                      if (tg?.openTelegramLink) {
-                        tg.openTelegramLink(tgShareUrl)
-                      } else {
-                        window.open(tgShareUrl, '_blank')
-                      }
-                    }}>
-                      <Send size={16} />
-                      Telegram orqali ulashing
-                    </button>
-                  </div>
-                </article>
               </section>
             )}
 

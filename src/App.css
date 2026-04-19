@@ -7544,6 +7544,18 @@ html {
   transform: scale(0.97);
 }
 
+/* Compose section labels */
+.compose-section-label {
+  font-size: 10px;
+  font-weight: 800;
+  letter-spacing: 0.1em;
+  color: var(--muted);
+  text-transform: uppercase;
+  font-family: var(--font-mono);
+  padding: 8px 4px 6px;
+  margin-top: 4px;
+}
+
 .settings-actions-row {
   display: flex;
   gap: 8px;
