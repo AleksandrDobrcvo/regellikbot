@@ -47,7 +47,7 @@ import {
 } from 'lucide-react'
 import './App.css'
 
-type TabId = 'feed' | 'home' | 'chats' | 'profile' | 'transactions' | 'admin' | 'radar' | 'settings' | 'trends'
+type TabId = 'feed' | 'home' | 'chats' | 'profile' | 'transactions' | 'admin' | 'radar' | 'settings' | 'trends' | 'profile-view'
 type AuthProvider = 'email'
 type LocationState = 'idle' | 'loading' | 'granted' | 'denied'
 type ToastTone = 'success' | 'error' | 'info'
@@ -106,6 +106,10 @@ type SessionUser = {
   referralCode: string | null
   referredBy: string | null
   ban: BanInfo | null
+  profileViews?: number
+  followerCount: number
+  followingCount: number
+  postCount: number
 }
 
 type DirectoryProfile = {
@@ -157,6 +161,8 @@ type Post = {
   authorAvatarUrl: string | null
   authorBadges?: string[]
   text: string
+  imageUrl?: string | null
+  imageUrls?: string[]
   createdAt: string
   boosts: number
   boostedByViewer: boolean
@@ -209,7 +215,54 @@ type AuditLogItem = {
 type AdminData = {
   users: AdminManagedUser[]
   auditLog: AuditLogItem[]
+  reports: UserReport[]
 }
+
+type ReportStatus = 'open' | 'resolved' | 'dismissed'
+
+type UserReport = {
+  id: string
+  reporterId: string
+  reporterName: string
+  reporterHandle: string
+  targetUserId: string
+  targetUserName: string
+  targetUserHandle: string
+  postId?: string | null
+  postPreview?: string | null
+  category: string
+  text: string
+  status: ReportStatus
+  createdAt: string
+  updatedAt: string
+  relatedPosts?: Post[]
+}
+
+type PublicProfileUser = {
+  id: string
+  name: string
+  handle: string
+  bio: string
+  tagline: string
+  avatarUrl: string | null
+  badges: string[]
+  powers: number
+  city: string | null
+  country: string | null
+  joinedAt: string
+  profileViews: number
+  followerCount: number
+  followingCount: number
+  postCount: number
+}
+
+type ProfileViewData = {
+  user: PublicProfileUser
+  posts: Post[]
+  isFollowing: boolean
+}
+
+type PublicProfileTab = 'posts' | 'info'
 
 type ConversationPreview = {
   id: string
@@ -448,6 +501,7 @@ function App() {
   const [siteSettings, setSiteSettings] = useState<SiteSettings>(DEFAULT_SITE_SETTINGS)
   const [adminUsers, setAdminUsers] = useState<AdminManagedUser[]>([])
   const [auditLog, setAuditLog] = useState<AuditLogItem[]>([])
+  const [reports, setReports] = useState<UserReport[]>([])
   const [onlineCount, setOnlineCount] = useState(0)
   const [activeTab, setActiveTab] = useState<TabId>('feed')
   const [authOpen, setAuthOpen] = useState(false)
@@ -498,6 +552,7 @@ function App() {
   const [posts, setPosts] = useState<Post[]>([])
   const [trendsSort, setTrendsSort] = useState<'top' | 'new'>('top')
   const [newPostText, setNewPostText] = useState('')
+  const [newPostImages, setNewPostImages] = useState<string[]>([])
   const [isCreatingPost, setIsCreatingPost] = useState(false)
   const [expandedPostComments, setExpandedPostComments] = useState<Set<string>>(new Set())
   const [commentTexts, setCommentTexts] = useState<Record<string, string>>({})
@@ -533,7 +588,7 @@ function App() {
   const [adminConfirmAction, setAdminConfirmAction] = useState<{ label: string; action: () => void } | null>(null)
 
   // Admin section navigation
-  type AdminSectionId = 'none' | 'economy' | 'site' | 'roles' | 'topup' | 'users' | 'bans' | 'audit' | 'broadcast' | 'badges'
+  type AdminSectionId = 'none' | 'economy' | 'site' | 'roles' | 'topup' | 'users' | 'bans' | 'audit' | 'broadcast' | 'badges' | 'reports'
   const [adminSection, setAdminSection] = useState<AdminSectionId>('none')
   const [adminBadgeTab, setAdminBadgeTab] = useState<'catalog' | 'custom'>('catalog')
   const [customBadgeIcon, setCustomBadgeIcon] = useState('◆')
@@ -541,8 +596,17 @@ function App() {
   const [customBadgeCss, setCustomBadgeCss] = useState('badge-vip')
 
   // Profile viewer (for admins)
-  const [viewedProfile, setViewedProfile] = useState<AdminManagedUser | null>(null)
-  const [viewProfileOpen, setViewProfileOpen] = useState(false)
+  const [viewedProfile, setViewedProfile] = useState<ProfileViewData | null>(null)
+  const [profileViewTab, setProfileViewTab] = useState<PublicProfileTab>('posts')
+  const [isProfileActionLoading, setIsProfileActionLoading] = useState(false)
+  const [reportProfileOpen, setReportProfileOpen] = useState(false)
+  const [reportReason, setReportReason] = useState('Спам')
+  const [reportText, setReportText] = useState('')
+  const [reportPostId, setReportPostId] = useState<string>('')
+  const [isSubmittingReport, setIsSubmittingReport] = useState(false)
+  const [lightboxOpen, setLightboxOpen] = useState(false)
+  const [lightboxImages, setLightboxImages] = useState<string[]>([])
+  const [lightboxIndex, setLightboxIndex] = useState(0)
 
   // Ban management
   const [banUserId, setBanUserId] = useState('')
@@ -671,6 +735,7 @@ function App() {
     setSiteSettings(data.siteSettings)
     setAdminUsers(data.adminData?.users ?? [])
     setAuditLog(data.adminData?.auditLog ?? [])
+    setReports(data.adminData?.reports ?? [])
     if (data.posts) setPosts(data.posts)
     if (data.powerLog) setPowerLog(data.powerLog)
   }
@@ -1030,6 +1095,11 @@ function App() {
     setChatMessages([])
     setAdminUsers([])
     setAuditLog([])
+    setReports([])
+    setViewedProfile(null)
+    setReportProfileOpen(false)
+    setReportPostId('')
+    setLightboxOpen(false)
     setActiveTab('feed')
     showToast('Сессия завершена', 'info')
   }
@@ -1343,16 +1413,46 @@ function App() {
     }
   }
 
+  const handlePostImageUpload = async (event: React.ChangeEvent<HTMLInputElement>) => {
+    const files = Array.from(event.target.files || [])
+    if (files.length === 0) return
+
+    const nextImages: string[] = []
+    for (const file of files.slice(0, Math.max(0, 6 - newPostImages.length))) {
+      if (!file.type.match(/^image\/(png|jpeg|webp|gif)$/)) {
+        showToast('Допускается PNG, JPEG, WebP или GIF', 'error')
+        continue
+      }
+      if (file.size > 768 * 1024) {
+        showToast('Каждое фото до 768 КБ', 'error')
+        continue
+      }
+      const dataUrl = await new Promise<string>((resolve, reject) => {
+        const reader = new FileReader()
+        reader.onload = () => resolve(reader.result as string)
+        reader.onerror = reject
+        reader.readAsDataURL(file)
+      })
+      nextImages.push(dataUrl)
+    }
+
+    if (nextImages.length > 0) {
+      setNewPostImages((current) => [...current, ...nextImages].slice(0, 6))
+    }
+    event.target.value = ''
+  }
+
   const createPost = async () => {
     if (!viewer || !sessionToken || !newPostText.trim()) return
     setIsCreatingPost(true)
     try {
       const data = await apiRequest<{ post: Post }>('/api/posts', {
         method: 'POST',
-        body: JSON.stringify({ text: newPostText.trim() }),
+        body: JSON.stringify({ text: newPostText.trim(), imageUrls: newPostImages }),
       }, sessionToken)
       setPosts(prev => [data.post, ...prev])
       setNewPostText('')
+      setNewPostImages([])
       showToast('Опубликовано!', 'success')
     } catch (error) {
       showToast(error instanceof Error ? error.message : 'Не удалось опубликовать', 'error')
@@ -1386,6 +1486,11 @@ function App() {
     try {
       await apiRequest(`/api/admin/posts/${postId}`, { method: 'DELETE' }, sessionToken)
       setPosts(prev => prev.filter(p => p.id !== postId))
+      setReports(prev => prev.map(report => ({
+        ...report,
+        relatedPosts: report.relatedPosts?.filter(post => post.id !== postId) || [],
+      })))
+      setViewedProfile(current => current ? { ...current, posts: current.posts.filter(post => post.id !== postId) } : current)
     } catch (error) {
       showToast(error instanceof Error ? error.message : 'Ошибка удаления', 'error')
     }
@@ -1394,11 +1499,112 @@ function App() {
   const openUserProfile = async (userId: string) => {
     if (!sessionToken) return
     try {
-      const data = await apiRequest<{ user: AdminManagedUser }>(`/api/users/${userId}/public`, {}, sessionToken)
-      setViewedProfile(data.user)
-      setViewProfileOpen(true)
+      const data = await apiRequest<ProfileViewData>(`/api/users/${userId}/public`, {}, sessionToken)
+      setViewedProfile(data)
+      setProfileViewTab('posts')
+      setReportPostId('')
+      switchTab('profile-view')
     } catch (error) {
       showToast(error instanceof Error ? error.message : 'Ошибка', 'error')
+    }
+  }
+
+  const closePublicProfile = () => {
+    setViewedProfile(null)
+    setReportProfileOpen(false)
+    setReportPostId('')
+    setLightboxOpen(false)
+    switchTab('trends')
+  }
+
+  const openImageLightbox = (images: string[], index: number) => {
+    if (images.length === 0) return
+    setLightboxImages(images)
+    setLightboxIndex(index)
+    setLightboxOpen(true)
+  }
+
+  const moveLightbox = (direction: 'prev' | 'next') => {
+    setLightboxIndex((current) => {
+      if (lightboxImages.length === 0) return current
+      if (direction === 'prev') {
+        return current === 0 ? lightboxImages.length - 1 : current - 1
+      }
+      return current === lightboxImages.length - 1 ? 0 : current + 1
+    })
+  }
+
+  const openReportForPost = (postId?: string | null) => {
+    setReportPostId(postId || '')
+    setReportProfileOpen(true)
+  }
+
+  const toggleFollowViewedProfile = async () => {
+    if (!sessionToken || !viewedProfile) return
+    setIsProfileActionLoading(true)
+    try {
+      const data = await apiRequest<{ ok: boolean; isFollowing: boolean; followerCount: number; followingCount: number; viewer: SessionUser }>(
+        `/api/users/${viewedProfile.user.id}/follow`,
+        {
+          method: 'POST',
+          body: JSON.stringify({ follow: !viewedProfile.isFollowing }),
+        },
+        sessionToken,
+      )
+      setViewedProfile(current => current ? {
+        ...current,
+        isFollowing: data.isFollowing,
+        user: {
+          ...current.user,
+          followerCount: data.followerCount,
+          followingCount: data.followingCount,
+        },
+      } : current)
+      setViewer(data.viewer)
+      showToast(data.isFollowing ? 'Подписка оформлена' : 'Подписка снята', 'success')
+    } catch (error) {
+      showToast(error instanceof Error ? error.message : 'Не удалось изменить подписку', 'error')
+    } finally {
+      setIsProfileActionLoading(false)
+    }
+  }
+
+  const submitProfileReport = async () => {
+    if (!sessionToken || !viewedProfile) return
+    const category = reportReason === 'Своё' ? '' : reportReason
+    if (!category && !reportText.trim()) {
+      showToast('Укажи причину жалобы', 'error')
+      return
+    }
+    setIsSubmittingReport(true)
+    try {
+      await apiRequest(`/api/users/${viewedProfile.user.id}/report`, {
+        method: 'POST',
+        body: JSON.stringify({ category, text: reportText.trim(), postId: reportPostId || undefined }),
+      }, sessionToken)
+      setReportProfileOpen(false)
+      setReportReason('Спам')
+      setReportText('')
+      setReportPostId('')
+      showToast('Жалоба отправлена администрации', 'success')
+    } catch (error) {
+      showToast(error instanceof Error ? error.message : 'Не удалось отправить жалобу', 'error')
+    } finally {
+      setIsSubmittingReport(false)
+    }
+  }
+
+  const updateReportStatus = async (reportId: string, status: ReportStatus) => {
+    if (!sessionToken) return
+    try {
+      const data = await apiRequest<{ ok: boolean; reports: UserReport[] }>(`/api/admin/reports/${reportId}/status`, {
+        method: 'POST',
+        body: JSON.stringify({ status }),
+      }, sessionToken)
+      setReports(data.reports)
+      showToast('Статус жалобы обновлён', 'success')
+    } catch (error) {
+      showToast(error instanceof Error ? error.message : 'Не удалось обновить жалобу', 'error')
     }
   }
 
@@ -1437,6 +1643,11 @@ function App() {
     }
     return [...posts].sort((a, b) => b.boosts - a.boosts || b.createdAt.localeCompare(a.createdAt))
   }, [posts, trendsSort])
+
+  const ownPosts = useMemo(() => {
+    if (!viewer) return []
+    return [...posts].filter(post => post.authorId === viewer.id).sort((a, b) => b.createdAt.localeCompare(a.createdAt))
+  }, [posts, viewer])
 
   const handleAvatarUpload = async (event: React.ChangeEvent<HTMLInputElement>) => {
     const file = event.target.files?.[0]
@@ -2190,7 +2401,24 @@ function App() {
                       rows={3}
                       maxLength={500}
                     />
+                    {newPostImages.length > 0 && (
+                      <div className="post-image-preview-grid">
+                        {newPostImages.map((image, index) => (
+                          <div key={`${image.slice(0, 24)}-${index}`} className="post-image-preview-wrap multi">
+                            <img src={image} alt="Предпросмотр публикации" className="post-image-preview" />
+                            <button className="post-image-remove-btn" type="button" onClick={() => setNewPostImages((current) => current.filter((_, imageIndex) => imageIndex !== index))}>
+                              <X size={14} />
+                            </button>
+                          </div>
+                        ))}
+                      </div>
+                    )}
                     <div className="trends-composer-footer">
+                      <label className="secondary-btn compact-btn post-upload-btn">
+                        <Camera size={14} />
+                        Фото {newPostImages.length > 0 ? `${newPostImages.length}/6` : ''}
+                        <input type="file" accept="image/png,image/jpeg,image/webp,image/gif" onChange={handlePostImageUpload} hidden multiple />
+                      </label>
                       <span className={newPostText.length > 450 ? 'trends-char-counter warn' : 'trends-char-counter'}>
                         {newPostText.length}/500
                       </span>
@@ -2227,8 +2455,8 @@ function App() {
                         <div className="trends-post-meta">
                           <div className="trends-post-name-row">
                             <strong
-                              className={isAdmin ? 'clickable-author' : ''}
-                              onClick={isAdmin ? () => void openUserProfile(post.authorId) : undefined}
+                                className="clickable-author"
+                                onClick={() => void openUserProfile(post.authorId)}
                             >{post.authorName}</strong>
                             {post.authorBadges && post.authorBadges.slice(0,2).map(b => <BadgeChip key={b} id={b} />)}
                           </div>
@@ -2241,6 +2469,19 @@ function App() {
                       </div>
 
                       <p className="trends-post-text">{post.text}</p>
+                      {(post.imageUrls?.length || post.imageUrl) && (
+                        <div className={`trends-post-image-wrap${(post.imageUrls?.length || 0) > 1 ? ' multi' : ''}`}>
+                          {(post.imageUrls?.length ? post.imageUrls : [post.imageUrl]).filter(Boolean).map((image, index) => (
+                            <img
+                              key={`${post.id}-${index}`}
+                              src={image!}
+                              alt="Публикация"
+                              className="trends-post-image"
+                              onClick={() => openImageLightbox((post.imageUrls?.length ? post.imageUrls : [post.imageUrl]).filter(Boolean) as string[], index)}
+                            />
+                          ))}
+                        </div>
+                      )}
 
                       <div className="trends-post-actions">
                         <div className="boost-btn-wrap">
@@ -2364,6 +2605,14 @@ function App() {
                           {handleStatus === 'taken' && 'занят'}
                         </div>
                       )}
+                      <input
+                        className="hero-tagline-input"
+                        value={profileTagline}
+                        onChange={(e) => setProfileTagline(e.target.value)}
+                        placeholder="Короткая подпись профиля"
+                        maxLength={72}
+                        disabled={!siteSettings.profileEditEnabled}
+                      />
                     </div>
                   </div>
 
@@ -2376,7 +2625,7 @@ function App() {
                     disabled={!siteSettings.profileEditEnabled}
                   />
 
-                  {(profileName !== viewer.name || profileHandle !== viewer.handle || profileBio !== (viewer.bio || '')) && siteSettings.profileEditEnabled && (
+                  {(profileName !== viewer.name || profileHandle !== viewer.handle || profileBio !== (viewer.bio || '') || profileTagline !== (viewer.tagline || '')) && siteSettings.profileEditEnabled && (
                     <div className="hero-save-row">
                       <button className="primary-btn compact-btn" onClick={saveProfile} disabled={isSavingProfile}>
                         <Save size={14} />
@@ -2386,6 +2635,7 @@ function App() {
                         setProfileName(viewer.name)
                         setProfileHandle(viewer.handle)
                         setProfileBio(viewer.bio || '')
+                        setProfileTagline(viewer.tagline || '')
                       }}>
                         Отмена
                       </button>
@@ -2393,10 +2643,10 @@ function App() {
                   )}
 
                   <div className="profile-quick-stats four-col">
-                    <div><strong>{viewer.stats.sent}</strong><span>отправлено</span></div>
-                    <div><strong>{viewer.stats.received}</strong><span>получено</span></div>
+                    <div><strong>{viewer.postCount}</strong><span>публикаций</span></div>
+                    <div><strong>{viewer.followerCount}</strong><span>подписчиков</span></div>
+                    <div><strong>{viewer.followingCount}</strong><span>подписок</span></div>
                     <div><strong>{viewer.powers}</strong><span>энергия</span></div>
-                    <div><strong>{(viewer as any).profileViews || 0}</strong><span>просмотров</span></div>
                   </div>
                 </article>
 
@@ -2489,6 +2739,46 @@ function App() {
                     <span>Дата регистрации</span>
                     <strong>{formatDate(viewer.joinedAt)}</strong>
                   </div>
+                </article>
+
+                <article className="panel-card profile-publications-card">
+                  <div className="panel-head">
+                    <div>
+                      <span className="eyebrow"># профиль</span>
+                      <h2>Мои публикации</h2>
+                    </div>
+                    <span className="profile-posts-counter">{ownPosts.length}</span>
+                  </div>
+                  {ownPosts.length === 0 ? (
+                    <div className="profile-posts-empty">
+                      <Flame size={26} />
+                      <p>Пока нет публикаций</p>
+                      <span>Создай пост в Пульсе, и он появится здесь.</span>
+                    </div>
+                  ) : (
+                    <div className="profile-posts-grid">
+                      {ownPosts.map(post => (
+                        <article key={post.id} className="profile-post-tile">
+                          {(post.imageUrls?.length || post.imageUrl) ? (
+                            <div className={`profile-post-tile-gallery${(post.imageUrls?.length || 0) > 1 ? ' multi' : ''}`}>
+                              {(post.imageUrls?.length ? post.imageUrls : [post.imageUrl]).filter(Boolean).map((image, index) => (
+                                <img key={`${post.id}-${index}`} src={image!} alt="Публикация" className="profile-post-tile-image" />
+                              ))}
+                            </div>
+                          ) : (
+                            <div className="profile-post-tile-fallback">{post.text.slice(0, 120)}</div>
+                          )}
+                          <div className="profile-post-tile-overlay">
+                            <div className="profile-post-tile-stats">
+                              <span><Zap size={13} /> {post.boosts}</span>
+                              <span><MessageSquare size={13} /> {post.commentsCount || post.comments.length}</span>
+                            </div>
+                            <p>{post.text}</p>
+                          </div>
+                        </article>
+                      ))}
+                    </div>
+                  )}
                 </article>
               </section>
             )}
@@ -2893,6 +3183,7 @@ function App() {
                     { id: 'roles' as const, icon: <ShieldCheck size={18} />, label: 'Роли', desc: 'Выдача прав' },
                     { id: 'topup' as const, icon: <Zap size={18} />, label: 'Начисление', desc: 'Top-up баланса' },
                     { id: 'users' as const, icon: <Users size={18} />, label: 'Пользователи', desc: 'Управление' },
+                    { id: 'reports' as const, icon: <Ban size={18} />, label: 'Жалобы', desc: 'Репорты на пользователей' },
                     { id: 'bans' as const, icon: <Ban size={18} />, label: 'Баны', desc: 'Блокировки' },
                     { id: 'badges' as const, icon: <BadgeCheck size={18} />, label: 'Префиксы', desc: 'Каталог и выдача' },
                     { id: 'audit' as const, icon: <Search size={18} />, label: 'Журнал', desc: 'Audit log' },
@@ -3441,6 +3732,67 @@ function App() {
                 )}
 
                 {/* Bans */}
+                {adminSection === 'reports' && (
+                  <div className="admin-section-view">
+                    <div className="admin-section-head">
+                      <Ban size={18} /> Жалобы на пользователей
+                    </div>
+                    {reports.length === 0 ? (
+                      <div className="chats-empty" style={{ padding: '20px' }}>
+                        <p>Жалоб пока нет</p>
+                        <span>Новые обращения пользователей появятся здесь.</span>
+                      </div>
+                    ) : (
+                      <div className="reports-list">
+                        {reports.map(report => (
+                          <article key={report.id} className={`report-card status-${report.status}`}>
+                            <div className="report-card-head">
+                              <div>
+                                <strong>{report.targetUserName}</strong>
+                                <span>{report.targetUserHandle}</span>
+                              </div>
+                              <span className={`report-status-pill ${report.status}`}>{report.status}</span>
+                            </div>
+                            <div className="report-card-meta">
+                              <span>Категория: {report.category}</span>
+                              <span>Отправил: {report.reporterName} ({report.reporterHandle})</span>
+                              <span>{formatRelativeTime(report.createdAt)}</span>
+                            </div>
+                            {report.text && <p className="report-card-text">{report.text}</p>}
+                            {report.relatedPosts && report.relatedPosts.length > 0 && (
+                              <div className="report-related-posts">
+                                {report.relatedPosts.map(post => (
+                                  <div key={post.id} className="report-related-post">
+                                    <div className="report-related-post-body">
+                                      <strong>{formatRelativeTime(post.createdAt)}</strong>
+                                      <p>{post.text}</p>
+                                    </div>
+                                    <button className="secondary-btn compact-btn danger" onClick={() => void adminDeletePost(post.id)}>
+                                      <Trash2 size={14} /> Удалить пост
+                                    </button>
+                                  </div>
+                                ))}
+                              </div>
+                            )}
+                            <div className="report-card-actions">
+                              <button className="secondary-btn compact-btn" onClick={() => void openUserProfile(report.targetUserId)}>
+                                <User size={14} /> Профиль
+                              </button>
+                              <button className="secondary-btn compact-btn" onClick={() => void updateReportStatus(report.id, 'resolved')}>
+                                <BadgeCheck size={14} /> Решено
+                              </button>
+                              <button className="secondary-btn compact-btn danger" onClick={() => void updateReportStatus(report.id, 'dismissed')}>
+                                <X size={14} /> Отклонить
+                              </button>
+                            </div>
+                          </article>
+                        ))}
+                      </div>
+                    )}
+                  </div>
+                )}
+
+                {/* Bans */}
                 {adminSection === 'bans' && (
                   <div className="admin-section-view">
                     <div className="admin-section-head">
@@ -3637,50 +3989,232 @@ function App() {
         </a>
       )}
 
-      {/* Profile viewer overlay */}
-      {viewProfileOpen && viewedProfile && (
-        <div className="profile-sheet-overlay" onClick={() => setViewProfileOpen(false)}>
-          <div className="profile-sheet" onClick={e => e.stopPropagation()}>
-            <button className="profile-sheet-close" onClick={() => setViewProfileOpen(false)}>
-              <X size={20} />
-            </button>
-            <div className="profile-sheet-header">
+      {lightboxOpen && lightboxImages.length > 0 && (
+        <div className="photo-lightbox" onClick={() => setLightboxOpen(false)}>
+          <button className="photo-lightbox-close" onClick={() => setLightboxOpen(false)}>
+            <X size={20} />
+          </button>
+          <button className="photo-lightbox-nav prev" onClick={(e) => { e.stopPropagation(); moveLightbox('prev') }}>
+            <ArrowLeft size={18} />
+          </button>
+          <div className="photo-lightbox-stage" onClick={(e) => e.stopPropagation()}>
+            <img src={lightboxImages[lightboxIndex]} alt="Просмотр фото" className="photo-lightbox-image" />
+            <div className="photo-lightbox-dots">
+              {lightboxImages.map((_, index) => (
+                <button key={index} className={lightboxIndex === index ? 'photo-lightbox-dot active' : 'photo-lightbox-dot'} onClick={() => setLightboxIndex(index)} />
+              ))}
+            </div>
+          </div>
+          <button className="photo-lightbox-nav next" onClick={(e) => { e.stopPropagation(); moveLightbox('next') }}>
+            <ArrowLeft size={18} />
+          </button>
+        </div>
+      )}
+
+      {activeTab === 'profile-view' && viewedProfile && (
+        <>
+          <main className={`main-layout${pageExiting ? ' page-exiting' : ''}`}>
+            <section className="public-profile-screen page-transition">
+              <div className="public-profile-topbar">
+                <button className="compose-back-btn" onClick={closePublicProfile}>
+                  <ArrowLeft size={20} />
+                </button>
+                <div className="public-profile-topbar-copy">
+                  <strong>{viewedProfile.user.name}</strong>
+                  <span>{viewedProfile.user.handle}</span>
+                </div>
+              </div>
+
+              <article className="panel-card public-profile-card">
+                <div className="profile-sheet-header">
               <div className="profile-sheet-avatar">
-                {viewedProfile.avatarUrl
-                  ? <img src={viewedProfile.avatarUrl} alt="" />
-                  : <span>{(viewedProfile.name || '?')[0]}</span>
+                {viewedProfile.user.avatarUrl
+                  ? <img src={viewedProfile.user.avatarUrl} alt="" />
+                  : <span>{(viewedProfile.user.name || '?')[0]}</span>
                 }
               </div>
               <div className="profile-sheet-name-row">
-                <h3>{viewedProfile.name}</h3>
-                {viewedProfile.badges && viewedProfile.badges.length > 0 && (
+                <h3>{viewedProfile.user.name}</h3>
+                {viewedProfile.user.badges && viewedProfile.user.badges.length > 0 && (
                   <div className="profile-sheet-badges">
-                    {viewedProfile.badges.map((b: string) => <BadgeChip key={b} id={b} />)}
+                    {viewedProfile.user.badges.map((b: string) => <BadgeChip key={b} id={b} />)}
                   </div>
                 )}
               </div>
-              {viewedProfile.handle && <span className="profile-sheet-handle">@{viewedProfile.handle}</span>}
+              {viewedProfile.user.handle && <span className="profile-sheet-handle">{viewedProfile.user.handle}</span>}
             </div>
-            {viewedProfile.bio && <p className="profile-sheet-bio">{viewedProfile.bio}</p>}
+            {viewedProfile.user.tagline && <p className="profile-sheet-tagline">{viewedProfile.user.tagline}</p>}
+            {viewedProfile.user.bio && <p className="profile-sheet-bio">{viewedProfile.user.bio}</p>}
             <div className="profile-sheet-stats">
-              <div className="profile-sheet-stat"><Eye size={14} /> <strong>{(viewedProfile as any).profileViews || 0}</strong> просмотров</div>
-              <div className="profile-sheet-stat"><Zap size={14} /> <strong>{viewedProfile.powers ?? 0}</strong> Power</div>
-              {viewedProfile.city && (
-                <div className="profile-sheet-stat"><MapPin size={14} /> {viewedProfile.city}</div>
+              <div className="profile-sheet-stat"><Flame size={14} /> <strong>{viewedProfile.user.postCount}</strong> публикаций</div>
+              <div className="profile-sheet-stat"><Users size={14} /> <strong>{viewedProfile.user.followerCount}</strong> подписчиков</div>
+              <div className="profile-sheet-stat"><User size={14} /> <strong>{viewedProfile.user.followingCount}</strong> подписок</div>
+              <div className="profile-sheet-stat"><Zap size={14} /> <strong>{viewedProfile.user.powers ?? 0}</strong> энергия</div>
+              <div className="profile-sheet-stat"><Eye size={14} /> <strong>{viewedProfile.user.profileViews || 0}</strong> просмотров</div>
+              {viewedProfile.user.city && (
+                <div className="profile-sheet-stat"><MapPin size={14} /> {viewedProfile.user.city}</div>
               )}
             </div>
-            {viewer?.role === 'admin' ? (
-              <button className="profile-sheet-write-btn active" onClick={() => {
-                setViewProfileOpen(false)
-                void startConversation((viewedProfile as any).id)
-              }}>
-                <MessageCircle size={16} /> Написать
+            <div className="profile-sheet-actions-grid">
+              {viewer?.id !== viewedProfile.user.id && (
+                <button className="profile-sheet-write-btn active" onClick={() => void toggleFollowViewedProfile()} disabled={isProfileActionLoading}>
+                  <Users size={16} /> {isProfileActionLoading ? '...' : viewedProfile.isFollowing ? 'Отписаться' : 'Подписаться'}
+                </button>
+              )}
+              {viewer?.id !== viewedProfile.user.id && (
+                <button className="profile-sheet-write-btn active" onClick={() => {
+                  setViewedProfile(null)
+                  setActiveTab('chats')
+                  void startConversation(viewedProfile.user.id)
+                }}>
+                  <MessageCircle size={16} /> Написать
+                </button>
+              )}
+              {viewer?.id !== viewedProfile.user.id && (
+                <button className="profile-sheet-write-btn report" onClick={() => openReportForPost()}>
+                  <Ban size={16} /> Пожаловаться
+                </button>
+              )}
+            </div>
+
+            <div className="profile-sheet-tabs">
+              <button className={profileViewTab === 'posts' ? 'profile-sheet-tab active' : 'profile-sheet-tab'} onClick={() => setProfileViewTab('posts')}>
+                Публикации
               </button>
-            ) : (
-              <button className="profile-sheet-write-btn" disabled>
-                <MessageCircle size={16} /> Написать (бета)
+              <button className={profileViewTab === 'info' ? 'profile-sheet-tab active' : 'profile-sheet-tab'} onClick={() => setProfileViewTab('info')}>
+                Инфо
               </button>
+            </div>
+
+            {profileViewTab === 'posts' && (
+              <div className="profile-sheet-posts">
+                <div className="profile-sheet-posts-head">
+                  <strong>Публикации</strong>
+                  <span>{viewedProfile.posts.length}</span>
+                </div>
+                {viewedProfile.posts.length === 0 ? (
+                  <div className="profile-posts-empty compact">
+                    <p>Пока нет публикаций</p>
+                  </div>
+                ) : (
+                  <div className="profile-posts-grid in-sheet">
+                    {viewedProfile.posts.map(post => (
+                      <article key={post.id} className="profile-post-tile">
+                        {(post.imageUrls?.length || post.imageUrl) ? (
+                          <div className={`profile-post-tile-gallery${(post.imageUrls?.length || 0) > 1 ? ' multi' : ''}`}>
+                            {(post.imageUrls?.length ? post.imageUrls : [post.imageUrl]).filter(Boolean).map((image, index) => (
+                              <img key={`${post.id}-${index}`} src={image!} alt="Публикация" className="profile-post-tile-image" onClick={() => openImageLightbox((post.imageUrls?.length ? post.imageUrls : [post.imageUrl]).filter(Boolean) as string[], index)} />
+                            ))}
+                          </div>
+                        ) : (
+                          <div className="profile-post-tile-fallback">{post.text.slice(0, 120)}</div>
+                        )}
+                        <div className="profile-post-tile-overlay">
+                          <div className="profile-post-tile-stats">
+                            <span><Zap size={13} /> {post.boosts}</span>
+                            <span><MessageSquare size={13} /> {post.commentsCount || post.comments.length}</span>
+                          </div>
+                          <p>{post.text}</p>
+                          {viewer?.id !== viewedProfile.user.id && (
+                            <button className="profile-post-report-btn" onClick={() => openReportForPost(post.id)}>
+                              <Ban size={13} /> Пожаловаться на пост
+                            </button>
+                          )}
+                        </div>
+                      </article>
+                    ))}
+                  </div>
+                )}
+              </div>
             )}
+
+            {profileViewTab === 'info' && (
+              <div className="profile-sheet-info-grid">
+                <div className="profile-sheet-info-card">
+                  <span>Имя</span>
+                  <strong>{viewedProfile.user.name}</strong>
+                </div>
+                <div className="profile-sheet-info-card">
+                  <span>Handle</span>
+                  <strong>{viewedProfile.user.handle}</strong>
+                </div>
+                <div className="profile-sheet-info-card">
+                  <span>Энергия</span>
+                  <strong>{viewedProfile.user.powers} ⚡</strong>
+                </div>
+                <div className="profile-sheet-info-card">
+                  <span>Зарегистрирован</span>
+                  <strong>{formatDate(viewedProfile.user.joinedAt)}</strong>
+                </div>
+                <div className="profile-sheet-info-card wide">
+                  <span>Город</span>
+                  <strong>{viewedProfile.user.city || 'Не указан'}</strong>
+                </div>
+                <div className="profile-sheet-info-card wide">
+                  <span>О себе</span>
+                  <strong>{viewedProfile.user.bio || 'Пока без описания'}</strong>
+                </div>
+              </div>
+            )}
+              </article>
+            </section>
+          </main>
+        </>
+      )}
+
+      {reportProfileOpen && viewedProfile && (
+        <div className="compose-modal">
+          <div className="compose-modal-backdrop" onClick={() => setReportProfileOpen(false)} />
+          <div className="compose-modal-sheet report-modal-sheet">
+            <div className="sheet-head">
+              <h2>Жалоба</h2>
+              <p>{viewedProfile.user.name} {viewedProfile.user.handle}</p>
+            </div>
+            {viewedProfile.posts.length > 0 && (
+              <label className="input-block">
+                <span>На что жалоба</span>
+                <select value={reportPostId} onChange={(e) => setReportPostId(e.target.value)}>
+                  <option value="">На профиль целиком</option>
+                  {viewedProfile.posts.map((post) => (
+                    <option key={post.id} value={post.id}>
+                      {post.text.slice(0, 72) || 'Публикация без текста'}
+                    </option>
+                  ))}
+                </select>
+              </label>
+            )}
+            {reportPostId && (
+              <div className="report-selected-post">
+                <strong>Выбрана публикация</strong>
+                <p>{viewedProfile.posts.find((post) => post.id === reportPostId)?.text || 'Публикация'}</p>
+              </div>
+            )}
+            <div className="report-reasons-grid">
+              {['Спам', 'Фейк', 'Оскорбления', '18+', 'Мошенничество', 'Своё'].map(reason => (
+                <button
+                  key={reason}
+                  className={reportReason === reason ? 'report-reason-btn active' : 'report-reason-btn'}
+                  onClick={() => setReportReason(reason)}
+                >
+                  {reason}
+                </button>
+              ))}
+            </div>
+            <label className="input-block">
+              <span>Комментарий</span>
+              <textarea
+                value={reportText}
+                onChange={(e) => setReportText(e.target.value)}
+                placeholder={reportReason === 'Своё' ? 'Опиши причину подробно' : 'Можно добавить детали'}
+                maxLength={500}
+              />
+            </label>
+            <div className="report-modal-actions">
+              <button className="secondary-btn" onClick={() => setReportProfileOpen(false)}>Отмена</button>
+              <button className="primary-btn" onClick={() => void submitProfileReport()} disabled={isSubmittingReport}>
+                <Send size={14} /> {isSubmittingReport ? '...' : 'Отправить'}
+              </button>
+            </div>
           </div>
         </div>
       )}

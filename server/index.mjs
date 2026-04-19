@@ -144,6 +144,8 @@ const defaultSiteSettings = {
   topUpOptions: [10, 50, 100, 250, 500, 1000], // predefined top-up amounts
 }
 
+const MAX_POST_IMAGE_SIZE = 768 * 1024
+
 const knownCoordinates = {
   'Алматы|Казахстан': { latitude: 43.238949, longitude: 76.889709 },
   'Ташкент|Узбекистан': { latitude: 41.299496, longitude: 69.240074 },
@@ -329,6 +331,8 @@ const defaultState = {
       authorHandle: '@mila',
       authorAvatarUrl: null,
       text: 'Привет, Regellik! Это первая запись в ленте — делитесь мыслями и получайте энергию ⚡',
+      imageUrl: null,
+      imageUrls: [],
       createdAt: new Date(Date.now() - 2 * 3600000).toISOString(),
       boosts: 7,
       boostedBy: [],
@@ -341,6 +345,8 @@ const defaultState = {
       authorHandle: '@sara',
       authorAvatarUrl: null,
       text: 'Пишите публично — за каждый буст вы получаете энергию. Чем полезнее пост, тем больше наград.',
+      imageUrl: null,
+      imageUrls: [],
       createdAt: new Date(Date.now() - 5 * 3600000).toISOString(),
       boosts: 3,
       boostedBy: [],
@@ -356,6 +362,8 @@ const defaultState = {
       ],
     },
   ],
+  follows: [],
+  reports: [],
 }
 
 // --- In-memory state cache (loaded from MongoDB or file on start) ---
@@ -449,8 +457,12 @@ function normalizeState(state) {
   state.conversations = Array.isArray(state.conversations) ? state.conversations : []
   state.chatMessages = Array.isArray(state.chatMessages) ? state.chatMessages : []
   state.sessions = Array.isArray(state.sessions) ? state.sessions : []
+  state.follows = Array.isArray(state.follows) ? state.follows : []
+  state.reports = Array.isArray(state.reports) ? state.reports : []
   state.posts = Array.isArray(state.posts) ? state.posts.map(p => ({
     ...p,
+    imageUrl: typeof p.imageUrl === 'string' ? p.imageUrl : null,
+    imageUrls: normalizePostImages(p),
     boostedBy: Array.isArray(p.boostedBy) ? p.boostedBy : [],
     comments: Array.isArray(p.comments) ? p.comments : [],
   })) : []
@@ -686,6 +698,99 @@ function pushAudit(state, action, actorId, targetId, details) {
   state.auditLog = state.auditLog.slice(0, 60)
 }
 
+function validateImageDataUrl(image, maxBytes = MAX_POST_IMAGE_SIZE) {
+  if (!image) return null
+  if (typeof image !== 'string') {
+    return 'Некорректное изображение'
+  }
+  if (!/^data:image\/(png|jpeg|webp|gif);base64,/.test(image)) {
+    return 'Допускается PNG, JPEG, WebP или GIF'
+  }
+  const base64Part = image.slice(image.indexOf(',') + 1)
+  const sizeBytes = Math.ceil(base64Part.length * 3 / 4)
+  if (sizeBytes > maxBytes) {
+    return `Изображение слишком большое (макс. ${Math.round(maxBytes / 1024)} КБ)`
+  }
+  return null
+}
+
+function normalizePostImages(post) {
+  if (Array.isArray(post.imageUrls)) {
+    return post.imageUrls.filter((item) => typeof item === 'string')
+  }
+  if (typeof post.imageUrl === 'string' && post.imageUrl) {
+    return [post.imageUrl]
+  }
+  return []
+}
+
+function validateImageList(images, maxImages = 6) {
+  if (!images) return { error: null, imageUrls: [] }
+  if (!Array.isArray(images)) {
+    const error = validateImageDataUrl(images, MAX_POST_IMAGE_SIZE)
+    return { error, imageUrls: images ? [images] : [] }
+  }
+  if (images.length > maxImages) {
+    return { error: `Максимум ${maxImages} фото в одной публикации`, imageUrls: [] }
+  }
+  for (const image of images) {
+    const error = validateImageDataUrl(image, MAX_POST_IMAGE_SIZE)
+    if (error) {
+      return { error, imageUrls: [] }
+    }
+  }
+  return { error: null, imageUrls: images }
+}
+
+function getFollowCounts(state, userId) {
+  let followerCount = 0
+  let followingCount = 0
+  for (const item of state.follows) {
+    if (item.followingId === userId) followerCount += 1
+    if (item.followerId === userId) followingCount += 1
+  }
+  return {
+    followerCount,
+    followingCount,
+    postCount: state.posts.filter(post => post.authorId === userId).length,
+  }
+}
+
+function isFollowingUser(state, followerId, followingId) {
+  return state.follows.some(item => item.followerId === followerId && item.followingId === followingId)
+}
+
+function decoratePost(state, post, viewer) {
+  const author = state.users.find(u => u.id === post.authorId)
+  const imageUrls = normalizePostImages(post)
+  return {
+    ...post,
+    imageUrl: imageUrls[0] || null,
+    imageUrls,
+    authorBadges: author ? (author.badges || []) : [],
+    boostedByViewer: viewer ? post.boostedBy.includes(viewer.id) : false,
+    commentsCount: Array.isArray(post.comments) ? post.comments.length : 0,
+  }
+}
+
+function getUserPosts(state, userId, viewer) {
+  return state.posts
+    .filter(post => post.authorId === userId)
+    .map(post => decoratePost(state, post, viewer))
+    .sort((left, right) => right.createdAt.localeCompare(left.createdAt))
+}
+
+function notifyAdminsAboutReport(state, report, reporter, target) {
+  const admins = state.users.filter(user => user.role === 'admin' && user.id !== reporter.id)
+  for (const admin of admins) {
+    sendSystemNotification(
+      state,
+      admin.id,
+      `Новая жалоба на ${target.name} (${target.handle}). Категория: ${report.category}. От: ${reporter.name}.`
+    )
+  }
+}
+
 /** Send a system notification to a user via the Regellik system chat */
 function sendSystemNotification(state, userId, text) {
   const regellikId = 'seed-regellik'
@@ -713,7 +818,8 @@ function sendSystemNotification(state, userId, text) {
   })
 }
 
-function publicUser(user) {
+function publicUser(user, state = readState()) {
+  const social = getFollowCounts(state, user.id)
   return {
     id: user.id,
     numericId: user.numericId,
@@ -743,12 +849,15 @@ function publicUser(user) {
     ban: user.ban || null,
     powerLog: Array.isArray(user.powerLog) ? user.powerLog.slice(0, 50) : [],
     profileViews: user.profileViews || 0,
+    followerCount: social.followerCount,
+    followingCount: social.followingCount,
+    postCount: social.postCount,
   }
 }
 
-function publicUserForAdmin(user) {
+function publicUserForAdmin(user, state = readState()) {
   return {
-    ...publicUser(user),
+    ...publicUser(user, state),
     providerId: user.providerId,
     isVisible: user.isVisible,
     ban: user.ban || null,
@@ -777,8 +886,8 @@ function directoryItem(user) {
   }
 }
 
-function adminUserItem(user) {
-  return publicUserForAdmin(user)
+function adminUserItem(user, state = readState()) {
+  return publicUserForAdmin(user, state)
 }
 
 function resolveSession(state, token) {
@@ -820,8 +929,15 @@ function createSessionForUser(state, userId, userAgent = '') {
 
 function adminData(state) {
   return {
-    users: [...state.users].map(adminUserItem).sort((left, right) => right.joinedAt.localeCompare(left.joinedAt)),
+    users: [...state.users].map((user) => adminUserItem(user, state)).sort((left, right) => right.joinedAt.localeCompare(left.joinedAt)),
     auditLog: state.auditLog.slice(0, 18),
+    reports: [...state.reports]
+      .sort((left, right) => right.createdAt.localeCompare(left.createdAt))
+      .slice(0, 50)
+      .map((report) => ({
+        ...report,
+        relatedPosts: getUserPosts(state, report.targetUserId, null).slice(0, 3),
+      })),
   }
 }
 
@@ -834,7 +950,7 @@ function bootstrapPayload(state, viewer) {
     : visibleUsers
 
   return {
-    viewer: viewer ? publicUser(viewer) : null,
+    viewer: viewer ? publicUser(viewer, state) : null,
     siteSettings: state.siteSettings,
     publicFeed: state.siteSettings.publicFeedVisible
       ? [...state.publicMessages].sort((left, right) => right.createdAt.localeCompare(left.createdAt)).slice(0, 14)
@@ -849,15 +965,7 @@ function bootstrapPayload(state, viewer) {
     conversations: viewer ? getConversationsForUser(state, viewer.id) : [],
     adminData: viewer?.role === 'admin' ? adminData(state) : null,
     posts: state.posts
-      .map(p => {
-        const author = state.users.find(u => u.id === p.authorId)
-        return {
-          ...p,
-          authorBadges: author ? (author.badges || []) : [],
-          boostedByViewer: viewer ? p.boostedBy.includes(viewer.id) : false,
-          commentsCount: p.comments.length,
-        }
-      })
+      .map(p => decoratePost(state, p, viewer))
       .sort((a, b) => b.boosts - a.boosts || b.createdAt.localeCompare(a.createdAt))
       .slice(0, 30),
   }
@@ -1169,7 +1277,7 @@ app.post('/api/auth/email', (request, response) => {
 
     const token = createSessionForUser(state, user.id, request.headers['user-agent'])
     saveState(state)
-    response.json({ token, viewer: publicUser(user), isNewUser: true, conversations: getConversationsForUser(state, user.id) })
+    response.json({ token, viewer: publicUser(user, state), isNewUser: true, conversations: getConversationsForUser(state, user.id) })
     return
   }
 
@@ -1187,7 +1295,7 @@ app.post('/api/auth/email', (request, response) => {
   const token = createSessionForUser(state, user.id, request.headers['user-agent'])
   pushAudit(state, 'auth.email.login', user.id, user.id, 'Вход по email с кодом.')
   saveState(state)
-  response.json({ token, viewer: publicUser(user), isNewUser: false })
+  response.json({ token, viewer: publicUser(user, state), isNewUser: false })
 })
 
 app.post('/api/auth/telegram', (request, response) => {
@@ -1283,7 +1391,7 @@ app.post('/api/auth/telegram', (request, response) => {
 
   const token = createSessionForUser(state, user.id, request.headers['user-agent'])
   saveState(state)
-  response.json({ token, viewer: publicUser(user) })
+  response.json({ token, viewer: publicUser(user, state) })
 })
 
 app.post('/api/auth/telegram-widget', (request, response) => {
@@ -1366,7 +1474,7 @@ app.post('/api/auth/telegram-widget', (request, response) => {
 
   const token = createSessionForUser(state, user.id, request.headers['user-agent'])
   saveState(state)
-  response.json({ token, viewer: publicUser(user) })
+  response.json({ token, viewer: publicUser(user, state) })
 })
 
 // Check handle availability
@@ -1514,7 +1622,7 @@ app.post('/api/location', (request, response) => {
 
   pushAudit(state, 'profile.location', viewer.id, viewer.id, 'Обновлена геолокация профиля.')
   saveState(state)
-  response.json({ viewer: publicUser(viewer) })
+  response.json({ viewer: publicUser(viewer, state) })
 })
 
 app.post('/api/messages/send', (request, response) => {
@@ -1985,28 +2093,27 @@ app.delete('/api/admin/posts/:postId', (request, response) => {
 // --- Public user profile ---
 app.get('/api/users/:userId/public', (request, response) => {
   const state = readState()
-  const token = getBearerToken(request)
-  const session = state.sessions.find(s => s.token === token)
-  if (!session) {
-    response.status(401).json({ error: 'Unauthorized' })
-    return
-  }
+  const viewer = requireUser(request, response, state)
+  if (!viewer) return
+
   const target = state.users.find(u => u.id === request.params.userId)
   if (!target) {
     response.status(404).json({ error: 'Пользователь не найден' })
     return
   }
   // Increment profile views if not self
-  if (target.id !== session.userId) {
+  if (target.id !== viewer.id) {
     target.profileViews = (target.profileViews || 0) + 1
     saveState(state)
   }
+  const social = getFollowCounts(state, target.id)
   response.json({
     user: {
       id: target.id,
       name: target.name,
       handle: target.handle,
       bio: target.bio,
+      tagline: target.tagline,
       avatarUrl: target.avatarUrl,
       badges: target.badges || [],
       powers: target.powers,
@@ -2014,8 +2121,144 @@ app.get('/api/users/:userId/public', (request, response) => {
       country: target.country,
       joinedAt: target.joinedAt,
       profileViews: target.profileViews || 0,
-    }
+      followerCount: social.followerCount,
+      followingCount: social.followingCount,
+      postCount: social.postCount,
+    },
+    posts: getUserPosts(state, target.id, viewer).slice(0, 24),
+    isFollowing: target.id !== viewer.id ? isFollowingUser(state, viewer.id, target.id) : false,
   })
+})
+
+app.post('/api/users/:userId/follow', (request, response) => {
+  const state = readState()
+  const viewer = requireUser(request, response, state)
+  if (!viewer) return
+
+  const target = state.users.find(user => user.id === request.params.userId)
+  if (!target || target.status !== 'active') {
+    response.status(404).json({ error: 'Пользователь не найден' })
+    return
+  }
+
+  if (target.id === viewer.id) {
+    response.status(400).json({ error: 'Нельзя подписаться на себя' })
+    return
+  }
+
+  const existingIndex = state.follows.findIndex(item => item.followerId === viewer.id && item.followingId === target.id)
+  const shouldFollow = request.body?.follow !== false
+  let isFollowing = existingIndex !== -1
+
+  if (shouldFollow && existingIndex === -1) {
+    state.follows.push({
+      id: createToken(),
+      followerId: viewer.id,
+      followingId: target.id,
+      createdAt: new Date().toISOString(),
+    })
+    isFollowing = true
+    pushAudit(state, 'follow.create', viewer.id, target.id, `${viewer.handle} подписался на ${target.handle}.`)
+    sendSystemNotification(state, target.id, `${viewer.name} (${viewer.handle}) подписался на ваш профиль.`)
+  }
+
+  if (!shouldFollow && existingIndex !== -1) {
+    state.follows.splice(existingIndex, 1)
+    isFollowing = false
+    pushAudit(state, 'follow.remove', viewer.id, target.id, `${viewer.handle} отписался от ${target.handle}.`)
+  }
+
+  saveState(state)
+  const social = getFollowCounts(state, target.id)
+  response.json({
+    ok: true,
+    isFollowing,
+    followerCount: social.followerCount,
+    followingCount: social.followingCount,
+    viewer: publicUser(viewer, state),
+  })
+})
+
+app.post('/api/users/:userId/report', (request, response) => {
+  const state = readState()
+  const viewer = requireUser(request, response, state)
+  if (!viewer) return
+
+  const target = state.users.find(user => user.id === request.params.userId)
+  if (!target) {
+    response.status(404).json({ error: 'Пользователь не найден' })
+    return
+  }
+
+  if (target.id === viewer.id) {
+    response.status(400).json({ error: 'Нельзя пожаловаться на себя' })
+    return
+  }
+
+  const category = String(request.body?.category || '').trim().slice(0, 80)
+  const text = String(request.body?.text || '').trim().slice(0, 500)
+  const postId = String(request.body?.postId || '').trim()
+  if (!category && !text) {
+    response.status(400).json({ error: 'Укажи причину жалобы' })
+    return
+  }
+
+  let reportedPost = null
+  if (postId) {
+    reportedPost = state.posts.find((post) => post.id === postId && post.authorId === target.id)
+    if (!reportedPost) {
+      response.status(404).json({ error: 'Публикация для жалобы не найдена' })
+      return
+    }
+  }
+
+  const report = {
+    id: createToken(),
+    reporterId: viewer.id,
+    reporterName: viewer.name,
+    reporterHandle: viewer.handle,
+    targetUserId: target.id,
+    targetUserName: target.name,
+    targetUserHandle: target.handle,
+    postId: reportedPost?.id || null,
+    postPreview: reportedPost ? String(reportedPost.text || '').slice(0, 180) : null,
+    category: category || 'Другое',
+    text,
+    status: 'open',
+    createdAt: new Date().toISOString(),
+    updatedAt: new Date().toISOString(),
+  }
+
+  state.reports.unshift(report)
+  state.reports = state.reports.slice(0, 500)
+  pushAudit(state, 'report.create', viewer.id, target.id, `Жалоба на ${target.handle}${report.postId ? `, пост ${report.postId}` : ''}. Категория: ${report.category}.`)
+  notifyAdminsAboutReport(state, report, viewer, target)
+  saveState(state)
+  response.json({ ok: true, report })
+})
+
+app.post('/api/admin/reports/:reportId/status', (request, response) => {
+  const state = readState()
+  const viewer = requireAdmin(request, response, state)
+  if (!viewer) return
+
+  const report = state.reports.find(item => item.id === request.params.reportId)
+  if (!report) {
+    response.status(404).json({ error: 'Жалоба не найдена' })
+    return
+  }
+
+  const status = request.body?.status
+  if (!['open', 'resolved', 'dismissed'].includes(status)) {
+    response.status(400).json({ error: 'Некорректный статус' })
+    return
+  }
+
+  report.status = status
+  report.updatedAt = new Date().toISOString()
+  pushAudit(state, `report.${status}`, viewer.id, report.targetUserId, `Жалоба ${report.id} переведена в статус ${status}.`)
+  saveState(state)
+  response.json({ ok: true, reports: adminData(state).reports })
 })
 
 app.post('/api/session/logout', (request, response) => {
@@ -2346,15 +2589,7 @@ app.get('/api/posts', (request, response) => {
   if (!viewer) return
 
   const sort = String(request.query?.sort || 'top')
-  const mapped = state.posts.map(p => {
-    const author = state.users.find(u => u.id === p.authorId)
-    return {
-      ...p,
-      authorBadges: author ? (author.badges || []) : [],
-      boostedByViewer: p.boostedBy.includes(viewer.id),
-      commentsCount: p.comments.length,
-    }
-  })
+  const mapped = state.posts.map(p => decoratePost(state, p, viewer))
   if (sort === 'new') {
     mapped.sort((a, b) => b.createdAt.localeCompare(a.createdAt))
   } else {
@@ -2369,8 +2604,14 @@ app.post('/api/posts', (request, response) => {
   if (!viewer) return
 
   const text = String(request.body?.text || '').trim()
+  const imagesPayload = request.body?.imageUrls ?? request.body?.imageUrl ?? []
   if (!text || text.length > 500) {
     response.status(400).json({ error: 'Текст должен быть от 1 до 500 символов' })
+    return
+  }
+  const { error: imageError, imageUrls } = validateImageList(imagesPayload)
+  if (imageError) {
+    response.status(400).json({ error: imageError })
     return
   }
 
@@ -2381,6 +2622,8 @@ app.post('/api/posts', (request, response) => {
     authorHandle: viewer.handle,
     authorAvatarUrl: viewer.avatarUrl || null,
     text,
+    imageUrl: imageUrls[0] || null,
+    imageUrls,
     createdAt: new Date().toISOString(),
     boosts: 0,
     boostedBy: [],
