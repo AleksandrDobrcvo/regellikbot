@@ -541,6 +541,8 @@ function App() {
   const [composeOpen, setComposeOpen] = useState(false)
   const [composeSearch, setComposeSearch] = useState('')
   const [deletingConvoId, setDeletingConvoId] = useState<string | null>(null)
+  const [chatSearch, setChatSearch] = useState('')
+  const [headerSearchOpen, setHeaderSearchOpen] = useState(false)
 
   // Radar state
   const [radarUsers, setRadarUsers] = useState<RadarUser[]>([])
@@ -626,6 +628,10 @@ function App() {
   const switchTab = (newTab: TabId, cb?: () => void) => {
     if (newTab === activeTab && !openConvoId) return
     setPageExiting(true)
+    if (newTab !== 'chats') {
+      setHeaderSearchOpen(false)
+      setChatSearch('')
+    }
     setTimeout(() => {
       setPageExiting(false)
       setActiveTab(newTab)
@@ -1940,9 +1946,33 @@ function App() {
             <button className="header-hamburger" onClick={() => setMenuOpen(!menuOpen)}>
               {menuOpen ? <X size={20} /> : <Menu size={20} />}
             </button>
-            <span className="header-brand" onClick={() => { switchTab('chats'); closeMenu(); }} style={{cursor:'pointer'}}>
-              <span className="header-brand-icon">&gt;]</span>Regellik
-            </span>
+            {headerSearchOpen && activeTab === 'chats' ? (
+              <div className="header-search-wrap">
+                <Search size={14} />
+                <input
+                  className="header-search-input"
+                  value={chatSearch}
+                  onChange={e => setChatSearch(e.target.value)}
+                  placeholder="Izlash..."
+                  autoFocus
+                />
+                <button className="header-search-close" onClick={() => { setHeaderSearchOpen(false); setChatSearch(''); }}>
+                  <X size={14} />
+                </button>
+              </div>
+            ) : (
+              <>
+                <span className="header-brand" onClick={() => { switchTab('chats'); closeMenu(); }} style={{cursor:'pointer'}}>
+                  <span className="header-brand-icon">&gt;]</span>Chatlar
+                </span>
+                {activeTab === 'chats' && !openConvoId && !composeOpen && (
+                  <button className="header-search-btn" onClick={() => setHeaderSearchOpen(true)} title="Izlash">
+                    <Search size={14} />
+                    <span>Izlash</span>
+                  </button>
+                )}
+              </>
+            )}
           </div>
           <div className="header-right">
             {siteSettings.onlineCounterVisible && (
@@ -2159,7 +2189,15 @@ function App() {
                 )}
 
                 <div className="conversation-list">
-                  {conversations.map((convo) => (
+                  {conversations
+                    .filter(convo => {
+                      if (!chatSearch) return true
+                      const q = chatSearch.toLowerCase()
+                      const name = convo.isSystem ? 'regellik' : (convo.otherUser?.name || '').toLowerCase()
+                      const handle = convo.isSystem ? '' : (convo.otherUser?.handle || '').toLowerCase()
+                      return name.includes(q) || handle.includes(q)
+                    })
+                    .map((convo) => (
                     <div key={convo.id} className={`conversation-item-wrap${deletingConvoId === convo.id ? ' deleting' : ''}`}>
                       <button className={`conversation-item${convo.unreadCount > 0 ? ' has-unread' : ''}`} onClick={() => openConversation(convo.id)}>
                         <div className="convo-avatar">

@@ -99,7 +99,7 @@ html {
   min-height: 100dvh;
   display: flex;
   flex-direction: column;
-  padding: 20px 12px 112px;
+  padding: 20px 8px 112px;
   overflow: hidden;
 }
 
@@ -2923,8 +2923,7 @@ html {
 
 /* Transactions screen */
 .transactions-screen {
-  max-width: 720px;
-  margin: 0 auto;
+  width: 100%;
 }
 
 /* Подвкладки внутри transactions */
@@ -3318,7 +3317,8 @@ html {
   display: flex;
   align-items: center;
   gap: 6px;
-  flex-shrink: 0;
+  flex: 1;
+  min-width: 0;
 }
 
 .header-hamburger {
@@ -3348,6 +3348,79 @@ html {
   align-items: center;
   gap: 6px;
   font-family: var(--font-mono);
+}
+
+/* Header search button */
+.header-search-btn {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  padding: 6px 10px;
+  border-radius: 10px;
+  background: rgba(255,255,255,0.07);
+  border: 1px solid rgba(255,255,255,0.12);
+  color: var(--muted);
+  font-size: 11px;
+  font-weight: 600;
+  font-family: var(--font-mono);
+  cursor: pointer;
+  transition: background 0.15s, color 0.15s;
+  white-space: nowrap;
+}
+
+.header-search-btn:hover {
+  background: rgba(255,255,255,0.12);
+  color: var(--text);
+}
+
+/* Header search expand */
+.header-search-wrap {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex: 1;
+  background: rgba(255,255,255,0.06);
+  border: 1px solid rgba(255,255,255,0.14);
+  border-radius: 12px;
+  padding: 0 10px;
+  height: 36px;
+  min-width: 0;
+  color: var(--muted);
+}
+
+.header-search-input {
+  flex: 1;
+  background: transparent;
+  border: none;
+  outline: none;
+  color: var(--text);
+  font-size: 13px;
+  font-family: var(--font-mono);
+  min-width: 0;
+}
+
+.header-search-input::placeholder {
+  color: rgba(255,255,255,0.3);
+}
+
+.header-search-close {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 22px;
+  height: 22px;
+  border-radius: 6px;
+  background: rgba(255,255,255,0.08);
+  border: none;
+  color: var(--muted);
+  cursor: pointer;
+  flex-shrink: 0;
+  transition: background 0.15s;
+}
+
+.header-search-close:hover {
+  background: rgba(255,255,255,0.15);
+  color: var(--text);
 }
 
 .header-brand-icon {
