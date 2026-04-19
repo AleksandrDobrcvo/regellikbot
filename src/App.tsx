@@ -542,7 +542,6 @@ function App() {
   const [composeSearch, setComposeSearch] = useState('')
   const [deletingConvoId, setDeletingConvoId] = useState<string | null>(null)
   const [chatSearch, setChatSearch] = useState('')
-  const [headerSearchOpen, setHeaderSearchOpen] = useState(false)
 
   // Radar state
   const [radarUsers, setRadarUsers] = useState<RadarUser[]>([])
@@ -634,7 +633,6 @@ function App() {
     if (newTab === activeTab && !openConvoId) return
     setPageExiting(true)
     if (newTab !== 'chats') {
-      setHeaderSearchOpen(false)
       setChatSearch('')
     }
     setTimeout(() => {
@@ -1957,33 +1955,9 @@ function App() {
             <button className="header-hamburger" onClick={() => setMenuOpen(!menuOpen)}>
               {menuOpen ? <X size={20} /> : <Menu size={20} />}
             </button>
-            {headerSearchOpen && activeTab === 'chats' ? (
-              <div className="header-search-wrap">
-                <Search size={14} />
-                <input
-                  className="header-search-input"
-                  value={chatSearch}
-                  onChange={e => setChatSearch(e.target.value)}
-                  placeholder="Izlash..."
-                  autoFocus
-                />
-                <button className="header-search-close" onClick={() => { setHeaderSearchOpen(false); setChatSearch(''); }}>
-                  <X size={14} />
-                </button>
-              </div>
-            ) : (
-              <>
-                <span className="header-brand" onClick={() => { switchTab('chats'); closeMenu(); }} style={{cursor:'pointer'}}>
-                  <span className="header-brand-icon">&gt;]</span>Chatlar
-                </span>
-                {activeTab === 'chats' && !openConvoId && !composeOpen && (
-                  <button className="header-search-btn" onClick={() => setHeaderSearchOpen(true)} title="Izlash">
-                    <Search size={14} />
-                    <span>Izlash</span>
-                  </button>
-                )}
-              </>
-            )}
+            <span className="header-brand" onClick={() => { switchTab('chats'); closeMenu(); }} style={{cursor:'pointer'}}>
+              <span className="header-brand-icon">&gt;]</span>Chatlar
+            </span>
           </div>
           <div className="header-right">
             {siteSettings.onlineCounterVisible && (
@@ -2189,6 +2163,22 @@ function App() {
                       <span>Kontaktlar</span>
                     </button>
                   </div>
+                </div>
+
+                {/* Izlash search bar */}
+                <div className="chats-search-row">
+                  <Search size={14} />
+                  <input
+                    className="chats-search-input"
+                    value={chatSearch}
+                    onChange={e => setChatSearch(e.target.value)}
+                    placeholder="Izlash..."
+                  />
+                  {chatSearch && (
+                    <button className="chats-search-clear" onClick={() => setChatSearch('')}>
+                      <X size={13} />
+                    </button>
+                  )}
                 </div>
 
                 {conversations.length === 0 && (

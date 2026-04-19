@@ -4864,6 +4864,54 @@ html {
   font-family: var(--font-mono);
 }
 
+/* ===== CHATS SEARCH BAR (below header row) ===== */
+.chats-search-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 0 12px;
+  height: 38px;
+  background: rgba(255,255,255,0.05);
+  border: 1px solid rgba(255,255,255,0.1);
+  border-radius: 12px;
+  margin-bottom: 12px;
+  color: var(--muted);
+}
+
+.chats-search-input {
+  flex: 1;
+  background: transparent;
+  border: none;
+  outline: none;
+  color: var(--text);
+  font-size: 13px;
+  font-family: var(--font-mono);
+  min-width: 0;
+}
+
+.chats-search-input::placeholder {
+  color: rgba(255,255,255,0.25);
+}
+
+.chats-search-clear {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 20px;
+  height: 20px;
+  border-radius: 5px;
+  border: none;
+  background: rgba(255,255,255,0.08);
+  color: var(--muted);
+  cursor: pointer;
+  flex-shrink: 0;
+}
+
+.chats-search-clear:hover {
+  background: rgba(255,255,255,0.14);
+  color: var(--text);
+}
+
 /* ========== MESSENGER CHATS ========== */
 
 .chats-header-row {
