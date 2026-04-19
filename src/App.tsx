@@ -1310,7 +1310,7 @@ function App() {
         method: 'POST',
         body: JSON.stringify(body),
       }, sessionToken)
-      showToast(`Рассылка отправлена: ${data.sent} пользователей`, 'success')
+      showToast(`${t.broadcastSent}: ${data.sent}`, 'success')
       setBroadcastText('')
       setBroadcastSelectedUsers([])
       setBroadcastSearchResults([])
@@ -2252,26 +2252,26 @@ function App() {
 
           <div className="landing-marquee">
             <div className="landing-marquee-track">
-              <span>здесь качели публичных анонимных</span>
+              <span>{t.marquee1}</span>
               <span>•</span>
-              <span>отправляй анонимки — получай ответы</span>
+              <span>{t.marquee2}</span>
               <span>•</span>
-              <span>зарабатывай на рефералах</span>
+              <span>{t.marquee3}</span>
               <span>•</span>
-              <span>здесь качели публичных анонимных</span>
+              <span>{t.marquee1}</span>
               <span>•</span>
-              <span>отправляй анонимки — получай ответы</span>
+              <span>{t.marquee2}</span>
               <span>•</span>
-              <span>зарабатывай на рефералах</span>
+              <span>{t.marquee3}</span>
             </div>
           </div>
 
           <footer className="app-footer">
             <span>&gt;]Regellik 2026</span>
-            <span>Нормативы</span>
-            <span>О нас</span>
+            <span>{t.footerRules}</span>
+            <span>{t.footerAbout}</span>
             <span>FAQ</span>
-            <span>Связаться</span>
+            <span>{t.footerContact}</span>
           </footer>
         </main>
       )}
@@ -2574,19 +2574,19 @@ function App() {
                 <div className="radar-header">
                   <div className="radar-header-left">
                     <Radar size={20} className="radar-header-icon" />
-                    <h2>Радар</h2>
+                    <h2>{t.radarTitle}</h2>
                   </div>
                   <button className="secondary-btn" onClick={() => void loadRadar()} disabled={isRadarLoading}>
                     {isRadarLoading ? '...' : t.refresh}
                   </button>
                 </div>
-                <p className="radar-desc">Люди рядом с тобой (до 50 км)</p>
+                <p className="radar-desc">{t.radarDesc}</p>
 
                 {radarUsers.length === 0 && !isRadarLoading && (
                   <div className="chats-empty">
                     <Radar size={40} />
-                    <p>Никого не найдено рядом</p>
-                    <span>Убедись что геолокация включена</span>
+                    <p>{t.radarEmpty}</p>
+                    <span>{t.radarEmptyHint}</span>
                   </div>
                 )}
 
@@ -2625,13 +2625,13 @@ function App() {
                         className={trendsSort === 'top' ? 'trends-sort-btn active' : 'trends-sort-btn'}
                         onClick={() => setTrendsSort('top')}
                       >
-                        <TrendingUp size={14} /> Топ
+                        <TrendingUp size={14} /> {t.sortTop}
                       </button>
                       <button
                         className={trendsSort === 'new' ? 'trends-sort-btn active' : 'trends-sort-btn'}
                         onClick={() => setTrendsSort('new')}
                       >
-                        <Zap size={14} /> Новые
+                        <Zap size={14} /> {t.sortNew}
                       </button>
                     </div>
                     <div className="trends-view-toggle">
@@ -2666,7 +2666,7 @@ function App() {
                       <div className="post-image-preview-grid">
                         {newPostImages.map((image, index) => (
                           <div key={`${image.slice(0, 24)}-${index}`} className="post-image-preview-wrap multi">
-                            <img src={image} alt="Предпросмотр публикации" className="post-image-preview" />
+                            <img src={image} alt={t.publication} className="post-image-preview" />
                             <button className="post-image-remove-btn" type="button" onClick={() => setNewPostImages((current) => current.filter((_, imageIndex) => imageIndex !== index))}>
                               <X size={14} />
                             </button>
@@ -2946,12 +2946,12 @@ function App() {
                   <div className="profile-hero-main">
                     <div className="profile-avatar-large avatar-upload-wrap">
                       {viewer.avatarUrl ? <img src={viewer.avatarUrl} alt={viewer.name} /> : <span>{viewer.name[0]}</span>}
-                      <label className="avatar-upload-overlay" title="Загрузить аватар">
+                      <label className="avatar-upload-overlay" title={t.uploadAvatar}>
                         <Camera size={20} />
                         <input type="file" accept="image/png,image/jpeg,image/webp,image/gif" onChange={handleAvatarUpload} hidden disabled={isUploadingAvatar} />
                       </label>
                       {viewer.avatarUrl && (
-                        <button className="avatar-delete-btn" type="button" onClick={() => void deleteAvatar()} title="Удалить аватар">
+                        <button className="avatar-delete-btn" type="button" onClick={() => void deleteAvatar()} title={t.deleteAvatar}>
                           <X size={14} />
                         </button>
                       )}
@@ -2979,7 +2979,7 @@ function App() {
                           placeholder="@handle"
                           disabled={!siteSettings.profileEditEnabled}
                         />
-                        <button type="button" className="handle-dice-btn hero-dice" onClick={randomHandle} title="Случайный ник">
+                        <button type="button" className="handle-dice-btn hero-dice" onClick={randomHandle} title={t.randomNick}>
                           <Dices size={14} />
                         </button>
                       </div>
@@ -3177,7 +3177,7 @@ function App() {
                         >
                           <MessageSquare size={16} /><span>{selectedOwnPost.commentsCount || selectedOwnPost.comments.length}</span>
                         </button>
-                        <button className="trends-repost-btn disabled" title="Свой пост">
+                        <button className="trends-repost-btn disabled" title={t.ownPost}>
                           <RefreshCw size={15} /><span>{selectedOwnPost.reposts || 0}</span>
                         </button>
                         {isAdmin && (
@@ -3295,7 +3295,7 @@ function App() {
                         ))}
                       </div>
                       <div className="topup-note">
-                        <span># Оплата скоро станет доступна. Следи за обновлениями!</span>
+                        <span>{t.topupNote}</span>
                       </div>
                     </div>
                   )}
@@ -3412,13 +3412,13 @@ function App() {
                       {powerLog.map(tx => {
                         const isPositive = tx.delta > 0
                         const txLabel: Record<TxType, string> = {
-                          message_sent: 'Отправка сообщения',
-                          message_received: 'Входящее сообщение',
-                          topup: 'Пополнение баланса',
-                          deduct: 'Списание',
-                          boost_received: 'Буст за публикацию',
-                          boost_removed: 'Буст отозван',
-                          referral: 'Реферальный бонус',
+                          message_sent: t.txMsgSent,
+                          message_received: t.txMsgReceived,
+                          topup: t.txTopup,
+                          deduct: t.txDeduct,
+                          boost_received: t.txBoostReceived,
+                          boost_removed: t.txBoostRemoved,
+                          referral: t.txReferral,
                         }
                         const txIcon: Record<TxType, React.ReactNode> = {
                           message_sent: <Send size={14} />,
