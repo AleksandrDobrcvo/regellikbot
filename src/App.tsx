@@ -624,6 +624,8 @@ function App() {
   const [reportReason, setReportReason] = useState<string>(t.reportCustom)
   const [reportText, setReportText] = useState('')
   const [reportPostId, setReportPostId] = useState<string>('')
+  const [reportPriority, setReportPriority] = useState('medium')
+  const [reportContact, setReportContact] = useState('')
   const [isSubmittingReport, setIsSubmittingReport] = useState(false)
   const [lightboxOpen, setLightboxOpen] = useState(false)
   const [lightboxImages, setLightboxImages] = useState<string[]>([])
@@ -1713,12 +1715,14 @@ function App() {
       const targetId = viewedProfile ? viewedProfile.user.id : 'general'
       await apiRequest(`/api/users/${targetId}/report`, {
         method: 'POST',
-        body: JSON.stringify({ category, text: reportText.trim(), postId: reportPostId || undefined }),
+        body: JSON.stringify({ category, text: reportText.trim(), postId: reportPostId || undefined, priority: reportPriority, contact: reportContact.trim() || undefined }),
       }, sessionToken)
       setReportProfileOpen(false)
       setReportReason(t.reportCustom)
       setReportText('')
       setReportPostId('')
+      setReportPriority('medium')
+      setReportContact('')
       showToast(t.reportSent, 'success')
     } catch (error) {
       showToast(error instanceof Error ? error.message : t.reportError, 'error')
@@ -2365,23 +2369,23 @@ function App() {
                 <div className="home-nav-grid">
                   <button className="home-nav-btn" onClick={() => switchTab('chats')}>
                     <MessageCircle size={24} />
-                    <strong>Chatlar</strong>
-                    <span>Xabarlar</span>
+                    <strong>{t.homeNavChats}</strong>
+                    <span>{t.homeNavChatsDesc}</span>
                   </button>
                   <button className="home-nav-btn" onClick={() => switchTab('trends')}>
                     <Flame size={24} />
-                    <strong>Global</strong>
-                    <span>Ommaviy postlar</span>
+                    <strong>{t.homeNavGlobal}</strong>
+                    <span>{t.homeNavGlobalDesc}</span>
                   </button>
                   <button className="home-nav-btn" onClick={() => switchTab('profile')}>
                     <User size={24} />
-                    <strong>Profil</strong>
-                    <span>Sozlash</span>
+                    <strong>{t.homeNavProfile}</strong>
+                    <span>{t.homeNavProfileDesc}</span>
                   </button>
                   <button className="home-nav-btn" onClick={() => switchTab('transactions')}>
                     <Wallet size={24} />
-                    <strong>Balans</strong>
-                    <span>O'tkazmalar</span>
+                    <strong>{t.homeNavBalance}</strong>
+                    <span>{t.homeNavBalanceDesc}</span>
                   </button>
                 </div>
               </section>
@@ -3095,6 +3099,13 @@ function App() {
                         {viewer.preferences.showContact !== false ? <Eye size={10} /> : <EyeOff size={10} />}
                       </button>
                     </span>
+                    <span className="profile-meta-chip muted">
+                      <MapPin size={11} />
+                      {viewer.preferences.showCity !== false && (viewer?.city || (locationState === 'granted' && locationLabel)) ? viewerLocation : '—'}
+                      <button className="profile-meta-eye" type="button" onClick={() => void updatePreference('showCity', !viewer.preferences.showCity)}>
+                        {viewer.preferences.showCity !== false ? <Eye size={10} /> : <EyeOff size={10} />}
+                      </button>
+                    </span>
                     <span className="profile-meta-chip muted">{formatDate(viewer.joinedAt)}</span>
                   </div>
 
@@ -3103,59 +3114,6 @@ function App() {
                     <div><strong>{viewer.followerCount}</strong><span>{t.followers}</span></div>
                     <div><strong>{viewer.followingCount}</strong><span>{t.following}</span></div>
                     <div><strong>{viewer.powers}</strong><span>{t.energyLabel}</span></div>
-                  </div>
-                </article>
-
-                {/* Геолокация */}
-                <article className="panel-card geo-settings-card">
-                  <div className="geo-settings-row">
-                    <div className="geo-settings-left">
-                      <MapPin size={18} />
-                      <div>
-                        <strong>{t.geolocation}</strong>
-                        <span className="geo-settings-label">{viewerLocation}</span>
-                      </div>
-                    </div>
-                    <div className="geo-settings-actions">
-                      {locationState !== 'granted' ? (
-                        <button className="secondary-btn compact-btn" onClick={requestLocation}>
-                          {t.enable}
-                        </button>
-                      ) : (
-                        <span className="geo-granted-badge">{t.geoEnabled}</span>
-                      )}
-                      <button
-                        className={viewer.geoAllowed ? 'toggle-mini active' : 'toggle-mini'}
-                        onClick={async () => {
-                          const newGeoAllowed = !viewer.geoAllowed
-                          if (!newGeoAllowed) {
-                            geoUserDisabled.current = true
-                          } else {
-                            geoUserDisabled.current = false
-                          }
-                          try {
-                            const data = await apiRequest<{ viewer: SessionUser }>('/api/location', {
-                              method: 'POST',
-                              body: JSON.stringify(newGeoAllowed ? {
-                                city: viewer.city || resolvedLocation?.city,
-                                country: viewer.country || resolvedLocation?.country,
-                                latitude: viewer.latitude || resolvedLocation?.latitude,
-                                longitude: viewer.longitude || resolvedLocation?.longitude,
-                              } : {
-                                city: null,
-                              }),
-                            }, sessionToken)
-                            setViewer(prev => prev ? { ...prev, ...data.viewer } : prev)
-                            showToast(newGeoAllowed ? t.geoShown : t.geoHiddenMsg, 'success')
-                          } catch {
-                            showToast(t.settingError, 'error')
-                          }
-                        }}
-                      >
-                        {viewer.geoAllowed ? <Eye size={14} /> : <EyeOff size={14} />}
-                        <span>{viewer.geoAllowed ? t.geoShow : t.geoHide}</span>
-                      </button>
-                    </div>
                   </div>
                 </article>
 
@@ -4618,9 +4576,10 @@ function App() {
       )}
 
       {reportProfileOpen && (
-        <div className="compose-modal report-modal-wrap">
-          <div className="compose-modal-backdrop" onClick={() => setReportProfileOpen(false)} />
-          <div className="compose-modal-sheet report-modal-sheet report-modal-sheet--v2">
+        <div className="center-modal-wrap">
+          <div className="center-modal-backdrop" onClick={() => setReportProfileOpen(false)} />
+          <div className="center-modal-box report-center-box">
+            <div className="center-modal-glow report-glow" />
             <div className="report-modal-header">
               <div className="report-modal-icon-wrap">
                 <span className="report-modal-icon bw">⚠️</span>
@@ -4634,8 +4593,9 @@ function App() {
                   }
                 </p>
               </div>
-              <button className="report-close-btn" onClick={() => setReportProfileOpen(false)}><X size={18} /></button>
+              <button className="center-modal-close" onClick={() => setReportProfileOpen(false)}><X size={18} /></button>
             </div>
+
             {viewedProfile && viewedProfile.posts.length > 0 && (
               <label className="input-block">
                 <span className="report-label">{t.reportTarget}</span>
@@ -4649,13 +4609,8 @@ function App() {
                 </select>
               </label>
             )}
-            {reportPostId && (
-              <div className="report-selected-post">
-                <strong>{t.reportSelected}</strong>
-                <p>{viewedProfile?.posts.find((post) => post.id === reportPostId)?.text || t.publication}</p>
-              </div>
-            )}
-            <div className="report-label" style={{marginBottom: '8px', fontSize: '12px', color: 'var(--muted)'}}>{t.reportTarget}</div>
+
+            <div className="report-label">{t.reportTarget}</div>
             <div className="report-reasons-grid-v2">
               {[
                 { id: 'spam', icon: '📢', label: t.reportSpam },
@@ -4675,7 +4630,27 @@ function App() {
                 </button>
               ))}
             </div>
-            <label className="input-block" style={{marginTop: '10px'}}>
+
+            <div className="report-label">{t.reportPriority}</div>
+            <div className="report-priority-row">
+              {[
+                { id: 'low', label: t.reportLow, color: 'var(--muted)' },
+                { id: 'medium', label: t.reportMedium, color: 'rgba(255,200,60,0.7)' },
+                { id: 'high', label: t.reportHigh, color: 'rgba(255,120,50,0.7)' },
+                { id: 'critical', label: t.reportCritical, color: 'rgba(220,50,50,0.7)' },
+              ].map(p => (
+                <button
+                  key={p.id}
+                  className={reportPriority === p.id ? 'report-priority-btn active' : 'report-priority-btn'}
+                  style={reportPriority === p.id ? {'--pri-color': p.color} as React.CSSProperties : undefined}
+                  onClick={() => setReportPriority(p.id)}
+                >
+                  {p.label}
+                </button>
+              ))}
+            </div>
+
+            <label className="input-block">
               <span className="report-label">{t.reportComment}</span>
               <textarea
                 className="report-textarea"
@@ -4686,7 +4661,19 @@ function App() {
                 rows={3}
               />
             </label>
-            <div className="report-modal-actions">
+
+            <label className="input-block">
+              <span className="report-label">{t.reportContactInfo}</span>
+              <input
+                className="report-contact-input"
+                value={reportContact}
+                onChange={(e) => setReportContact(e.target.value)}
+                placeholder={t.reportContactHint}
+                maxLength={100}
+              />
+            </label>
+
+            <div className="center-modal-actions">
               <button className="secondary-btn" onClick={() => setReportProfileOpen(false)}>{t.cancel}</button>
               <button className="primary-btn report-send-btn" onClick={() => void submitProfileReport()} disabled={isSubmittingReport}>
                 <Send size={14} /> {isSubmittingReport ? '...' : t.reportSendBtn}
@@ -4698,9 +4685,10 @@ function App() {
 
       {/* === SUPPORT 24/7 MODAL === */}
       {supportOpen && (
-        <div className="support-modal-wrap">
-          <div className="support-modal-backdrop" onClick={() => { if (!isSendingSupport) { setSupportOpen(false); setSupportSent(false); setSupportMessage('') } }} />
-          <div className="support-modal-sheet">
+        <div className="center-modal-wrap">
+          <div className="center-modal-backdrop" onClick={() => { if (!isSendingSupport) { setSupportOpen(false); setSupportSent(false); setSupportMessage('') } }} />
+          <div className="center-modal-box support-center-box">
+            <div className="center-modal-glow support-glow" />
             {supportSent ? (
               <div className="support-sent-state">
                 <div className="support-sent-anim">
@@ -4729,7 +4717,7 @@ function App() {
                       <span className="support-online-badge"><span className="online-dot" />{t.supportSubtitle}</span>
                     </div>
                   </div>
-                  <button className="support-close-btn" onClick={() => { setSupportOpen(false); setSupportMessage('') }}><X size={20} /></button>
+                  <button className="center-modal-close" onClick={() => { setSupportOpen(false); setSupportMessage('') }}><X size={20} /></button>
                 </div>
 
                 <div className="support-response-hint">
@@ -4769,7 +4757,7 @@ function App() {
                   <div className="support-char-counter">{supportMessage.length}/2000</div>
                 </div>
 
-                <div className="support-modal-actions">
+                <div className="center-modal-actions">
                   <button className="secondary-btn" onClick={() => { setSupportOpen(false); setSupportMessage('') }}>{t.supportCancel}</button>
                   <button
                     className="primary-btn support-send-btn"
