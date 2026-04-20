@@ -552,9 +552,9 @@ function App() {
   const [introDone, setIntroDone] = useState(false)
   const [emailName, setEmailName] = useState('')
   const [emailValue, setEmailValue] = useState('')
-  const [emailStep, setEmailStep] = useState<'email' | 'code'>('email')
-  const [emailCode, setEmailCode] = useState('')
-  const [isSendingCode, setIsSendingCode] = useState(false)
+  // const [emailStep, setEmailStep] = useState<'email' | 'code'>('email')
+  // const [emailCode, setEmailCode] = useState('')
+  // const [isSendingCode, setIsSendingCode] = useState(false)
   const [locationState, setLocationState] = useState<LocationState>('idle')
   const [locationLabel, setLocationLabel] = useState('')
   const [resolvedLocation, setResolvedLocation] = useState<ResolvedLocation | null>(null)
@@ -600,8 +600,9 @@ function App() {
   const [trendsView, setTrendsView] = useState<'grid' | 'feed'>('feed')
   const [gridSelectedPost, setGridSelectedPost] = useState<Post | null>(null)
   // Auth password
-  const [authMethod, setAuthMethod] = useState<'password' | 'code'>('password')
-  const [regLangStep, setRegLangStep] = useState(false)
+  // const [authMethod, setAuthMethod] = useState<'password' | 'code'>('password')
+  // const [regLangStep, setRegLangStep] = useState(false)
+  const [authFlowStep, setAuthFlowStep] = useState<'email' | 'name' | 'password' | 'confirm' | 'captcha'>('email')
   const [authPassword, setAuthPassword] = useState('')
   const [authConfirmPassword, setAuthConfirmPassword] = useState('')
   const [authPasswordVisible, setAuthPasswordVisible] = useState(false)
@@ -1224,76 +1225,11 @@ function App() {
     setActiveTab('chats')
     setEmailName('')
     setEmailValue('')
-    setEmailCode('')
-    setEmailStep('email')
+    setAuthFlowStep('email')
     showToast(`${t.loginSuccess} ${data.viewer.name}`, 'success')
 
     if (resolvedLocation && !data.viewer.geoAllowed && !geoUserDisabled.current) {
       await syncLocation(resolvedLocation)
-    }
-  }
-
-  const sendEmailCode = async (event: FormEvent<HTMLFormElement>) => {
-    event.preventDefault()
-
-    if (!emailValue.trim()) {
-      showToast(t.emailHint, 'info')
-      return
-    }
-    if (authMode === 'register' && !emailName.trim()) {
-      showToast(t.nameHint, 'info')
-      return
-    }
-
-    setIsSendingCode(true)
-    try {
-      const result = await apiRequest<{ ok: boolean; hint?: string }>('/api/auth/send-code', {
-        method: 'POST',
-        body: JSON.stringify({
-          email: emailValue.trim(),
-          name: emailName.trim() || undefined,
-          mode: authMode,
-          captchaToken,
-          captchaAnswer: Number(captchaAnswer),
-        }),
-      })
-      setEmailStep('code')
-      showToast(result.hint || t.codeSentMail, 'success')
-    } catch (error) {
-      showToast(error instanceof Error ? error.message : t.codeSendError, 'error')
-      // Refresh captcha on failure
-      try {
-        const cap = await apiRequest<{ token: string; question: string }>('/api/captcha')
-        setCaptchaToken(cap.token); setCaptchaQuestion(cap.question); setCaptchaAnswer('')
-      } catch { /* ignore */ }
-    } finally {
-      setIsSendingCode(false)
-    }
-  }
-
-  const signInEmail = async (event: FormEvent<HTMLFormElement>) => {
-    event.preventDefault()
-
-    if (!emailCode.trim()) {
-      showToast(t.enterCodeHint, 'info')
-      return
-    }
-
-    try {
-      const data = await apiRequest<AuthResponse>('/api/auth/email', {
-        method: 'POST',
-        body: JSON.stringify({
-          email: emailValue.trim(),
-          code: emailCode.trim(),
-          location: resolvedLocation,
-        }),
-      })
-      await completeAuth(data)
-      if (data.isNewUser) {
-        showToast(t.accountCreated, 'success')
-      }
-    } catch (error) {
-      showToast(error instanceof Error ? error.message : t.authError, 'error')
     }
   }
 
@@ -2301,184 +2237,180 @@ function App() {
 
       {authOpen && (
         <div className="auth-layer">
-          <div className="auth-backdrop" onClick={() => { setAuthOpen(false); setEmailStep('email'); setEmailCode(''); setRegLangStep(false) }} />
-          <section className="auth-sheet">
-            <div className="sheet-head">
-              <div>
-                <span className="eyebrow">{authMode === 'register' ? t.register : t.login}</span>
-                <h2>{authMode === 'register' ? t.createAccount : t.enterAccount}</h2>
-              </div>
-              <button className="ghost-icon" onClick={() => { setAuthOpen(false); setEmailStep('email'); setEmailCode(''); setRegLangStep(false) }}>
-                ×
-              </button>
-            </div>
+          <div className="auth-backdrop" onClick={() => { setAuthOpen(false); setAuthFlowStep('email') }} />
+          <section className="auth-sheet auth-flow">
 
-            <div className="auth-mode-tabs">
-              <button className={authMode === 'login' ? 'auth-mode-tab active' : 'auth-mode-tab'} onClick={() => { setAuthMode('login'); setEmailStep('email'); setEmailCode(''); setRegLangStep(false) }}>{t.login}</button>
-              <button className={authMode === 'register' ? 'auth-mode-tab active' : 'auth-mode-tab'} onClick={() => { setAuthMode('register'); setEmailStep('email'); setEmailCode(''); setRegLangStep(false) }}>{t.register}</button>
-            </div>
-
-            {/* Language selection step shown before registration form */}
-            {authMode === 'register' && regLangStep === false && (
-              <div className="reg-lang-step">
-                <div className="reg-lang-title">{t.chooseLanguage}</div>
-                <p className="reg-lang-hint">{t.languageHint}</p>
-                <div className="reg-lang-btns">
-                  <button className={lang === 'uz' ? 'reg-lang-btn active' : 'reg-lang-btn'} onClick={() => { switchLang('uz'); setRegLangStep(true) }}>
-                    🇺🇿 {t.languageUz}
-                  </button>
-                  <button className={lang === 'ru' ? 'reg-lang-btn active' : 'reg-lang-btn'} onClick={() => { switchLang('ru'); setRegLangStep(true) }}>
-                    🇷🇺 {t.languageRu}
-                  </button>
+            {/* Step: Email */}
+            {authFlowStep === 'email' && (
+              <div className="auth-step">
+                <div className="auth-step-icon"><img src="/tg-icons/mail.webp" alt="" /></div>
+                <h2 className="auth-step-title">{t.authEmailTitle}</h2>
+                <p className="auth-step-hint">{authMode === 'register' ? t.authEmailHintReg : t.authEmailHint}</p>
+                <input
+                  className="auth-step-input"
+                  value={emailValue}
+                  onChange={e => setEmailValue(e.target.value)}
+                  placeholder="email@example.com"
+                  type="email"
+                  autoComplete="email"
+                  autoFocus
+                />
+                <button
+                  className="auth-next-btn"
+                  disabled={!emailValue.trim() || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(emailValue.trim())}
+                  onClick={() => {
+                    if (authMode === 'register') {
+                      setAuthFlowStep('name')
+                    } else {
+                      setAuthFlowStep('password')
+                    }
+                  }}
+                >
+                  {t.next}
+                </button>
+                <div className="auth-bottom-links">
+                  {authMode === 'login' ? (
+                    <button className="auth-link-btn" onClick={() => { setAuthMode('register'); setAuthFlowStep('email') }}>{t.noAccountYet}</button>
+                  ) : (
+                    <button className="auth-link-btn" onClick={() => { setAuthMode('login'); setAuthFlowStep('email') }}>{t.haveAccount}</button>
+                  )}
                 </div>
               </div>
             )}
 
-            {/* Method selector — shown after lang step (or for login) */}
-            {(authMode === 'login' || regLangStep) && (
-            <div className="auth-method-tabs">
-              <button className={authMethod === 'password' ? 'auth-method-tab active' : 'auth-method-tab'} onClick={() => setAuthMethod('password')}>
-                <img src="/tg-icons/lock.webp" className="tg-icon-sm" alt="" /> {t.password}
-              </button>
-              <button className={authMethod === 'code' ? 'auth-method-tab active' : 'auth-method-tab'} onClick={() => setAuthMethod('code')}>
-                <img src="/tg-icons/mail.webp" className="tg-icon-sm" alt="" /> Email-{t.sendCode}
-              </button>
-            </div>
+            {/* Step: Name (register only) */}
+            {authFlowStep === 'name' && authMode === 'register' && (
+              <div className="auth-step">
+                <div className="auth-step-icon"><img src="/tg-icons/user.webp" alt="" /></div>
+                <h2 className="auth-step-title">{t.authNameTitle}</h2>
+                <p className="auth-step-hint">{t.authNameHint}</p>
+                <input
+                  className="auth-step-input"
+                  value={emailName}
+                  onChange={e => setEmailName(e.target.value)}
+                  placeholder={t.name}
+                  autoFocus
+                />
+                <button
+                  className="auth-next-btn"
+                  disabled={!emailName.trim()}
+                  onClick={() => setAuthFlowStep('password')}
+                >
+                  {t.next}
+                </button>
+                <button className="auth-back-btn" onClick={() => setAuthFlowStep('email')}>{t.back}</button>
+              </div>
             )}
 
-            {(authMode === 'login' || regLangStep) && (
-            <div className="auth-stack">
-              {authMethod === 'password' ? (
-                authMode === 'login' ? (
-                  <form className="email-card" onSubmit={loginWithPassword}>
-                    <div className="auth-title"><img src="/tg-icons/lock.webp" className="tg-icon-sm" alt="" />{t.loginByPassword}</div>
-                    <input value={emailValue} onChange={e => setEmailValue(e.target.value)} placeholder={t.email} type="email" required autoComplete="email" />
-                    <div className="auth-password-wrap">
-                      <input
-                        value={authPassword}
-                        onChange={e => setAuthPassword(e.target.value)}
-                        placeholder={t.password}
-                        type={authPasswordVisible ? 'text' : 'password'}
-                        required
-                        autoComplete="current-password"
-                        minLength={8}
-                      />
-                      <button type="button" className="auth-eye-btn" onClick={() => setAuthPasswordVisible(v => !v)}>
-                        {authPasswordVisible ? <EyeOff size={15} /> : <Eye size={15} />}
-                      </button>
-                    </div>
-                    <div className="auth-captcha">
-                      <span className="auth-captcha-q">{captchaQuestion || '...'}</span>
-                      <input className="auth-captcha-input" value={captchaAnswer} onChange={e => setCaptchaAnswer(e.target.value.replace(/[^0-9-]/g, ''))} placeholder="?" type="text" inputMode="numeric" required />
-                    </div>
-                    <button className="primary-btn wide" type="submit" disabled={isAuthingPassword || !emailValue.trim() || !authPassword || !captchaAnswer}>
-                      {isAuthingPassword ? t.signingIn : t.loginBtn}
-                    </button>
-                  </form>
-                ) : (
-                  <form className="email-card" onSubmit={registerWithPassword}>
-                    <div className="auth-title"><img src="/tg-icons/lock.webp" className="tg-icon-sm" alt="" />{t.registerByPassword}</div>
-                    <div className="auth-note">{t.passwordMin}</div>
-                    <input value={emailName} onChange={e => setEmailName(e.target.value)} placeholder={t.name} required />
-                    <input value={emailValue} onChange={e => setEmailValue(e.target.value)} placeholder={t.email} type="email" required autoComplete="email" />
-                    <div className="auth-password-wrap">
-                      <input
-                        value={authPassword}
-                        onChange={e => setAuthPassword(e.target.value)}
-                        placeholder={t.password}
-                        type={authPasswordVisible ? 'text' : 'password'}
-                        required
-                        autoComplete="new-password"
-                        minLength={8}
-                      />
-                      <button type="button" className="auth-eye-btn" onClick={() => setAuthPasswordVisible(v => !v)}>
-                        {authPasswordVisible ? <EyeOff size={15} /> : <Eye size={15} />}
-                      </button>
-                    </div>
-                    <div className="auth-password-wrap">
-                      <input
-                        value={authConfirmPassword}
-                        onChange={e => setAuthConfirmPassword(e.target.value)}
-                        placeholder={t.passwordRepeat}
-                        type={authPasswordVisible ? 'text' : 'password'}
-                        required
-                        autoComplete="new-password"
-                      />
-                    </div>
-                    {authPassword && authConfirmPassword && authPassword !== authConfirmPassword && (
-                      <div className="auth-pass-mismatch">{t.passwordMismatch}</div>
-                    )}
-                    <div className="auth-captcha">
-                      <span className="auth-captcha-q">{captchaQuestion || '...'}</span>
-                      <input className="auth-captcha-input" value={captchaAnswer} onChange={e => setCaptchaAnswer(e.target.value.replace(/[^0-9-]/g, ''))} placeholder="?" type="text" inputMode="numeric" required />
-                    </div>
-                    <button className="primary-btn wide" type="submit" disabled={isAuthingPassword || authPassword !== authConfirmPassword || authPassword.length < 8 || !captchaAnswer}>
-                      {isAuthingPassword ? t.creating : t.registerBtn}
-                    </button>
-                  </form>
-                )
-              ) : emailStep === 'email' ? (
-                <form className="email-card" onSubmit={sendEmailCode}>
-                  <div className="auth-title">
-                    <img src="/tg-icons/mail.webp" className="tg-icon-sm" alt="" />
-                    {authMode === 'register' ? t.registerByEmail : t.enterByEmail}
-                  </div>
-                  <div className="auth-note">
-                    {authMode === 'register' ? t.enterNameAndEmail : t.enterEmail}
-                  </div>
-                  {authMode === 'register' && (
-                    <input value={emailName} onChange={(e) => setEmailName(e.target.value)} placeholder={t.name} required />
-                  )}
-                  <input value={emailValue} onChange={(e) => setEmailValue(e.target.value)} placeholder={t.email} type="email" required />
-                  <div className="auth-captcha">
-                    <span className="auth-captcha-q">{captchaQuestion || '...'}</span>
-                    <input className="auth-captcha-input" value={captchaAnswer} onChange={e => setCaptchaAnswer(e.target.value.replace(/[^0-9-]/g, ''))} placeholder="?" type="text" inputMode="numeric" required />
-                  </div>
-                  <button className="primary-btn wide" type="submit" disabled={isSendingCode || !siteSettings.emailAuthEnabled || !captchaAnswer}>
-                    <img src="/tg-icons/mail.webp" className="tg-icon-sm" alt="" />
-                    {isSendingCode ? t.sending : t.sendCode}
-                  </button>
-                </form>
-              ) : (
-                <form className="email-card" onSubmit={signInEmail}>
-                  <div className="auth-title">
-                    <img src="/tg-icons/shield.webp" className="tg-icon-sm" alt="" />
-                    {t.confirm}
-                  </div>
-                  <div className="auth-note code-sent-note">
-                    {t.codeSentTo} <strong>{emailValue}</strong>
-                  </div>
+            {/* Step: Password */}
+            {authFlowStep === 'password' && (
+              <div className="auth-step">
+                <div className="auth-step-icon"><img src="/tg-icons/lock.webp" alt="" /></div>
+                <h2 className="auth-step-title">{t.authPasswordTitle}</h2>
+                <p className="auth-step-hint">{authMode === 'register' ? t.authPasswordHintReg : t.authPasswordHintLogin}</p>
+                <div className="auth-password-wrap">
                   <input
-                    className="code-input"
-                    value={emailCode}
-                    onChange={(e) => setEmailCode(e.target.value.replace(/\D/g, '').slice(0, 6))}
-                    placeholder="000000"
-                    type="text"
-                    inputMode="numeric"
-                    autoComplete="one-time-code"
-                    maxLength={6}
-                    required
+                    className="auth-step-input"
+                    value={authPassword}
+                    onChange={e => setAuthPassword(e.target.value)}
+                    placeholder={t.password}
+                    type={authPasswordVisible ? 'text' : 'password'}
+                    autoComplete={authMode === 'login' ? 'current-password' : 'new-password'}
+                    minLength={8}
                     autoFocus
                   />
-                  <button className="primary-btn wide" type="submit" disabled={emailCode.length < 6}>
-                    <img src="/tg-icons/energy.webp" className="tg-icon-sm" alt="" />
-                    {authMode === 'register' ? t.registerBtn : t.loginBtn}
+                  <button type="button" className="auth-eye-btn" onClick={() => setAuthPasswordVisible(v => !v)}>
+                    {authPasswordVisible ? <EyeOff size={16} /> : <Eye size={16} />}
                   </button>
-                  <button type="button" className="auth-switch-btn back-btn" onClick={() => { setEmailStep('email'); setEmailCode('') }}>
-                    {t.back}
-                  </button>
-                </form>
-              )}
-
-              <div className="auth-switch">
-                {authMode === 'login' ? (
-                  <span>{t.noAccount} <button className="auth-switch-btn" onClick={() => { setAuthMode('register'); setEmailStep('email'); setEmailCode(''); setRegLangStep(false) }}>{t.signUp}</button></span>
-                ) : (
-                  <span>{t.hasAccount} <button className="auth-switch-btn" onClick={() => { setAuthMode('login'); setEmailStep('email'); setEmailCode(''); setRegLangStep(false) }}>{t.signIn}</button></span>
-                )}
+                </div>
+                <button
+                  className="auth-next-btn"
+                  disabled={!authPassword || (authMode === 'register' && authPassword.length < 8)}
+                  onClick={() => {
+                    if (authMode === 'register') {
+                      setAuthFlowStep('confirm')
+                    } else {
+                      setAuthFlowStep('captcha')
+                    }
+                  }}
+                >
+                  {t.next}
+                </button>
+                <button className="auth-back-btn" onClick={() => setAuthFlowStep(authMode === 'register' ? 'name' : 'email')}>{t.back}</button>
               </div>
-            </div>
             )}
+
+            {/* Step: Confirm Password (register only) */}
+            {authFlowStep === 'confirm' && authMode === 'register' && (
+              <div className="auth-step">
+                <div className="auth-step-icon"><img src="/tg-icons/shield.webp" alt="" /></div>
+                <h2 className="auth-step-title">{t.authConfirmTitle}</h2>
+                <p className="auth-step-hint">{t.authConfirmHint}</p>
+                <div className="auth-password-wrap">
+                  <input
+                    className="auth-step-input"
+                    value={authConfirmPassword}
+                    onChange={e => setAuthConfirmPassword(e.target.value)}
+                    placeholder={t.passwordRepeat}
+                    type={authPasswordVisible ? 'text' : 'password'}
+                    autoComplete="new-password"
+                    autoFocus
+                  />
+                  <button type="button" className="auth-eye-btn" onClick={() => setAuthPasswordVisible(v => !v)}>
+                    {authPasswordVisible ? <EyeOff size={16} /> : <Eye size={16} />}
+                  </button>
+                </div>
+                {authConfirmPassword && authPassword !== authConfirmPassword && (
+                  <div className="auth-pass-mismatch">{t.passwordMismatch}</div>
+                )}
+                <button
+                  className="auth-next-btn"
+                  disabled={!authConfirmPassword || authPassword !== authConfirmPassword}
+                  onClick={() => setAuthFlowStep('captcha')}
+                >
+                  {t.next}
+                </button>
+                <button className="auth-back-btn" onClick={() => setAuthFlowStep('password')}>{t.back}</button>
+              </div>
+            )}
+
+            {/* Step: Captcha */}
+            {authFlowStep === 'captcha' && (
+              <div className="auth-step">
+                <div className="auth-step-icon"><img src="/tg-icons/robot.webp" alt="" /></div>
+                <h2 className="auth-step-title">{t.authCaptchaTitle}</h2>
+                <p className="auth-step-hint">{t.authCaptchaHint}</p>
+                <div className="auth-captcha-block">
+                  <span className="auth-captcha-question">{captchaQuestion || '...'}</span>
+                  <input
+                    className="auth-step-input auth-captcha-input"
+                    value={captchaAnswer}
+                    onChange={e => setCaptchaAnswer(e.target.value.replace(/[^0-9-]/g, ''))}
+                    placeholder="?"
+                    type="text"
+                    inputMode="numeric"
+                    autoFocus
+                  />
+                </div>
+                <button
+                  className="auth-next-btn"
+                  disabled={!captchaAnswer || isAuthingPassword}
+                  onClick={(e) => {
+                    if (authMode === 'login') {
+                      loginWithPassword(e as unknown as React.FormEvent)
+                    } else {
+                      registerWithPassword(e as unknown as React.FormEvent)
+                    }
+                  }}
+                >
+                  {isAuthingPassword
+                    ? (authMode === 'login' ? t.signingIn : t.creating)
+                    : (authMode === 'login' ? t.loginBtn : t.registerBtn)}
+                </button>
+                <button className="auth-back-btn" onClick={() => setAuthFlowStep(authMode === 'register' ? 'confirm' : 'password')}>{t.back}</button>
+              </div>
+            )}
+
           </section>
         </div>
       )}
@@ -2576,7 +2508,7 @@ function App() {
 
               <div className="corner-menu-nav">
                 {!isSignedIn && (
-                  <button className="corner-menu-item accent-item" onClick={() => { closeMenu(); setAuthOpen(true) }}>
+                  <button className="corner-menu-item accent-item" onClick={() => { closeMenu(); setAuthOpen(true); setAuthFlowStep('email'); setAuthPassword(''); setAuthConfirmPassword(''); setCaptchaAnswer('') }}>
                     {t.enterRegel}
                   </button>
                 )}
@@ -2644,7 +2576,7 @@ function App() {
             <h1 className="welcome-heading">{t.welcome}</h1>
             <p className="welcome-sub">{t.brandSubtitle}</p>
 
-            <button className="landing-cta" onClick={() => setAuthOpen(true)}>
+            <button className="landing-cta" onClick={() => { setAuthOpen(true); setAuthFlowStep('email'); setAuthPassword(''); setAuthConfirmPassword(''); setCaptchaAnswer('') }}>
               {t.enterRegel}
             </button>
           </section>
