@@ -543,6 +543,7 @@ function App() {
   const [isSavingAdminUser, setIsSavingAdminUser] = useState(false)
   const [isGrantingAdmin, setIsGrantingAdmin] = useState(false)
   const [profileEditOpen, setProfileEditOpen] = useState(false)
+  const [profileOpenPost, setProfileOpenPost] = useState<Post | null>(null)
   const [postMenuId, setPostMenuId] = useState<string | null>(null)
   const [profileName, setProfileName] = useState('')
   const [profileHandle, setProfileHandle] = useState('@regellik')
@@ -3177,127 +3178,141 @@ function App() {
                   </div>
                 </div>
 
-                {/* ── Publications ── */}
+                {/* ── Publications grid ── */}
                 <div className="tk-profile-posts">
                   <div className="tk-posts-header">
                     <span className="eyebrow">{t.publications}</span>
-                    <span className="profile-posts-counter">{ownPosts.length}</span>
+                    <span className="profile-posts-counter">{ownPosts.filter(p => p.imageUrls?.length || p.imageUrl).length}</span>
                   </div>
-                  {ownPosts.length === 0 ? (
+                  {ownPosts.filter(p => p.imageUrls?.length || p.imageUrl).length === 0 ? (
                     <div className="profile-posts-empty">
-                      <Flame size={26} />
+                      <Camera size={28} />
                       <p>{t.noPosts}</p>
-                      <span>{t.noPostsHint}</span>
+                      <span>{lang === 'uz' ? 'Rasmli post qo\'shing' : 'Добавьте первое фото'}</span>
                     </div>
                   ) : (
-                    <div className="threads-feed profile-threads-feed">
-                      {ownPosts.map(post => (
-                        <article key={post.id} className="thr-post">
-                          <div className="thr-left">
-                            <div className="thr-avatar">
-                              {viewer.avatarUrl ? <img src={viewer.avatarUrl} alt="" /> : <span>{viewer.name[0]}</span>}
-                            </div>
-                            <div className="thr-line" />
-                          </div>
-                          <div className="thr-right">
-                            <div className="thr-header">
-                              <strong className="thr-author">{viewer.name}</strong>
-                              <span className="thr-time">{frt(post.createdAt)}</span>
-                              {/* Post options menu */}
-                              <div className="post-options-wrap">
-                                <button className="post-options-btn" onClick={() => setPostMenuId(postMenuId === post.id ? null : post.id)}>
-                                  <MoreHorizontal size={16} />
-                                </button>
-                                {postMenuId === post.id && (
-                                  <>
-                                    <div className="post-options-backdrop" onClick={() => setPostMenuId(null)} />
-                                    <div className="post-options-menu">
-                                      <button onClick={() => {
-                                        void navigator.clipboard?.writeText(`${window.location.origin}?post=${post.id}`)
-                                        showToast(t.linkCopied || 'Link copied', 'success')
-                                        setPostMenuId(null)
-                                      }}>
-                                        <img src="/tg-icons/link.webp" className="tg-icon-sm" alt="" />
-                                        {lang === 'uz' ? 'Havolani nusxa olish' : 'Скопировать ссылку'}
-                                      </button>
-                                      <button onClick={() => void repostPost(post.id).then(() => setPostMenuId(null))}>
-                                        <img src="/tg-icons/trending.webp" className="tg-icon-sm" alt="" />
-                                        {t.repostAction}
-                                      </button>
-                                      <button className="danger" onClick={() => void deleteOwnPost(post.id)}>
-                                        <img src="/tg-icons/trash.webp" className="tg-icon-sm" alt="" />
-                                        {lang === 'uz' ? 'O\'chirish' : 'Удалить'}
-                                      </button>
-                                    </div>
-                                  </>
-                                )}
-                              </div>
-                            </div>
-                            {post.text && <p className="thr-text">{post.text}</p>}
-                            {(post.imageUrls?.length || post.imageUrl) && (
-                              <div className={`thr-images${(post.imageUrls?.length || 0) > 1 ? ' multi' : ''}`}>
-                                {(post.imageUrls?.length ? post.imageUrls : [post.imageUrl]).filter(Boolean).map((img, i) => (
-                                  <img key={i} src={img!} alt="" className="thr-img" onClick={() => openImageLightbox((post.imageUrls?.length ? post.imageUrls : [post.imageUrl]).filter(Boolean) as string[], i)} />
-                                ))}
-                              </div>
+                    <div className="tk-photo-grid">
+                      {ownPosts.filter(p => p.imageUrls?.length || p.imageUrl).map((post, idx) => {
+                        const imgs = post.imageUrls?.length ? post.imageUrls : [post.imageUrl]
+                        const thumb = imgs.filter(Boolean)[0] as string
+                        const isFirst = idx === 0
+                        return (
+                          <button
+                            key={post.id}
+                            className={`tk-grid-cell${isFirst ? ' tk-grid-cell--featured' : ''}`}
+                            onClick={() => setProfileOpenPost(post)}
+                          >
+                            <img src={thumb} alt="" className="tk-grid-img" loading="lazy" />
+                            {(imgs.filter(Boolean).length > 1) && (
+                              <span className="tk-grid-multi"><Copy size={12} /></span>
                             )}
-                            <div className="thr-actions">
-                              <button
-                                className={`thr-action-btn${post.boostedByViewer ? ' active energy' : ''}`}
-                                onClick={() => void boostPost(post.id)}
-                              >
-                                <Zap size={18} fill={post.boostedByViewer ? 'currentColor' : 'none'} />
-                                {post.boosts > 0 && <span>{post.boosts}</span>}
-                              </button>
-                              <button
-                                className={`thr-action-btn${expandedPostComments.has(post.id) ? ' active' : ''}`}
-                                onClick={() => togglePostComments(post.id)}
-                              >
-                                <MessageSquare size={18} />
-                                {(post.commentsCount || post.comments.length) > 0 && <span>{post.commentsCount || post.comments.length}</span>}
-                              </button>
-                              <button
-                                className={`thr-action-btn${post.repostedByViewer ? ' active repost' : ''}`}
-                                onClick={() => void repostPost(post.id)}
-                              >
-                                <RefreshCw size={17} />
-                                {(post.reposts || 0) > 0 && <span>{post.reposts}</span>}
-                              </button>
+                            <div className="tk-grid-overlay">
+                              <span><Zap size={13} fill="currentColor" />{post.boosts}</span>
+                              <span><MessageSquare size={13} />{post.commentsCount || post.comments.length}</span>
                             </div>
-                            {(expandedPostComments.has(post.id) || closingCommentPosts.has(post.id)) && (
-                              <div className={`thr-comments${closingCommentPosts.has(post.id) ? ' closing' : ''}`}>
-                                {post.comments.map(cmt => (
-                                  <div key={cmt.id} className="thr-comment">
-                                    <div className="thr-comment-head">
-                                      <strong>{cmt.authorName}</strong>
-                                      <span>{cmt.authorHandle}</span>
-                                      <small>{frt(cmt.createdAt)}</small>
-                                    </div>
-                                    <p>{cmt.text}</p>
-                                  </div>
-                                ))}
-                                <div className="thr-comment-input">
-                                  <input
-                                    value={commentTexts[post.id] || ''}
-                                    onChange={e => setCommentTexts(prev => ({...prev, [post.id]: e.target.value}))}
-                                    placeholder={t.commentPlaceholder}
-                                    maxLength={300}
-                                    onKeyDown={e => { if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); void addComment(post.id) } }}
-                                  />
-                                  <button className="thr-comment-send" onClick={() => void addComment(post.id)} disabled={!commentTexts[post.id]?.trim()}>
-                                    <Send size={14} />
-                                  </button>
-                                </div>
-                              </div>
-                            )}
-                          </div>
-                        </article>
-                      ))}
+                          </button>
+                        )
+                      })}
                     </div>
                   )}
                 </div>
 
               </section>
+            )}
+
+            {/* ── Profile Post Detail Modal ── */}
+            {profileOpenPost && viewer && (
+              <div className="pk-post-layer">
+                <div className="pk-post-backdrop" onClick={() => setProfileOpenPost(null)} />
+                <div className="pk-post-sheet">
+                  {/* Images */}
+                  <div className="pk-post-images">
+                    {(profileOpenPost.imageUrls?.length ? profileOpenPost.imageUrls : [profileOpenPost.imageUrl]).filter(Boolean).map((img, i) => (
+                      <img key={i} src={img!} alt="" className="pk-post-img" />
+                    ))}
+                  </div>
+                  {/* Caption + actions */}
+                  <div className="pk-post-body">
+                    <div className="pk-post-author">
+                      <div className="pk-post-avatar">
+                        {viewer.avatarUrl ? <img src={viewer.avatarUrl} alt="" /> : <span>{viewer.name[0]}</span>}
+                      </div>
+                      <div>
+                        <strong>{viewer.name}</strong>
+                        <span>{frt(profileOpenPost.createdAt)}</span>
+                      </div>
+                      {/* Options menu */}
+                      <div className="post-options-wrap" style={{marginLeft: 'auto'}}>
+                        <button className="post-options-btn" onClick={() => setPostMenuId(postMenuId === profileOpenPost.id ? null : profileOpenPost.id)}>
+                          <MoreHorizontal size={16} />
+                        </button>
+                        {postMenuId === profileOpenPost.id && (
+                          <>
+                            <div className="post-options-backdrop" onClick={() => setPostMenuId(null)} />
+                            <div className="post-options-menu" style={{right: 0}}>
+                              <button onClick={() => {
+                                void navigator.clipboard?.writeText(`${window.location.origin}?post=${profileOpenPost.id}`)
+                                showToast(t.linkCopied || 'Link copied', 'success')
+                                setPostMenuId(null)
+                              }}>
+                                <img src="/tg-icons/link.webp" className="tg-icon-sm" alt="" />
+                                {lang === 'uz' ? 'Havolani nusxa olish' : 'Скопировать ссылку'}
+                              </button>
+                              <button onClick={() => void repostPost(profileOpenPost.id).then(() => setPostMenuId(null))}>
+                                <img src="/tg-icons/trending.webp" className="tg-icon-sm" alt="" />
+                                {t.repostAction}
+                              </button>
+                              <button className="danger" onClick={() => { void deleteOwnPost(profileOpenPost.id); setProfileOpenPost(null) }}>
+                                <img src="/tg-icons/trash.webp" className="tg-icon-sm" alt="" />
+                                {lang === 'uz' ? 'O\'chirish' : 'Удалить'}
+                              </button>
+                            </div>
+                          </>
+                        )}
+                      </div>
+                    </div>
+                    {profileOpenPost.text && <p className="pk-post-caption">{profileOpenPost.text}</p>}
+                    <div className="pk-post-stats">
+                      <button className={`pk-stat-btn${profileOpenPost.boostedByViewer ? ' active' : ''}`} onClick={() => { void boostPost(profileOpenPost.id); setProfileOpenPost(prev => prev ? {...prev, boostedByViewer: !prev.boostedByViewer, boosts: prev.boosts + (prev.boostedByViewer ? -1 : 1)} : null) }}>
+                        <Zap size={17} fill={profileOpenPost.boostedByViewer ? 'currentColor' : 'none'} />
+                        <span>{profileOpenPost.boosts}</span>
+                      </button>
+                      <button className="pk-stat-btn" onClick={() => togglePostComments(profileOpenPost.id)}>
+                        <MessageSquare size={17} />
+                        <span>{profileOpenPost.commentsCount || profileOpenPost.comments.length}</span>
+                      </button>
+                    </div>
+                    {/* Comments inline */}
+                    {(expandedPostComments.has(profileOpenPost.id) || closingCommentPosts.has(profileOpenPost.id)) && (
+                      <div className={`thr-comments pk-comments${closingCommentPosts.has(profileOpenPost.id) ? ' closing' : ''}`}>
+                        {profileOpenPost.comments.map(cmt => (
+                          <div key={cmt.id} className="thr-comment">
+                            <div className="thr-comment-head">
+                              <strong>{cmt.authorName}</strong>
+                              <span>{cmt.authorHandle}</span>
+                              <small>{frt(cmt.createdAt)}</small>
+                            </div>
+                            <p>{cmt.text}</p>
+                          </div>
+                        ))}
+                        <div className="thr-comment-input">
+                          <input
+                            value={commentTexts[profileOpenPost.id] || ''}
+                            onChange={e => setCommentTexts(prev => ({...prev, [profileOpenPost.id]: e.target.value}))}
+                            placeholder={t.commentPlaceholder}
+                            maxLength={300}
+                            onKeyDown={e => { if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); void addComment(profileOpenPost.id) } }}
+                          />
+                          <button className="thr-comment-send" onClick={() => void addComment(profileOpenPost.id)} disabled={!commentTexts[profileOpenPost.id]?.trim()}>
+                            <Send size={14} />
+                          </button>
+                        </div>
+                      </div>
+                    )}
+                  </div>
+                  <button className="pk-post-close" onClick={() => setProfileOpenPost(null)}><X size={18} /></button>
+                </div>
+              </div>
             )}
 
             {/* ── Edit Profile Modal ── */}
