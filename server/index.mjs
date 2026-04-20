@@ -887,11 +887,19 @@ function publicUser(user, state = readState()) {
 }
 
 function publicUserForAdmin(user, state = readState()) {
+  // Find last session activity
+  const userSessions = (state.sessions || []).filter(s => s.userId === user.id)
+  const lastSession = userSessions.sort((a, b) => (b.createdAt || '').localeCompare(a.createdAt || ''))[0]
+  const lastSeen = lastSession?.createdAt || user.joinedAt || null
+  // Consider online if last seen < 5 min ago
+  const isOnline = lastSeen ? (Date.now() - new Date(lastSeen).getTime() < 5 * 60 * 1000) : false
   return {
     ...publicUser(user, state),
     providerId: user.providerId,
     isVisible: user.isVisible,
     ban: user.ban || null,
+    lastSeen,
+    isOnline,
   }
 }
 

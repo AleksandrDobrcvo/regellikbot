@@ -207,6 +207,8 @@ type SiteSettings = {
 type AdminManagedUser = SessionUser & {
   providerId: string
   isVisible: boolean
+  lastSeen: string | null
+  isOnline: boolean
 }
 
 type AuditLogItem = {
@@ -3954,17 +3956,27 @@ function App() {
                     {adminSearchResults.length > 0 && (
                       <div className="admin-search-results">
                         {adminSearchResults.map(u => (
-                          <button key={u.id} className={selectedAdminUserId === u.id ? 'admin-search-result-item active' : 'admin-search-result-item'} onClick={() => {
+                          <button key={u.id} className={selectedAdminUserId === u.id ? 'admin-user-card active' : 'admin-user-card'} onClick={() => {
                             setSelectedAdminUserId(u.id)
                             setAdminDraft({ ...u, badgesText: u.badges.join(', ') })
                           }}>
-                            <div className="admin-sr-left">
-                              <strong>{u.name}</strong>
-                              <span>{u.handle}</span>
+                            <div className="auc-avatar-wrap">
+                              {u.avatarUrl
+                                ? <img className="auc-avatar-img" src={u.avatarUrl} alt="" />
+                                : <span className="auc-avatar-letter">{u.name[0]}</span>}
+                              <span className={`auc-online-dot${u.isOnline ? ' online' : ''}`} />
                             </div>
-                            <div className="admin-sr-right">
-                              <span className={`admin-sr-badge ${u.role}`}>{u.role}</span>
-                              <span className="admin-sr-powers"><Zap size={12} /> {u.powers}</span>
+                            <div className="auc-body">
+                              <div className="auc-name-row">
+                                <strong className="auc-name">{u.name}</strong>
+                                <span className={`admin-role-pill ${u.role}`}>{u.role}</span>
+                                {u.ban && <span className="admin-ban-pill"><Ban size={9} /></span>}
+                              </div>
+                              <span className="auc-handle">@{u.handle}</span>
+                              <div className="auc-footer">
+                                <span className="auc-lastseen">{u.isOnline ? 'онлайн' : u.lastSeen ? `был(а) ${formatRelativeTime(u.lastSeen, 'ru')} назад` : 'не заходил(а)'}</span>
+                                <span className="auc-energy"><Zap size={11} /> {u.powers}</span>
+                              </div>
                             </div>
                           </button>
                         ))}
@@ -3976,7 +3988,7 @@ function App() {
                       {adminUsers.map(item => (
                         <button
                           key={item.id}
-                          className={`admin-user-item${selectedAdminUserId === item.id ? ' active' : ''}${item.ban ? ' banned' : ''}`}
+                          className={`admin-user-card${selectedAdminUserId === item.id ? ' active' : ''}${item.ban ? ' banned' : ''}`}
                           onClick={() => {
                             setSelectedAdminUserId(item.id)
                             setAdminDraft({
@@ -3985,15 +3997,24 @@ function App() {
                             })
                           }}
                         >
-                          <div className="admin-user-left">
-                            <strong>{item.name}</strong>
-                            <span className="admin-user-handle">{item.handle}</span>
+                          <div className="auc-avatar-wrap">
+                            {item.avatarUrl
+                              ? <img className="auc-avatar-img" src={item.avatarUrl} alt="" />
+                              : <span className="auc-avatar-letter">{item.name[0]}</span>}
+                            <span className={`auc-online-dot${item.isOnline ? ' online' : ''}`} />
                           </div>
-                          <div className="admin-user-meta">
-                            <span className={`admin-role-pill ${item.role}`}>{item.role}</span>
-                            {item.ban && <span className="admin-ban-pill"><Ban size={10} /> {item.ban.type}</span>}
-                            {item.status === 'suspended' && <span className="admin-status-pill suspended"><Snowflake size={10} /></span>}
-                            <span className="admin-powers-pill"><Zap size={11} /> {item.powers}</span>
+                          <div className="auc-body">
+                            <div className="auc-name-row">
+                              <strong className="auc-name">{item.name}</strong>
+                              <span className={`admin-role-pill ${item.role}`}>{item.role}</span>
+                              {item.ban && <span className="admin-ban-pill"><Ban size={9} /></span>}
+                              {item.status === 'suspended' && <span className="admin-status-pill suspended"><Snowflake size={9} /></span>}
+                            </div>
+                            <span className="auc-handle">@{item.handle}</span>
+                            <div className="auc-footer">
+                              <span className="auc-lastseen">{item.isOnline ? 'онлайн' : item.lastSeen ? `был(а) ${formatRelativeTime(item.lastSeen, 'ru')} назад` : 'не заходил(а)'}</span>
+                              <span className="auc-energy"><Zap size={11} /> {item.powers}</span>
+                            </div>
                           </div>
                         </button>
                       ))}
