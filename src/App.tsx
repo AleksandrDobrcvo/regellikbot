@@ -2956,7 +2956,7 @@ function App() {
                           </div>
                           <div className="pk-post-body">
                             <div className="pk-post-author">
-                              <div className="pk-post-avatar">
+                              <div className="pk-post-avatar" style={{cursor:'pointer'}} onClick={() => { setGridSelectedPost(null); void openUserProfile(gridSelectedPost.authorId) }}>
                                 {gridSelectedPost.authorAvatarUrl
                                   ? <img src={gridSelectedPost.authorAvatarUrl} alt="" />
                                   : <span>{gridSelectedPost.authorName[0]}</span>}
@@ -2982,7 +2982,7 @@ function App() {
                                 {gridSelectedPost.comments.map(cmt => (
                                   <div key={cmt.id} className="thr-comment">
                                     <div className="thr-comment-head">
-                                      <strong>{cmt.authorName}</strong>
+                                      <strong className="clickable-author" onClick={() => { setGridSelectedPost(null); void openUserProfile(cmt.authorId) }}>{cmt.authorName}</strong>
                                       <span>{cmt.authorHandle}</span>
                                       <small>{frt(cmt.createdAt)}</small>
                                     </div>
@@ -3111,7 +3111,7 @@ function App() {
                             {post.comments.map(cmt => (
                               <div key={cmt.id} className="thr-comment">
                                 <div className="thr-comment-head">
-                                  <strong>{cmt.authorName}</strong>
+                                  <strong className="clickable-author" onClick={() => void openUserProfile(cmt.authorId)}>{cmt.authorName}</strong>
                                   <span>{cmt.authorHandle}</span>
                                   <small>{frt(cmt.createdAt)}</small>
                                 </div>
@@ -5145,7 +5145,7 @@ function App() {
                                 {post.comments.map(cmt => (
                                   <div key={cmt.id} className="thr-comment">
                                     <div className="thr-comment-head">
-                                      <strong>{cmt.authorName}</strong>
+                                      <strong className="clickable-author" onClick={() => void openUserProfile(cmt.authorId)}>{cmt.authorName}</strong>
                                       <span>{cmt.authorHandle}</span>
                                       <small>{frt(cmt.createdAt)}</small>
                                     </div>
