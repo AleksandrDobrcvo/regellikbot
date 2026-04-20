@@ -9206,8 +9206,7 @@ html {
   align-items: center;
   gap: 8px;
   font-size: 16px;
-  font-weight: 800;
-  font-family: var(--font-mono);
+  font-weight: 700;
   color: var(--text);
   padding: 8px 0;
   border-bottom: 1px solid rgba(255,255,255,0.06);
@@ -9215,12 +9214,11 @@ html {
 }
 
 .admin-section-subhead {
-  font-size: 13px;
-  font-weight: 700;
+  font-size: 12px;
+  font-weight: 600;
   color: var(--muted);
-  font-family: var(--font-mono);
   text-transform: uppercase;
-  letter-spacing: 0.06em;
+  letter-spacing: 0.05em;
 }
 
 /* User editor full page */
