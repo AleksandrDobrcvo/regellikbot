@@ -12274,7 +12274,23 @@ html {
   display: flex;
   flex-direction: column;
   gap: 8px;
-  animation: fadeIn 0.2s ease;
+  animation: commentsSlideDown 0.22s ease;
+  overflow: hidden;
+}
+
+.thr-comments.closing {
+  animation: commentsSlideUp 0.2s ease forwards;
+  pointer-events: none;
+}
+
+@keyframes commentsSlideDown {
+  from { opacity: 0; transform: translateY(-10px); }
+  to   { opacity: 1; transform: translateY(0); }
+}
+
+@keyframes commentsSlideUp {
+  from { opacity: 1; transform: translateY(0); }
+  to   { opacity: 0; transform: translateY(-10px); }
 }
 
 .thr-comment {

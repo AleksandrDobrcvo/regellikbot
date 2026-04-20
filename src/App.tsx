@@ -564,7 +564,7 @@ function App() {
   // Trends / Posts state
   const [posts, setPosts] = useState<Post[]>([])
   const [trendsSort, setTrendsSort] = useState<'top' | 'new'>('top')
-  const [trendsView, setTrendsView] = useState<'grid' | 'feed'>('grid')
+  const [trendsView, setTrendsView] = useState<'grid' | 'feed'>('feed')
   const [gridSelectedPost, setGridSelectedPost] = useState<Post | null>(null)
   // Auth password
   const [authMethod, setAuthMethod] = useState<'password' | 'code'>('password')
@@ -583,6 +583,7 @@ function App() {
   const [newPostImages, setNewPostImages] = useState<string[]>([])
   const [isCreatingPost, setIsCreatingPost] = useState(false)
   const [expandedPostComments, setExpandedPostComments] = useState<Set<string>>(new Set())
+  const [closingCommentPosts, setClosingCommentPosts] = useState<Set<string>>(new Set())
   const [commentTexts, setCommentTexts] = useState<Record<string, string>>({})
 
   // Transactions / Power log
@@ -1832,12 +1833,15 @@ function App() {
   }
 
   const togglePostComments = (postId: string) => {
-    setExpandedPostComments(prev => {
-      const next = new Set(prev)
-      if (next.has(postId)) next.delete(postId)
-      else next.add(postId)
-      return next
-    })
+    if (expandedPostComments.has(postId)) {
+      setClosingCommentPosts(prev => new Set(prev).add(postId))
+      setTimeout(() => {
+        setExpandedPostComments(prev => { const n = new Set(prev); n.delete(postId); return n })
+        setClosingCommentPosts(prev => { const n = new Set(prev); n.delete(postId); return n })
+      }, 220)
+    } else {
+      setExpandedPostComments(prev => new Set(prev).add(postId))
+    }
   }
 
   const sortedPosts = useMemo(() => {
@@ -2960,7 +2964,7 @@ function App() {
                     )}
                   </>
                 ) : (
-                <div className="threads-feed">
+                <div className="threads-feed profile-threads-feed">
                   {sortedPosts.length === 0 && (
                     <div className="trends-empty">
                       <Flame size={40} />
@@ -3055,8 +3059,8 @@ function App() {
                           )}
                         </div>
 
-                        {expandedPostComments.has(post.id) && (
-                          <div className="thr-comments">
+                        {(expandedPostComments.has(post.id) || closingCommentPosts.has(post.id)) && (
+                          <div className={`thr-comments${closingCommentPosts.has(post.id) ? ' closing' : ''}`}>
                             {post.comments.map(cmt => (
                               <div key={cmt.id} className="thr-comment">
                                 <div className="thr-comment-head">
@@ -3276,8 +3280,8 @@ function App() {
                                 </button>
                               )}
                             </div>
-                            {expandedPostComments.has(post.id) && (
-                              <div className="thr-comments">
+                            {(expandedPostComments.has(post.id) || closingCommentPosts.has(post.id)) && (
+                              <div className={`thr-comments${closingCommentPosts.has(post.id) ? ' closing' : ''}`}>
                                 {post.comments.map(cmt => (
                                   <div key={cmt.id} className="thr-comment">
                                     <div className="thr-comment-head">
@@ -4799,8 +4803,8 @@ function App() {
                                 <Send size={17} />
                               </button>
                             </div>
-                            {expandedPostComments.has(post.id) && (
-                              <div className="thr-comments">
+                            {(expandedPostComments.has(post.id) || closingCommentPosts.has(post.id)) && (
+                              <div className={`thr-comments${closingCommentPosts.has(post.id) ? ' closing' : ''}`}>
                                 {post.comments.map(cmt => (
                                   <div key={cmt.id} className="thr-comment">
                                     <div className="thr-comment-head">
