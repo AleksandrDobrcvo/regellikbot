@@ -492,10 +492,12 @@ function normalizeHandle(value: string) {
 }
 
 async function apiRequest<T>(path: string, init?: RequestInit, token?: string) {
+  const lang = localStorage.getItem('regellik_lang') || 'uz'
   const response = await fetch(resolveApiPath(path), {
     ...init,
     headers: {
       'Content-Type': 'application/json',
+      'Accept-Language': lang,
       ...(token ? { Authorization: `Bearer ${token}` } : {}),
       ...(init?.headers || {}),
     },
@@ -719,7 +721,8 @@ function App() {
   const [closingModal, setClosingModal] = useState<string | null>(null)
 
   // Toast notifications
-  type ToastItem = { id: number; message: string; tone: ToastTone }
+  type ToastPhase = 'enter' | 'active' | 'exit'
+  type ToastItem = { id: number; message: string; tone: ToastTone; phase: ToastPhase }
   const [toasts, setToasts] = useState<ToastItem[]>([])
   const toastCounter = useRef(0)
 
@@ -822,12 +825,18 @@ function App() {
   const showToast = (message: string, tone: ToastTone) => {
     try { navigator.vibrate?.(80) } catch { /* ignore */ }
     const id = ++toastCounter.current
-    setToasts(prev => [...prev, { id, message, tone }])
-    setTimeout(() => setToasts(prev => prev.filter(t => t.id !== id)), 3500)
+    setToasts(prev => [...prev, { id, message, tone, phase: 'enter' as ToastPhase }])
+    // After enter animation finishes, mark active
+    setTimeout(() => setToasts(prev => prev.map(t => t.id === id ? { ...t, phase: 'active' as ToastPhase } : t)), 350)
+    // Start exit animation after 3s
+    setTimeout(() => setToasts(prev => prev.map(t => t.id === id ? { ...t, phase: 'exit' as ToastPhase } : t)), 3200)
+    // Remove after exit animation completes
+    setTimeout(() => setToasts(prev => prev.filter(t => t.id !== id)), 3550)
   }
 
   const dismissToast = (id: number) => {
-    setToasts(prev => prev.filter(t => t.id !== id))
+    setToasts(prev => prev.map(t => t.id === id ? { ...t, phase: 'exit' as ToastPhase } : t))
+    setTimeout(() => setToasts(prev => prev.filter(t => t.id !== id)), 350)
   }
 
   const loadFollowList = async (userId: string, type: 'followers' | 'following') => {
@@ -2271,7 +2280,7 @@ function App() {
       {/* Toast notifications — compact top bar style */}
       <div className="toast-container">
         {toasts.map(toast => (
-          <div key={toast.id} className={`toast-popup ${toast.tone}`} onClick={() => dismissToast(toast.id)}>
+          <div key={toast.id} className={`toast-popup ${toast.tone} toast-${toast.phase}`} onClick={() => dismissToast(toast.id)}>
             <div className="toast-popup-icon">
               {toast.tone === 'success'
                 ? <img src="/tg-icons/check.webp" className="tg-icon-sm" alt="" />
@@ -3046,7 +3055,7 @@ function App() {
                           </div>
                           <div className="pk-post-body">
                             <div className="pk-post-author">
-                              <div className="pk-post-avatar" style={{cursor:'pointer'}} onClick={() => { setGridSelectedPost(null); void openUserProfile(gridSelectedPost.authorId) }}>
+                              <div className="pk-post-avatar" onClick={() => { setGridSelectedPost(null); void openUserProfile(gridSelectedPost.authorId) }}>
                                 {gridSelectedPost.authorAvatarUrl
                                   ? <img src={gridSelectedPost.authorAvatarUrl} alt="" />
                                   : <span>{gridSelectedPost.authorName[0]}</span>}
@@ -3054,6 +3063,9 @@ function App() {
                               <div>
                                 <strong className="clickable-author" onClick={() => { setGridSelectedPost(null); void openUserProfile(gridSelectedPost.authorId) }}>{gridSelectedPost.authorName}</strong>
                                 <span>{gridSelectedPost.authorHandle} · {frt(gridSelectedPost.createdAt)}</span>
+                                <span className="pk-profile-link" onClick={() => { setGridSelectedPost(null); void openUserProfile(gridSelectedPost.authorId) }}>
+                                  {lang === 'uz' ? 'Profilni ko\'rish →' : 'Открыть профиль →'}
+                                </span>
                               </div>
                             </div>
                             {gridSelectedPost.text && <p className="pk-post-caption">{gridSelectedPost.text}</p>}

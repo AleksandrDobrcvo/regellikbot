@@ -320,7 +320,7 @@ html {
   display: flex;
   flex-direction: column;
   align-items: center;
-  gap: 8px;
+  gap: 10px;
   pointer-events: none;
   width: max-content;
   max-width: calc(100vw - 24px);
@@ -331,35 +331,72 @@ html {
   display: flex;
   align-items: center;
   gap: 10px;
-  padding: 10px 14px 10px 10px;
-  border-radius: 14px;
-  background: rgba(18, 18, 22, 0.82);
-  backdrop-filter: blur(24px) saturate(1.6);
-  -webkit-backdrop-filter: blur(24px) saturate(1.6);
-  border: 1px solid rgba(255, 255, 255, 0.1);
-  box-shadow: 0 8px 32px rgba(0, 0, 0, 0.45), 0 1px 0 rgba(255,255,255,0.06) inset;
+  padding: 12px 16px 12px 12px;
+  border-radius: 16px;
+  background: rgba(16, 16, 20, 0.88);
+  backdrop-filter: blur(28px) saturate(1.8);
+  -webkit-backdrop-filter: blur(28px) saturate(1.8);
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  box-shadow:
+    0 12px 40px rgba(0, 0, 0, 0.5),
+    0 1px 0 rgba(255, 255, 255, 0.06) inset,
+    0 0 0 0.5px rgba(255, 255, 255, 0.04);
   color: var(--text);
-  min-width: 200px;
-  max-width: min(340px, calc(100vw - 24px));
-  animation: toastSlideDown 0.28s cubic-bezier(0.16, 1, 0.3, 1) forwards;
+  min-width: 220px;
+  max-width: min(360px, calc(100vw - 24px));
   position: relative;
   overflow: hidden;
   cursor: pointer;
+  will-change: transform, opacity;
 }
 
-.toast-popup.success { border-color: rgba(52, 199, 89, 0.3); }
-.toast-popup.error   { border-color: rgba(200, 60, 60, 0.35); }
-.toast-popup.info    { border-color: rgba(100, 160, 255, 0.3); }
+/* Phase animations */
+.toast-popup.toast-enter {
+  animation: toastSlideIn 0.35s cubic-bezier(0.16, 1, 0.3, 1) forwards;
+}
+.toast-popup.toast-active {
+  opacity: 1;
+  transform: translateY(0) scale(1);
+}
+.toast-popup.toast-exit {
+  animation: toastSlideOut 0.32s cubic-bezier(0.4, 0, 1, 1) forwards;
+}
+
+/* Tone-specific glow borders and icon backgrounds */
+.toast-popup.success {
+  border-color: rgba(52, 199, 89, 0.25);
+  box-shadow:
+    0 12px 40px rgba(0, 0, 0, 0.5),
+    0 0 20px rgba(52, 199, 89, 0.08),
+    0 1px 0 rgba(255, 255, 255, 0.06) inset;
+}
+.toast-popup.error {
+  border-color: rgba(255, 69, 58, 0.3);
+  box-shadow:
+    0 12px 40px rgba(0, 0, 0, 0.5),
+    0 0 20px rgba(255, 69, 58, 0.08),
+    0 1px 0 rgba(255, 255, 255, 0.06) inset;
+}
+.toast-popup.info {
+  border-color: rgba(100, 160, 255, 0.25);
+  box-shadow:
+    0 12px 40px rgba(0, 0, 0, 0.5),
+    0 0 20px rgba(100, 160, 255, 0.08),
+    0 1px 0 rgba(255, 255, 255, 0.06) inset;
+}
 
 .toast-popup-icon {
   display: grid;
   place-items: center;
-  width: 32px;
-  height: 32px;
-  border-radius: 10px;
-  background: rgba(255, 255, 255, 0.06);
+  width: 34px;
+  height: 34px;
+  border-radius: 11px;
   flex-shrink: 0;
+  transition: transform 0.2s;
 }
+.toast-popup.success .toast-popup-icon { background: rgba(52, 199, 89, 0.15); }
+.toast-popup.error .toast-popup-icon   { background: rgba(255, 69, 58, 0.15); }
+.toast-popup.info .toast-popup-icon    { background: rgba(100, 160, 255, 0.15); }
 
 .toast-popup-body { min-width: 0; flex: 1; }
 
@@ -369,7 +406,8 @@ html {
 
 .toast-popup-msg {
   color: var(--text);
-  font-size: 13px;
+  font-size: 13.5px;
+  font-weight: 500;
   line-height: 1.4;
   white-space: nowrap;
   overflow: hidden;
@@ -379,24 +417,24 @@ html {
 .toast-popup-close {
   display: grid;
   place-items: center;
-  width: 22px;
-  height: 22px;
-  border-radius: 7px;
-  background: rgba(255, 255, 255, 0.05);
+  width: 24px;
+  height: 24px;
+  border-radius: 8px;
+  background: rgba(255, 255, 255, 0.06);
   color: var(--muted);
   border: none;
   cursor: pointer;
   flex-shrink: 0;
-  transition: background 0.15s;
+  transition: background 0.15s, transform 0.15s;
 }
-.toast-popup-close:hover { background: rgba(255,255,255,0.12); color: var(--text); }
+.toast-popup-close:hover { background: rgba(255,255,255,0.14); color: var(--text); transform: scale(1.1); }
 
 .toast-popup-progress {
   position: absolute;
   left: 0;
   right: 0;
   bottom: 0;
-  height: 2px;
+  height: 2.5px;
   background: transparent;
 }
 .toast-popup-progress::after {
@@ -404,17 +442,23 @@ html {
   position: absolute;
   inset: 0;
   border-radius: inherit;
-  background: rgba(255,255,255,0.15);
+  background: rgba(255,255,255,0.12);
   transform-origin: left center;
   animation: toastProgress 3s linear forwards;
 }
-.toast-popup.success .toast-popup-progress::after { background: rgba(52, 199, 89, 0.5); }
-.toast-popup.error   .toast-popup-progress::after { background: rgba(200, 80, 80, 0.5); }
-.toast-popup.info    .toast-popup-progress::after { background: rgba(100, 160, 255, 0.5); }
+.toast-popup.success .toast-popup-progress::after { background: rgba(52, 199, 89, 0.45); }
+.toast-popup.error   .toast-popup-progress::after { background: rgba(255, 69, 58, 0.45); }
+.toast-popup.info    .toast-popup-progress::after { background: rgba(100, 160, 255, 0.45); }
 
-@keyframes toastSlideDown {
-  from { opacity: 0; transform: translateY(-14px) scale(0.96); }
-  to   { opacity: 1; transform: translateY(0) scale(1); }
+@keyframes toastSlideIn {
+  0% { opacity: 0; transform: translateY(-20px) scale(0.92); }
+  60% { opacity: 1; }
+  100% { opacity: 1; transform: translateY(0) scale(1); }
+}
+
+@keyframes toastSlideOut {
+  0% { opacity: 1; transform: translateY(0) scale(1); }
+  100% { opacity: 0; transform: translateY(-16px) scale(0.94); }
 }
 
 @keyframes toastPopIn {
@@ -13897,11 +13941,26 @@ html {
   align-items: center;
   justify-content: center;
   flex-shrink: 0;
+  cursor: pointer;
+  border: 1.5px solid rgba(255,255,255,0.12);
+  transition: border-color 0.15s, transform 0.15s;
+}
+.pk-post-avatar:hover {
+  border-color: rgba(255,255,255,0.3);
+  transform: scale(1.05);
 }
 .pk-post-avatar img { width: 100%; height: 100%; object-fit: cover; }
 .pk-post-avatar span { font-size: 16px; font-weight: 700; color: var(--text); }
 .pk-post-author > div strong { display: block; font-size: 14px; font-weight: 600; color: var(--text); }
 .pk-post-author > div span { font-size: 12px; color: var(--muted); }
+.pk-post-author .pk-profile-link {
+  font-size: 11px;
+  color: var(--accent, #6cf);
+  cursor: pointer;
+  opacity: 0.7;
+  transition: opacity 0.15s;
+}
+.pk-post-author .pk-profile-link:hover { opacity: 1; }
 
 .pk-post-caption {
   font-size: 15px;

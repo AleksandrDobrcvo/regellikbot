@@ -30,6 +30,17 @@ const SMTP_USER = process.env.SMTP_USER || ''
 const SMTP_PASS = process.env.SMTP_PASS || ''
 const SMTP_FROM = process.env.SMTP_FROM || SMTP_USER
 
+/** Get language from request Accept-Language header */
+function reqLang(request) {
+  const header = request?.headers?.['accept-language'] || ''
+  return header.startsWith('ru') ? 'ru' : 'uz'
+}
+
+/** Return bilingual message based on lang */
+function msg(lang, uz, ru) {
+  return lang === 'ru' ? ru : uz
+}
+
 // In-memory store for verification codes: email -> { code, expiresAt, attempts, name, mode }
 const emailVerificationCodes = new Map()
 
@@ -1032,14 +1043,15 @@ function getBearerToken(request) {
 }
 
 function requireUser(request, response, state) {
+  const lang = reqLang(request)
   const viewer = resolveSession(state, getBearerToken(request))
   if (!viewer) {
-    response.status(401).json({ error: 'Сессия не найдена' })
+    response.status(401).json({ error: msg(lang, 'Sessiya topilmadi', 'Сессия не найдена') })
     return null
   }
 
   if (viewer.status !== 'active') {
-    response.status(403).json({ error: 'Аккаунт отключён администратором' })
+    response.status(403).json({ error: msg(lang, 'Akkaunt administrator tomonidan o\'chirilgan', 'Аккаунт отключён администратором') })
     return null
   }
 
@@ -1212,15 +1224,16 @@ app.get('/api/captcha', (_request, response) => {
 })
 
 app.post('/api/auth/send-code', async (request, response) => {
+  const lang = reqLang(request)
   const clientIp = request.headers['x-forwarded-for']?.split(',')[0]?.trim() || request.socket.remoteAddress || 'unknown'
   if (!rateLimit(`sendcode:${clientIp}`, 5, 60000)) {
-    response.status(429).json({ error: 'Слишком много запросов. Подожди минуту.' })
+    response.status(429).json({ error: msg(lang, 'Juda ko\'p so\'rovlar. Bir daqiqa kuting.', 'Слишком много запросов. Подожди минуту.') })
     return
   }
 
   const { captchaToken, captchaAnswer } = request.body || {}
   if (!verifyCaptcha(captchaToken, captchaAnswer)) {
-    response.status(400).json({ error: 'Неверная капча. Попробуй ещё раз.', captchaFailed: true })
+    response.status(400).json({ error: msg(lang, 'Noto\'g\'ri captcha. Qayta urinib ko\'ring.', 'Неверная капча. Попробуй ещё раз.'), captchaFailed: true })
     return
   }
 
@@ -1228,50 +1241,50 @@ app.post('/api/auth/send-code', async (request, response) => {
   const { email, name, mode } = request.body || {}
 
   if (!state.siteSettings.emailAuthEnabled) {
-    response.status(403).json({ error: 'Вход по email отключён' })
+    response.status(403).json({ error: msg(lang, 'Email orqali kirish o\'chirilgan', 'Вход по email отключён') })
     return
   }
 
   if (!email) {
-    response.status(400).json({ error: 'Email обязателен' })
+    response.status(400).json({ error: msg(lang, 'Email majburiy', 'Email обязателен') })
     return
   }
 
   const emailNorm = String(email).trim().toLowerCase()
 
   if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(emailNorm)) {
-    response.status(400).json({ error: 'Некорректный формат email' })
+    response.status(400).json({ error: msg(lang, 'Noto\'g\'ri email formati', 'Некорректный формат email') })
     return
   }
 
   const emailDomain = emailNorm.split('@')[1]
   if (!ALLOWED_EMAIL_DOMAINS.includes(emailDomain)) {
-    response.status(400).json({ error: `Домен @${emailDomain} не поддерживается. Используй Gmail, Mail.ru, Yandex, Outlook и т.д.` })
+    response.status(400).json({ error: msg(lang, `@${emailDomain} domeni qo'llab-quvvatlanmaydi. Gmail, Mail.ru, Yandex, Outlook va h.k. ishlating.`, `Домен @${emailDomain} не поддерживается. Используй Gmail, Mail.ru, Yandex, Outlook и т.д.`) })
     return
   }
 
   if (mode === 'register') {
     if (!state.siteSettings.registrationsOpen) {
-      response.status(403).json({ error: 'Регистрация временно закрыта' })
+      response.status(403).json({ error: msg(lang, 'Ro\'yxatdan o\'tish vaqtinchalik yopiq', 'Регистрация временно закрыта') })
       return
     }
     if (!name || !String(name).trim()) {
-      response.status(400).json({ error: 'Укажи имя для регистрации' })
+      response.status(400).json({ error: msg(lang, 'Ro\'yxat uchun ism kiriting', 'Укажи имя для регистрации') })
       return
     }
     const existing = state.users.find(u => u.email?.toLowerCase() === emailNorm)
     if (existing) {
-      response.status(409).json({ error: 'Аккаунт с этой почтой уже существует. Войди через вход.' })
+      response.status(409).json({ error: msg(lang, 'Bu pochta bilan akkaunt mavjud. Kirish orqali kiring.', 'Аккаунт с этой почтой уже существует. Войди через вход.') })
       return
     }
   } else {
     const existing = state.users.find(u => u.email?.toLowerCase() === emailNorm)
     if (!existing) {
-      response.status(404).json({ error: 'Аккаунт не найден. Зарегистрируйся.' })
+      response.status(404).json({ error: msg(lang, 'Akkaunt topilmadi. Ro\'yxatdan o\'ting.', 'Аккаунт не найден. Зарегистрируйся.') })
       return
     }
     if (!canSignIn(state, existing)) {
-      response.status(403).json({ error: 'Вход ограничен настройками сайта' })
+      response.status(403).json({ error: msg(lang, 'Kirish sayt sozlamalari bilan cheklangan', 'Вход ограничен настройками сайта') })
       return
     }
   }
@@ -1279,7 +1292,7 @@ app.post('/api/auth/send-code', async (request, response) => {
   // Rate-limit per email: max 3 codes in 10 minutes
   const existingEntry = emailVerificationCodes.get(emailNorm)
   if (existingEntry && Date.now() < existingEntry.expiresAt && existingEntry.sendCount >= 3) {
-    response.status(429).json({ error: 'Слишком много кодов отправлено. Подожди 10 минут.' })
+    response.status(429).json({ error: msg(lang, 'Juda ko\'p kod yuborildi. 10 daqiqa kuting.', 'Слишком много кодов отправлено. Подожди 10 минут.') })
     return
   }
 
@@ -1299,7 +1312,7 @@ app.post('/api/auth/send-code', async (request, response) => {
     await sendVerificationEmail(emailNorm, code)
   } catch (err) {
     console.error('Email send error:', err.message)
-    response.status(500).json({ error: 'Не удалось отправить письмо. Проверь почту или попробуй позже.' })
+    response.status(500).json({ error: msg(lang, 'Xat yuborib bo\'lmadi. Pochtani tekshiring yoki keyinroq urinib ko\'ring.', 'Не удалось отправить письмо. Проверь почту или попробуй позже.') })
     return
   }
 
@@ -1307,9 +1320,10 @@ app.post('/api/auth/send-code', async (request, response) => {
 })
 
 app.post('/api/auth/email', (request, response) => {
+  const lang = reqLang(request)
   const clientIp = request.headers['x-forwarded-for']?.split(',')[0]?.trim() || request.socket.remoteAddress || 'unknown'
   if (!rateLimit(`auth:${clientIp}`, 10, 60000)) {
-    response.status(429).json({ error: 'Слишком много попыток. Подожди минуту.' })
+    response.status(429).json({ error: msg(lang, 'Juda ko\'p urinishlar. Bir daqiqa kuting.', 'Слишком много попыток. Подожди минуту.') })
     return
   }
 
@@ -1317,41 +1331,41 @@ app.post('/api/auth/email', (request, response) => {
   const { email, code, location, referralCode: refCode } = request.body || {}
 
   if (!state.siteSettings.emailAuthEnabled) {
-    response.status(403).json({ error: 'Вход по email отключён' })
+    response.status(403).json({ error: msg(lang, 'Email orqali kirish o\'chirilgan', 'Вход по email отключён') })
     return
   }
 
   if (!email || !code) {
-    response.status(400).json({ error: 'Email и код подтверждения обязательны' })
+    response.status(400).json({ error: msg(lang, 'Email va tasdiqlash kodi majburiy', 'Email и код подтверждения обязательны') })
     return
   }
 
   const emailNorm = String(email).trim().toLowerCase()
 
   if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(emailNorm)) {
-    response.status(400).json({ error: 'Некорректный формат email' })
+    response.status(400).json({ error: msg(lang, 'Noto\'g\'ri email formati', 'Некорректный формат email') })
     return
   }
 
   // Verify code
   const codeEntry = emailVerificationCodes.get(emailNorm)
   if (!codeEntry) {
-    response.status(400).json({ error: 'Сначала запроси код подтверждения' })
+    response.status(400).json({ error: msg(lang, 'Avval tasdiqlash kodini so\'rang', 'Сначала запроси код подтверждения') })
     return
   }
   if (Date.now() > codeEntry.expiresAt) {
     emailVerificationCodes.delete(emailNorm)
-    response.status(400).json({ error: 'Код истёк. Запроси новый.' })
+    response.status(400).json({ error: msg(lang, 'Kod eskirdi. Yangi kod so\'rang.', 'Код истёк. Запроси новый.') })
     return
   }
   codeEntry.attempts += 1
   if (codeEntry.attempts > 5) {
     emailVerificationCodes.delete(emailNorm)
-    response.status(429).json({ error: 'Превышено число попыток. Запроси новый код.' })
+    response.status(429).json({ error: msg(lang, 'Urinishlar soni oshdi. Yangi kod so\'rang.', 'Превышено число попыток. Запроси новый код.') })
     return
   }
   if (String(code).trim() !== codeEntry.code) {
-    response.status(400).json({ error: `Неверный код. Осталось попыток: ${Math.max(0, 5 - codeEntry.attempts)}` })
+    response.status(400).json({ error: msg(lang, `Noto'g'ri kod. Qolgan urinishlar: ${Math.max(0, 5 - codeEntry.attempts)}`, `Неверный код. Осталось попыток: ${Math.max(0, 5 - codeEntry.attempts)}`) })
     return
   }
 
@@ -1365,15 +1379,15 @@ app.post('/api/auth/email', (request, response) => {
   // === REGISTRATION ===
   if (mode === 'register') {
     if (user) {
-      response.status(409).json({ error: 'Аккаунт с этой почтой уже существует. Войди через вход.' })
+      response.status(409).json({ error: msg(lang, 'Bu pochta bilan akkaunt mavjud. Kirish orqali kiring.', 'Аккаунт с этой почтой уже существует. Войди через вход.') })
       return
     }
     if (!state.siteSettings.registrationsOpen) {
-      response.status(403).json({ error: 'Регистрация временно закрыта' })
+      response.status(403).json({ error: msg(lang, 'Ro\'yxatdan o\'tish vaqtinchalik yopiq', 'Регистрация временно закрыта') })
       return
     }
     if (!name) {
-      response.status(400).json({ error: 'Имя не найдено — запроси код заново' })
+      response.status(400).json({ error: msg(lang, 'Ism topilmadi — kodni qayta so\'rang', 'Имя не найдено — запроси код заново') })
       return
     }
 
@@ -1392,7 +1406,7 @@ app.post('/api/auth/email', (request, response) => {
       latitude: Number.isFinite(location?.latitude) ? Number(location.latitude) : null,
       longitude: Number.isFinite(location?.longitude) ? Number(location.longitude) : null,
       geoAllowed: Boolean(location?.city),
-      bio: 'Новый профиль.',
+      bio: msg(lang, 'Yangi profil.', 'Новый профиль.'),
       tagline: 'fresh profile',
       badges: ['NEW'],
       passwordHash: null,
@@ -1425,12 +1439,12 @@ app.post('/api/auth/email', (request, response) => {
 
   // === LOGIN ===
   if (!user) {
-    response.status(404).json({ error: 'Аккаунт не найден. Зарегистрируйся.' })
+    response.status(404).json({ error: msg(lang, 'Akkaunt topilmadi. Ro\'yxatdan o\'ting.', 'Аккаунт не найден. Зарегистрируйся.') })
     return
   }
 
   if (!canSignIn(state, user)) {
-    response.status(403).json({ error: 'Вход ограничен настройками сайта' })
+    response.status(403).json({ error: msg(lang, 'Kirish sayt sozlamalari bilan cheklangan', 'Вход ограничен настройками сайта') })
     return
   }
 
@@ -1442,15 +1456,16 @@ app.post('/api/auth/email', (request, response) => {
 
 // Password-based login / register
 app.post('/api/auth/password', (request, response) => {
+  const lang = reqLang(request)
   const clientIp = request.headers['x-forwarded-for']?.split(',')[0]?.trim() || request.socket.remoteAddress || 'unknown'
   if (!rateLimit(`auth:${clientIp}`, 10, 60000)) {
-    response.status(429).json({ error: 'Слишком много попыток. Подожди минуту.' })
+    response.status(429).json({ error: msg(lang, 'Juda ko\'p urinishlar. Bir daqiqa kuting.', 'Слишком много попыток. Подожди минуту.') })
     return
   }
 
   const { captchaToken, captchaAnswer } = request.body || {}
   if (!verifyCaptcha(captchaToken, captchaAnswer)) {
-    response.status(400).json({ error: 'Неверная капча. Попробуй ещё раз.', captchaFailed: true })
+    response.status(400).json({ error: msg(lang, 'Noto\'g\'ri captcha. Qayta urinib ko\'ring.', 'Неверная капча. Попробуй ещё раз.'), captchaFailed: true })
     return
   }
 
@@ -1458,32 +1473,32 @@ app.post('/api/auth/password', (request, response) => {
   const { mode, email, password, name, location: loc } = request.body || {}
 
   if (!email || !password) {
-    response.status(400).json({ error: 'Email и пароль обязательны' })
+    response.status(400).json({ error: msg(lang, 'Email va parol majburiy', 'Email и пароль обязательны') })
     return
   }
   if (String(password).length < 8) {
-    response.status(400).json({ error: 'Пароль минимум 8 символов' })
+    response.status(400).json({ error: msg(lang, 'Parol kamida 8 ta belgidan iborat bo\'lishi kerak', 'Пароль минимум 8 символов') })
     return
   }
 
   const emailNorm = String(email).trim().toLowerCase()
   if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(emailNorm)) {
-    response.status(400).json({ error: 'Некорректный формат email' })
+    response.status(400).json({ error: msg(lang, 'Noto\'g\'ri email formati', 'Некорректный формат email') })
     return
   }
 
   if (mode === 'register') {
     if (!state.siteSettings.registrationsOpen) {
-      response.status(403).json({ error: 'Регистрация временно закрыта' })
+      response.status(403).json({ error: msg(lang, 'Ro\'yxatdan o\'tish vaqtinchalik yopiq', 'Регистрация временно закрыта') })
       return
     }
     if (!name || !String(name).trim()) {
-      response.status(400).json({ error: 'Имя обязательно' })
+      response.status(400).json({ error: msg(lang, 'Ism majburiy', 'Имя обязательно') })
       return
     }
     const existing = state.users.find(u => u.email?.toLowerCase() === emailNorm)
     if (existing) {
-      response.status(409).json({ error: 'Аккаунт с этой почтой уже существует' })
+      response.status(409).json({ error: msg(lang, 'Bu pochta bilan akkaunt mavjud', 'Аккаунт с этой почтой уже существует') })
       return
     }
     const { salt, hash } = createPasswordHash(String(password))
@@ -1503,7 +1518,7 @@ app.post('/api/auth/password', (request, response) => {
       latitude: Number.isFinite(loc?.latitude) ? Number(loc.latitude) : null,
       longitude: Number.isFinite(loc?.longitude) ? Number(loc.longitude) : null,
       geoAllowed: Boolean(loc?.city),
-      bio: 'Новый профиль.',
+      bio: msg(lang, 'Yangi profil.', 'Новый профиль.'),
       tagline: 'fresh profile',
       badges: ['NEW'],
       passwordHash: hash,
@@ -1525,19 +1540,19 @@ app.post('/api/auth/password', (request, response) => {
   // Login
   const user = state.users.find(u => u.email?.toLowerCase() === emailNorm)
   if (!user) {
-    response.status(404).json({ error: 'Аккаунт не найден' })
+    response.status(404).json({ error: msg(lang, 'Akkaunt topilmadi', 'Аккаунт не найден') })
     return
   }
   if (!user.passwordHash || !user.passwordSalt) {
-    response.status(400).json({ error: 'У этого аккаунта нет пароля. Используй вход по Email-коду.' })
+    response.status(400).json({ error: msg(lang, 'Bu akkauntda parol yo\'q. Email-kod orqali kiring.', 'У этого аккаунта нет пароля. Используй вход по Email-коду.') })
     return
   }
   if (!verifyPassword(String(password), user.passwordSalt, user.passwordHash)) {
-    response.status(401).json({ error: 'Неверный пароль' })
+    response.status(401).json({ error: msg(lang, 'Noto\'g\'ri parol', 'Неверный пароль') })
     return
   }
   if (!canSignIn(state, user)) {
-    response.status(403).json({ error: 'Вход ограничен' })
+    response.status(403).json({ error: msg(lang, 'Kirish cheklangan', 'Вход ограничен') })
     return
   }
   const token = createSessionForUser(state, user.id, request.headers['user-agent'])
