@@ -678,6 +678,11 @@ function App() {
   const [supportSent, setSupportSent] = useState(false)
   const [closingModal, setClosingModal] = useState<string | null>(null)
 
+  // Toast notifications
+  type ToastItem = { id: number; message: string; tone: ToastTone }
+  const [toasts, setToasts] = useState<ToastItem[]>([])
+  const toastCounter = useRef(0)
+
   const closeModalAnimated = (modalId: string, onDone: () => void) => {
     setClosingModal(modalId)
     setTimeout(() => { setClosingModal(null); onDone() }, 220)
@@ -760,8 +765,11 @@ function App() {
 
   const totalUnread = useMemo(() => conversations.reduce((sum, c) => sum + c.unreadCount, 0), [conversations])
 
-  const showToast = (_message: string, _tone: ToastTone) => {
+  const showToast = (message: string, tone: ToastTone) => {
     try { navigator.vibrate?.(80) } catch { /* ignore */ }
+    const id = ++toastCounter.current
+    setToasts(prev => [...prev, { id, message, tone }])
+    setTimeout(() => setToasts(prev => prev.filter(t => t.id !== id)), 2800)
   }
 
   const checkHandleAvailability = (handle: string) => {
@@ -2048,7 +2056,23 @@ function App() {
       <div className="ambient-ring" style={{ right: '15%', top: '55%', width: '140px', height: '140px', '--dur': '14s', '--delay': '3s' } as React.CSSProperties} />
       <div className="ambient-ring" style={{ left: '50%', bottom: '20%', width: '200px', height: '200px', '--dur': '12s', '--delay': '6s' } as React.CSSProperties} />
 
-
+      {/* Toast notifications */}
+      <div style={{ position: 'fixed', top: 'calc(16px + env(safe-area-inset-top, 0px))', right: '16px', zIndex: 9999, display: 'flex', flexDirection: 'column', gap: '10px', pointerEvents: 'none' }}>
+        {toasts.map(toast => (
+          <div key={toast.id} className={`toast-box ${toast.tone}`}>
+            <div className="toast-icon">
+              {toast.tone === 'success' ? '✓' : toast.tone === 'error' ? '✕' : 'ℹ'}
+            </div>
+            <div className="toast-content">
+              <div className="toast-label">
+                {toast.tone === 'success' ? (lang === 'uz' ? 'Muvaffaqiyat' : 'Успех') : toast.tone === 'error' ? (lang === 'uz' ? 'Xato' : 'Ошибка') : (lang === 'uz' ? 'Axborot' : 'Инфо')}
+              </div>
+              <div className="toast-message">{toast.message}</div>
+            </div>
+            <div className="toast-progress" />
+          </div>
+        ))}
+      </div>
 
       {authOpen && (
         <div className="auth-layer">
