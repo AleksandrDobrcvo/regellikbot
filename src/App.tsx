@@ -2695,7 +2695,7 @@ function App() {
                     )}
                     <div>
                       <strong>{isSystemChat ? 'Regellik' : chatOtherUser?.name || t.chatlar}</strong>
-                      <small>{isSystemChat ? t.systemChat : `@${chatOtherUser?.handle || ''}`}</small>
+                      <small>{isSystemChat ? t.systemChat : (chatOtherUser?.handle?.startsWith('@') ? chatOtherUser.handle : `@${chatOtherUser?.handle || ''}`)}</small>
                     </div>
                   </div>
                   {isSystemChat && <span className="chat-system-badge">SYSTEM</span>}
@@ -3084,8 +3084,6 @@ function App() {
                     {viewer.role === 'admin' && <span className="dev-tag">dev</span>}
                   </div>
                   <div className="tk-profile-handle">{viewer.handle}</div>
-                  {viewer.tagline && <div className="tk-profile-tagline">{viewer.tagline}</div>}
-                  {viewer.bio && <div className="tk-profile-bio">{viewer.bio}</div>}
 
                   {/* Stats row */}
                   <div className="tk-profile-stats">
@@ -3117,13 +3115,7 @@ function App() {
                     </button>
                   </div>
 
-                  {/* Meta chips */}
-                  <div className="profile-meta-chips tk-meta-chips">
-                    <span className="profile-meta-chip"><Hash size={11} />#{viewer.numericId || '—'}</span>
-                    {viewer.telegramId && <span className="profile-meta-chip tg"><Smartphone size={11} />{viewer.telegramId}</span>}
-                    {isAdmin && <span className="profile-meta-chip admin"><ShieldCheck size={11} />Admin</span>}
-                    <span className="profile-meta-chip muted">{formatDate(viewer.joinedAt)}</span>
-                  </div>
+                  {isAdmin && <div className="profile-meta-chips tk-meta-chips"><span className="profile-meta-chip admin"><ShieldCheck size={11} />Admin</span></div>}
                 </div>
 
                 {/* ── Publications grid ── */}
@@ -3943,7 +3935,7 @@ function App() {
                                 <span className={`admin-role-pill ${u.role}`}>{u.role}</span>
                                 {u.ban && <span className="admin-ban-pill"><Ban size={9} /></span>}
                               </div>
-                              <span className="auc-handle">@{u.handle}</span>
+                              <span className="auc-handle">{u.handle.startsWith('@') ? u.handle : '@' + u.handle}</span>
                               <div className="auc-footer">
                                 <span className="auc-lastseen">{u.isOnline ? 'онлайн' : u.lastSeen ? `был(а) ${formatRelativeTime(u.lastSeen, 'ru')} назад` : 'не заходил(а)'}</span>
                                 <span className="auc-energy"><Zap size={11} /> {u.powers}</span>
@@ -3981,7 +3973,7 @@ function App() {
                               {item.ban && <span className="admin-ban-pill"><Ban size={9} /></span>}
                               {item.status === 'suspended' && <span className="admin-status-pill suspended"><Snowflake size={9} /></span>}
                             </div>
-                            <span className="auc-handle">@{item.handle}</span>
+                            <span className="auc-handle">{item.handle.startsWith('@') ? item.handle : '@' + item.handle}</span>
                             <div className="auc-footer">
                               <span className="auc-lastseen">{item.isOnline ? 'онлайн' : item.lastSeen ? `был(а) ${formatRelativeTime(item.lastSeen, 'ru')} назад` : 'не заходил(а)'}</span>
                               <span className="auc-energy"><Zap size={11} /> {item.powers}</span>
@@ -4009,7 +4001,7 @@ function App() {
                         </div>
                         <div>
                           <h3>{adminDraft.name}</h3>
-                          <span className="admin-editor-handle">@{adminDraft.handle}</span>
+                          <span className="admin-editor-handle">{adminDraft.handle.startsWith('@') ? adminDraft.handle : '@' + adminDraft.handle}</span>
                         </div>
                         <button className="primary-btn compact-btn admin-editor-save" type="button" onClick={() => {
                           setAdminConfirmAction({

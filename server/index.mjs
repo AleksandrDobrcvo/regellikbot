@@ -3250,7 +3250,12 @@ if (existsSync(indexHtmlPath)) {
 }
 
 function broadcastOnline() {
-  const payload = JSON.stringify({ type: 'online', count: wss.clients.size })
+  // Count only authenticated (logged-in) WebSocket connections
+  let authCount = 0
+  for (const client of wss.clients) {
+    if (client.readyState === 1 && client._userId) authCount++
+  }
+  const payload = JSON.stringify({ type: 'online', count: authCount })
   for (const client of wss.clients) {
     if (client.readyState === 1) {
       client.send(payload)
@@ -3269,7 +3274,6 @@ function sendToUser(userId, data) {
 }
 
 wss.on('connection', (socket) => {
-  socket.send(JSON.stringify({ type: 'online', count: wss.clients.size }))
   broadcastOnline()
 
   socket.on('message', (raw) => {
@@ -3280,6 +3284,8 @@ wss.on('connection', (socket) => {
         const sess = state.sessions?.find(s => s.token === msg.token)
         if (sess) {
           socket._userId = sess.userId
+          // Update online count now that this socket is authenticated
+          broadcastOnline()
         }
       }
     } catch { /* ignore */ }
