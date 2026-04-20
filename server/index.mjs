@@ -139,8 +139,8 @@ const defaultSiteSettings = {
   devBadgeVisible: true,
   profileEditEnabled: true,
   // Economy settings
-  messageCost: 0.1,          // ⚡ cost per sent message
-  messageEarn: 0.05,         // ⚡ earned when receiving a message
+  messageCost: 0,             // ⚡ messages are free
+  messageEarn: 0,             // ⚡ no earn for free messages
   topUpOptions: [10, 50, 100, 250, 500, 1000], // predefined top-up amounts
 }
 
@@ -2892,6 +2892,16 @@ app.post('/api/posts', (request, response) => {
   const viewer = requireUser(request, response, state)
   if (!viewer) return
 
+  const POST_COST = 25
+  if (viewer.powers < POST_COST) {
+    const lang = getUserLang(viewer)
+    const msg = lang === 'ru'
+      ? `Недостаточно энергии для публикации (нужно ${POST_COST} ⚡)`
+      : `Post uchun yetarli energiya yo'q (${POST_COST} ⚡ kerak)`
+    response.status(402).json({ error: msg })
+    return
+  }
+
   const text = String(request.body?.text || '').trim()
   const imagesPayload = request.body?.imageUrls ?? request.body?.imageUrl ?? []
   if (!text || text.length > 500) {
@@ -2903,6 +2913,10 @@ app.post('/api/posts', (request, response) => {
     response.status(400).json({ error: imageError })
     return
   }
+
+  // Deduct energy
+  viewer.powers = Math.round((viewer.powers - POST_COST) * 100) / 100
+  pushPowerLog(viewer, 'post_created', -POST_COST, lang === 'ru' ? 'Публикация в Global' : 'Global ga post')
 
   const post = {
     id: `post-${Date.now()}-${crypto.randomUUID().slice(0, 8)}`,
@@ -2923,7 +2937,7 @@ app.post('/api/posts', (request, response) => {
   if (state.posts.length > 200) state.posts = state.posts.slice(0, 200)
   saveState(state)
 
-  response.json({ post: { ...post, boostedByViewer: false, commentsCount: 0 } })
+  response.json({ post: { ...post, boostedByViewer: false, commentsCount: 0 }, newPowers: viewer.powers })
 })
 
 app.post('/api/posts/:id/boost', (request, response) => {

@@ -15,7 +15,6 @@ import {
   EyeOff,
   Flame,
   Hash,
-  Heart,
   LayoutGrid,
   List,
   LogOut,
@@ -310,7 +309,7 @@ type NotificationItem = {
   createdAt: string
 }
 
-type TxType = 'message_sent' | 'message_received' | 'topup' | 'deduct' | 'boost_received' | 'boost_removed' | 'referral'
+type TxType = 'message_sent' | 'message_received' | 'topup' | 'deduct' | 'boost_received' | 'boost_removed' | 'referral' | 'post_created'
 
 type Transaction = {
   id: string
@@ -676,6 +675,12 @@ function App() {
   const [supportMessage, setSupportMessage] = useState('')
   const [isSendingSupport, setIsSendingSupport] = useState(false)
   const [supportSent, setSupportSent] = useState(false)
+  const [closingModal, setClosingModal] = useState<string | null>(null)
+
+  const closeModalAnimated = (modalId: string, onDone: () => void) => {
+    setClosingModal(modalId)
+    setTimeout(() => { setClosingModal(null); onDone() }, 220)
+  }
 
   // Animation state for page transitions
   const [pageExiting, setPageExiting] = useState(false)
@@ -1594,15 +1599,22 @@ function App() {
 
   const createPost = async () => {
     if (!viewer || !sessionToken || !newPostText.trim()) return
+    if (viewer.powers < 25) {
+      showToast(t.postNotEnoughEnergy || 'Not enough energy (25 ⚡)', 'error')
+      return
+    }
     setIsCreatingPost(true)
     try {
-      const data = await apiRequest<{ post: Post }>('/api/posts', {
+      const data = await apiRequest<{ post: Post; newPowers?: number }>('/api/posts', {
         method: 'POST',
         body: JSON.stringify({ text: newPostText.trim(), imageUrls: newPostImages }),
       }, sessionToken)
       setPosts(prev => [data.post, ...prev])
       setNewPostText('')
       setNewPostImages([])
+      if (typeof data.newPowers === 'number') {
+        setViewer(v => v ? { ...v, powers: data.newPowers! } : v)
+      }
       showToast(t.published, 'success')
     } catch (error) {
       showToast(error instanceof Error ? error.message : t.publishError, 'error')
@@ -1989,7 +2001,7 @@ function App() {
   }
 
   if (isLoading) {
-    return <div className="loading-screen">{t.loading || '...'}</div>
+    return <div className="loading-screen"><div className="loading-spinner" /></div>
   }
 
   return (
@@ -2007,6 +2019,21 @@ function App() {
       <div className="ambient ambient-a" />
       <div className="ambient ambient-b" />
       <div className="ambient ambient-c" />
+      <div className="ambient ambient-d" />
+      <div className="ambient ambient-e" />
+      <div className="ambient-particles">
+        <div className="ambient-particle" style={{ left: '10%', top: '20%', '--size': '3px', '--o': '0.18', '--dur': '14s', '--delay': '0s', '--tx1': '40px', '--ty1': '-60px', '--tx2': '-30px', '--ty2': '-120px', '--tx3': '20px', '--ty3': '-30px' } as React.CSSProperties} />
+        <div className="ambient-particle" style={{ left: '70%', top: '15%', '--size': '2px', '--o': '0.12', '--dur': '18s', '--delay': '2s', '--tx1': '-50px', '--ty1': '-40px', '--tx2': '20px', '--ty2': '-90px', '--tx3': '-10px', '--ty3': '-50px' } as React.CSSProperties} />
+        <div className="ambient-particle" style={{ left: '30%', top: '60%', '--size': '4px', '--o': '0.10', '--dur': '16s', '--delay': '4s', '--tx1': '30px', '--ty1': '-80px', '--tx2': '-40px', '--ty2': '-140px', '--tx3': '15px', '--ty3': '-60px' } as React.CSSProperties} />
+        <div className="ambient-particle" style={{ left: '85%', top: '45%', '--size': '2px', '--o': '0.14', '--dur': '20s', '--delay': '1s', '--tx1': '-20px', '--ty1': '-50px', '--tx2': '30px', '--ty2': '-100px', '--tx3': '-25px', '--ty3': '-40px' } as React.CSSProperties} />
+        <div className="ambient-particle" style={{ left: '50%', top: '80%', '--size': '3px', '--o': '0.16', '--dur': '12s', '--delay': '3s', '--tx1': '50px', '--ty1': '-70px', '--tx2': '-20px', '--ty2': '-130px', '--tx3': '10px', '--ty3': '-45px' } as React.CSSProperties} />
+        <div className="ambient-particle" style={{ left: '15%', top: '75%', '--size': '2px', '--o': '0.10', '--dur': '22s', '--delay': '5s', '--tx1': '-30px', '--ty1': '-55px', '--tx2': '40px', '--ty2': '-110px', '--tx3': '-15px', '--ty3': '-35px' } as React.CSSProperties} />
+        <div className="ambient-particle" style={{ left: '60%', top: '35%', '--size': '3px', '--o': '0.13', '--dur': '15s', '--delay': '2s', '--tx1': '25px', '--ty1': '-65px', '--tx2': '-35px', '--ty2': '-95px', '--tx3': '20px', '--ty3': '-50px' } as React.CSSProperties} />
+        <div className="ambient-particle" style={{ left: '90%', top: '70%', '--size': '2px', '--o': '0.11', '--dur': '19s', '--delay': '6s', '--tx1': '-45px', '--ty1': '-45px', '--tx2': '15px', '--ty2': '-85px', '--tx3': '-20px', '--ty3': '-55px' } as React.CSSProperties} />
+      </div>
+      <div className="ambient-ring" style={{ left: '20%', top: '30%', width: '180px', height: '180px', '--dur': '10s', '--delay': '0s' } as React.CSSProperties} />
+      <div className="ambient-ring" style={{ right: '15%', top: '55%', width: '140px', height: '140px', '--dur': '14s', '--delay': '3s' } as React.CSSProperties} />
+      <div className="ambient-ring" style={{ left: '50%', bottom: '20%', width: '200px', height: '200px', '--dur': '12s', '--delay': '6s' } as React.CSSProperties} />
 
 
 
@@ -2799,13 +2826,16 @@ function App() {
                         {t.photo} {newPostImages.length > 0 ? `${newPostImages.length}/6` : ''}
                         <input type="file" accept="image/png,image/jpeg,image/webp,image/gif" onChange={handlePostImageUpload} hidden multiple />
                       </label>
+                      <span className="trends-post-cost-hint">
+                        <Zap size={12} /> 25
+                      </span>
                       <span className={newPostText.length > 450 ? 'trends-char-counter warn' : 'trends-char-counter'}>
                         {newPostText.length}/500
                       </span>
                       <button
                         className="primary-btn compact-btn"
                         onClick={() => void createPost()}
-                        disabled={isCreatingPost || !newPostText.trim()}
+                        disabled={isCreatingPost || !newPostText.trim() || (viewer?.powers ?? 0) < 25}
                       >
                         <Send size={14} />
                         {isCreatingPost ? '...' : t.publish}
@@ -2983,11 +3013,11 @@ function App() {
                         <div className="thr-actions">
                           <div className="boost-btn-wrap">
                             <button
-                              className={`thr-action-btn${post.boostedByViewer ? ' active heart' : ''}`}
+                              className={`thr-action-btn${post.boostedByViewer ? ' active energy' : ''}`}
                               onClick={() => void boostPost(post.id)}
                               title={post.boostedByViewer ? t.boostRemove : t.boostAction}
                             >
-                              <Heart size={18} fill={post.boostedByViewer ? 'currentColor' : 'none'} />
+                              <Zap size={18} fill={post.boostedByViewer ? 'currentColor' : 'none'} />
                               {post.boosts > 0 && <span>{post.boosts}</span>}
                             </button>
                             {boostBursts.filter(b => b.postId === post.id).map(b => (
@@ -3220,10 +3250,10 @@ function App() {
                             )}
                             <div className="thr-actions">
                               <button
-                                className={`thr-action-btn${post.boostedByViewer ? ' active heart' : ''}`}
+                                className={`thr-action-btn${post.boostedByViewer ? ' active energy' : ''}`}
                                 onClick={() => void boostPost(post.id)}
                               >
-                                <Heart size={18} fill={post.boostedByViewer ? 'currentColor' : 'none'} />
+                                <Zap size={18} fill={post.boostedByViewer ? 'currentColor' : 'none'} />
                                 {post.boosts > 0 && <span>{post.boosts}</span>}
                               </button>
                               <button
@@ -3442,6 +3472,7 @@ function App() {
                           boost_received: t.txBoostReceived,
                           boost_removed: t.txBoostRemoved,
                           referral: t.txReferral,
+                          post_created: t.txPostCreated,
                         }
                         const txIcon: Record<TxType, React.ReactNode> = {
                           message_sent: <Send size={14} />,
@@ -3451,6 +3482,7 @@ function App() {
                           boost_received: <Zap size={14} />,
                           boost_removed: <Zap size={14} />,
                           referral: <Users size={14} />,
+                          post_created: <Flame size={14} />,
                         }
                         return (
                           <div key={tx.id} className={`tx-item${isPositive ? ' tx-positive' : ' tx-negative'}`}>
@@ -3638,10 +3670,10 @@ function App() {
                 <div className="admin-top-bar">
                   {adminSection !== 'none' ? (
                     <button className="admin-back-btn" onClick={() => { setAdminSection('none'); setAdminDraft(null); setSelectedAdminUserId(null) }}>
-                      <ArrowLeft size={18} /> Назад
+                      <ArrowLeft size={18} /> {t.adminBack}
                     </button>
                   ) : (
-                    <h2 className="admin-top-title"><ShieldCheck size={20} /> Панель</h2>
+                    <h2 className="admin-top-title"><ShieldCheck size={20} /> {t.adminPanel}</h2>
                   )}
                 </div>
 
@@ -3652,12 +3684,12 @@ function App() {
                   <div className="admin-qs-item">
                     <Users size={14} />
                     <strong>{adminUsers.length}</strong>
-                    <span>всего</span>
+                    <span>{t.adminTotal}</span>
                   </div>
                   <div className="admin-qs-item online">
                     <span className="online-dot" />
                     <strong>{onlineCount}</strong>
-                    <span>онлайн</span>
+                    <span>{t.adminOnline}</span>
                   </div>
                   <div className="admin-qs-item">
                     <Zap size={14} />
@@ -3667,24 +3699,24 @@ function App() {
                   <div className="admin-qs-item">
                     <Ban size={14} />
                     <strong>{adminUsers.filter(u => u.ban).length}</strong>
-                    <span>бан</span>
+                    <span>{t.adminBanned}</span>
                   </div>
                 </div>
 
                 {/* Section buttons grid */}
                 <div className="admin-nav-grid">
                   {([
-                    { id: 'economy' as const, icon: <DollarSign size={18} />, label: 'Экономика', desc: 'Стоимость и заработок' },
-                    { id: 'site' as const, icon: <Settings2 size={18} />, label: 'Настройки', desc: 'Тумблеры сайта' },
-                    { id: 'roles' as const, icon: <ShieldCheck size={18} />, label: 'Роли', desc: 'Выдача прав' },
-                    { id: 'topup' as const, icon: <Zap size={18} />, label: 'Начисление', desc: 'Top-up баланса' },
-                    { id: 'users' as const, icon: <Users size={18} />, label: 'Пользователи', desc: 'Управление' },
-                    { id: 'reports' as const, icon: <Ban size={18} />, label: 'Жалобы', desc: 'Репорты на пользователей' },
-                    { id: 'support' as const, icon: <MessageCircle size={18} />, label: 'Поддержка', desc: 'Заявки пользователей' },
-                    { id: 'bans' as const, icon: <Ban size={18} />, label: 'Баны', desc: 'Блокировки' },
-                    { id: 'badges' as const, icon: <BadgeCheck size={18} />, label: 'Префиксы', desc: 'Каталог и выдача' },
-                    { id: 'audit' as const, icon: <Search size={18} />, label: 'Журнал', desc: 'Audit log' },
-                    { id: 'broadcast' as const, icon: <Send size={18} />, label: 'Рассылка', desc: 'Системное сообщение' },
+                    { id: 'economy' as const, icon: <DollarSign size={18} />, label: t.adminEconomy, desc: t.adminEconomyDesc },
+                    { id: 'site' as const, icon: <Settings2 size={18} />, label: t.adminSettings, desc: t.adminSettingsDesc },
+                    { id: 'roles' as const, icon: <ShieldCheck size={18} />, label: t.adminRoles, desc: t.adminRolesDesc },
+                    { id: 'topup' as const, icon: <Zap size={18} />, label: t.adminTopup, desc: t.adminTopupDesc },
+                    { id: 'users' as const, icon: <Users size={18} />, label: t.adminUsers, desc: t.adminUsersDesc },
+                    { id: 'reports' as const, icon: <Ban size={18} />, label: t.adminReports, desc: t.adminReportsDesc },
+                    { id: 'support' as const, icon: <MessageCircle size={18} />, label: t.adminSupport, desc: t.adminSupportDesc },
+                    { id: 'bans' as const, icon: <Ban size={18} />, label: t.adminBans, desc: t.adminBansDesc },
+                    { id: 'badges' as const, icon: <BadgeCheck size={18} />, label: t.adminBadges, desc: t.adminBadgesDesc },
+                    { id: 'audit' as const, icon: <Search size={18} />, label: t.adminAudit, desc: t.adminAuditDesc },
+                    { id: 'broadcast' as const, icon: <Send size={18} />, label: t.adminBroadcast, desc: t.adminBroadcastDesc },
                   ]).map(sec => (
                     <button
                       key={sec.id}
@@ -3707,23 +3739,23 @@ function App() {
                 {adminSection === 'economy' && (
                   <form className="admin-section-view" onSubmit={saveSiteSettings}>
                     <div className="admin-section-head">
-                      <DollarSign size={18} /> Экономика
+                      <DollarSign size={18} /> {t.adminEconomy}
                       <button className="primary-btn compact-btn" type="submit" disabled={isSavingSite}>
-                        <Save size={14} /> {isSavingSite ? '...' : 'Сохранить'}
+                        <Save size={14} /> {isSavingSite ? '...' : t.adminSave}
                       </button>
                     </div>
                     <div className="field-grid-2">
                       <label className="input-block">
-                        <span>Стоимость сообщения</span>
+                        <span>{t.adminMsgCost}</span>
                         <input type="number" step="0.01" min="0" value={siteSettings.messageCost} onChange={e => setSiteSettings(s => ({ ...s, messageCost: Number(e.target.value) || 0 }))} />
                       </label>
                       <label className="input-block">
-                        <span>Заработок за сообщение</span>
+                        <span>{t.adminMsgEarn}</span>
                         <input type="number" step="0.01" min="0" value={siteSettings.messageEarn} onChange={e => setSiteSettings(s => ({ ...s, messageEarn: Number(e.target.value) || 0 }))} />
                       </label>
                     </div>
                     <label className="input-block">
-                      <span>Суммы пополнения (через запятую)</span>
+                      <span>{t.adminTopupAmounts}</span>
                       <input value={(siteSettings.topUpOptions || []).join(', ')} onChange={e => setSiteSettings(s => ({ ...s, topUpOptions: e.target.value.split(',').map(v => Number(v.trim())).filter(v => v > 0) }))} />
                     </label>
                   </form>
@@ -3733,9 +3765,9 @@ function App() {
                 {adminSection === 'site' && (
                   <form className="admin-section-view" onSubmit={saveSiteSettings}>
                     <div className="admin-section-head">
-                      <Settings2 size={18} /> Настройки сайта
+                      <Settings2 size={18} /> {t.adminSiteSettings}
                       <button className="primary-btn compact-btn" type="submit" disabled={isSavingSite}>
-                        <Save size={14} /> {isSavingSite ? '...' : 'Сохранить'}
+                        <Save size={14} /> {isSavingSite ? '...' : t.adminSave}
                       </button>
                     </div>
                     <div className="toggle-grid admin-toggle-grid">
@@ -3743,13 +3775,13 @@ function App() {
                         { key: 'telegramAuthEnabled' as const, icon: <ShieldCheck size={16} />, label: 'TG auth' },
                         { key: 'emailAuthEnabled' as const, icon: <Mail size={16} />, label: 'Email' },
                         { key: 'geoRequiredForSend' as const, icon: <MapPin size={16} />, label: 'Geo req' },
-                        { key: 'registrationsOpen' as const, icon: <Users size={16} />, label: 'Регистрация' },
-                        { key: 'maintenanceMode' as const, icon: <Settings2 size={16} />, label: 'Тех. работы', danger: true },
-                        { key: 'onlineCounterVisible' as const, icon: <Zap size={16} />, label: 'Онлайн' },
-                        { key: 'publicFeedVisible' as const, icon: <MessageCircle size={16} />, label: 'Лента' },
-                        { key: 'inboxEnabled' as const, icon: <Mail size={16} />, label: 'Личка' },
+                        { key: 'registrationsOpen' as const, icon: <Users size={16} />, label: t.adminRegistration },
+                        { key: 'maintenanceMode' as const, icon: <Settings2 size={16} />, label: t.adminMaintenance, danger: true },
+                        { key: 'onlineCounterVisible' as const, icon: <Zap size={16} />, label: t.adminOnlineLabel },
+                        { key: 'publicFeedVisible' as const, icon: <MessageCircle size={16} />, label: t.adminFeed },
+                        { key: 'inboxEnabled' as const, icon: <Mail size={16} />, label: t.adminInbox },
                         { key: 'devBadgeVisible' as const, icon: <BadgeCheck size={16} />, label: 'DEV badge' },
-                        { key: 'profileEditEnabled' as const, icon: <User size={16} />, label: 'Редактирование' },
+                        { key: 'profileEditEnabled' as const, icon: <User size={16} />, label: t.adminEditing },
                       ] as const).map(t => (
                         <button key={t.key} className={siteSettings[t.key] ? `toggle-card active${'danger' in t && t.danger ? ' danger' : ''}` : 'toggle-card'} type="button" onClick={() => toggleSiteSetting(t.key)}>
                           {t.icon}
@@ -3764,15 +3796,15 @@ function App() {
                 {adminSection === 'roles' && (
                   <form className="admin-section-view" onSubmit={grantAdmin}>
                     <div className="admin-section-head">
-                      <ShieldCheck size={18} /> Выдача роли admin
+                      <ShieldCheck size={18} /> {t.adminGrantRole}
                     </div>
                     <label className="input-block">
-                      <span>ID, handle или email</span>
+                      <span>{t.adminIdHandleEmail}</span>
                       <input value={grantIdentifier} onChange={e => setGrantIdentifier(e.target.value)} placeholder="@user или email" />
                     </label>
                     <button className="primary-btn wide" type="submit" disabled={isGrantingAdmin}>
                       <ShieldCheck size={16} />
-                      {isGrantingAdmin ? 'Выдаю...' : 'Выдать admin'}
+                      {isGrantingAdmin ? t.adminGranting : t.adminGrant}
                     </button>
                   </form>
                 )}
@@ -3781,20 +3813,20 @@ function App() {
                 {adminSection === 'topup' && (
                   <div className="admin-section-view">
                     <div className="admin-section-head">
-                      <Zap size={18} /> Top-up пользователю
+                      <Zap size={18} /> {t.adminTopupUser}
                     </div>
                     <label className="input-block">
-                      <span>User ID</span>
+                      <span>{t.adminUserId}</span>
                       <input value={adminTopUpUserId} onChange={e => setAdminTopUpUserId(e.target.value)} placeholder="id пользователя" />
                     </label>
                     <div className="field-grid-2">
                       <label className="input-block">
-                        <span>Сумма</span>
-                        <input type="number" step="0.01" value={adminTopUpAmount} onChange={e => setAdminTopUpAmount(e.target.value)} placeholder="+100 или -50" />
+                        <span>{t.adminAmount}</span>
+                        <input type="number" step="0.01" value={adminTopUpAmount} onChange={e => setAdminTopUpAmount(e.target.value)} placeholder="+100 / -50" />
                       </label>
                       <label className="input-block">
-                        <span>Причина</span>
-                        <input value={adminTopUpReason} onChange={e => setAdminTopUpReason(e.target.value)} placeholder="опционально" />
+                        <span>{t.adminReason}</span>
+                        <input value={adminTopUpReason} onChange={e => setAdminTopUpReason(e.target.value)} placeholder={t.adminOptional} />
                       </label>
                     </div>
                     <button className="primary-btn wide" type="button" onClick={() => {
@@ -3803,7 +3835,7 @@ function App() {
                         action: () => { void adminTopUp(); setAdminConfirmAction(null) }
                       })
                     }} disabled={!adminTopUpUserId || !adminTopUpAmount}>
-                      <DollarSign size={16} /> Начислить
+                      <DollarSign size={16} /> {t.adminCredit}
                     </button>
                   </div>
                 )}
@@ -3812,7 +3844,7 @@ function App() {
                 {adminSection === 'users' && !adminDraft && (
                   <div className="admin-section-view">
                     <div className="admin-section-head">
-                      <Users size={18} /> Пользователи ({adminUsers.length})
+                      <Users size={18} /> {t.adminUsers} ({adminUsers.length})
                     </div>
 
                     {/* Search */}
@@ -3822,7 +3854,7 @@ function App() {
                         <input
                           value={adminSearchQ}
                           onChange={e => setAdminSearchQ(e.target.value)}
-                          placeholder="ID, handle, email, имя..."
+                          placeholder={t.adminSearchPlaceholderFull}
                           onKeyDown={e => { if (e.key === 'Enter') void adminSearchUsers() }}
                         />
                       </div>
@@ -3884,7 +3916,7 @@ function App() {
                 {adminSection === 'users' && adminDraft && (
                   <div className="admin-section-view admin-user-editor-view">
                     <button className="admin-back-btn" onClick={() => { setAdminDraft(null); setSelectedAdminUserId(null) }}>
-                      <ArrowLeft size={16} /> К списку
+                      <ArrowLeft size={16} /> {t.adminToList}
                     </button>
 
                     <form className="admin-user-editor" onSubmit={saveAdminUser}>
@@ -3900,7 +3932,7 @@ function App() {
                         </div>
                         <button className="primary-btn compact-btn admin-editor-save" type="button" onClick={() => {
                           setAdminConfirmAction({
-                            label: `Сохранить изменения для ${adminDraft.name}`,
+                            label: `${t.adminSaveChanges} ${adminDraft.name}`,
                             action: () => {
                               const form = document.querySelector<HTMLFormElement>('.admin-user-editor')
                               if (form) form.requestSubmit()
@@ -3908,7 +3940,7 @@ function App() {
                             }
                           })
                         }} disabled={isSavingAdminUser}>
-                          <Save size={14} /> {isSavingAdminUser ? '...' : 'Сохранить'}
+                          <Save size={14} /> {isSavingAdminUser ? '...' : t.adminSave}
                         </button>
                       </div>
 
@@ -3916,21 +3948,21 @@ function App() {
                         <span className="admin-editor-id">ID: {adminDraft.id}</span>
                         <button type="button" className="ghost-icon" onClick={() => {
                           void navigator.clipboard.writeText(adminDraft.id)
-                          showToast('ID скопирован', 'success')
+                          showToast(t.adminIdCopied, 'success')
                         }}><Copy size={12} /></button>
                       </div>
 
                         <div className="field-grid-3">
                           <label className="input-block">
-                            <span>Имя</span>
+                            <span>{t.adminName}</span>
                             <input value={adminDraft.name} onChange={e => setAdminDraft(c => c ? { ...c, name: e.target.value } : c)} />
                           </label>
                           <label className="input-block">
-                            <span>Handle</span>
+                            <span>{t.adminHandle}</span>
                             <input value={adminDraft.handle} onChange={e => setAdminDraft(c => c ? { ...c, handle: e.target.value } : c)} />
                           </label>
                           <label className="input-block">
-                            <span>Баланс</span>
+                            <span>{t.adminBalance}</span>
                             <input type="number" value={adminDraft.powers} onChange={e => setAdminDraft(c => c ? { ...c, powers: Number(e.target.value) || 0 } : c)} />
                           </label>
                         </div>
@@ -3945,25 +3977,25 @@ function App() {
 
                         <div className="field-grid-2">
                           <label className="input-block">
-                            <span>Город</span>
+                            <span>{t.adminCity}</span>
                             <input value={adminDraft.city || ''} onChange={e => setAdminDraft(c => c ? { ...c, city: e.target.value } : c)} />
                           </label>
                           <label className="input-block">
-                            <span>Страна</span>
+                            <span>{t.adminCountry}</span>
                             <input value={adminDraft.country || ''} onChange={e => setAdminDraft(c => c ? { ...c, country: e.target.value } : c)} />
                           </label>
                         </div>
 
                         <div className="field-grid-2">
                           <label className="input-block">
-                            <span>Роль</span>
+                            <span>{t.adminRole}</span>
                             <select value={adminDraft.role} onChange={e => setAdminDraft(c => c ? { ...c, role: e.target.value as UserRole } : c)}>
                               <option value="user">user</option>
                               <option value="admin">admin</option>
                             </select>
                           </label>
                           <label className="input-block">
-                            <span>Статус</span>
+                            <span>{t.adminStatus}</span>
                             <select value={adminDraft.status} onChange={e => setAdminDraft(c => c ? { ...c, status: e.target.value as UserStatus } : c)}>
                               <option value="active">active</option>
                               <option value="suspended">suspended</option>
@@ -3972,17 +4004,17 @@ function App() {
                         </div>
 
                         <label className="input-block">
-                          <span>Tagline</span>
+                          <span>{t.adminTagline}</span>
                           <input value={adminDraft.tagline} onChange={e => setAdminDraft(c => c ? { ...c, tagline: e.target.value } : c)} />
                         </label>
 
                         <label className="input-block">
-                          <span>Bio</span>
+                          <span>{t.adminBio}</span>
                           <textarea value={adminDraft.bio} onChange={e => setAdminDraft(c => c ? { ...c, bio: e.target.value } : c)} />
                         </label>
 
                         <div className="input-block">
-                          <span>Префиксы / бейджи</span>
+                          <span>{t.adminBadgesLabel}</span>
 
                           {/* Active badges */}
                           {adminDraft.badges.length > 0 && (
@@ -4005,10 +4037,10 @@ function App() {
                           {/* Tabs */}
                           <div className="badge-editor-tabs">
                             <button type="button" className={`badge-editor-tab${adminBadgeTab === 'catalog' ? ' active' : ''}`} onClick={() => setAdminBadgeTab('catalog')}>
-                              Каталог
+                              {t.adminCatalog}
                             </button>
                             <button type="button" className={`badge-editor-tab${adminBadgeTab === 'custom' ? ' active' : ''}`} onClick={() => setAdminBadgeTab('custom')}>
-                              Создать
+                              {t.adminCreate}
                             </button>
                           </div>
 
@@ -4029,7 +4061,7 @@ function App() {
                                         : [...c.badges, def.id]
                                       return { ...c, badges: next, badgesText: next.join(', ') }
                                     })}
-                                    title={active ? `Убрать ${def.label}` : `Добавить ${def.label}`}
+                                    title={active ? `${t.adminRemove} ${def.label}` : `${t.adminAdd} ${def.label}`}
                                   >
                                     <BadgeChip id={def.id} />
                                   </button>
@@ -4042,11 +4074,11 @@ function App() {
                           {adminBadgeTab === 'custom' && (
                             <div className="custom-badge-builder">
                               <div className="custom-badge-preview-row">
-                                <BadgeChip id={`CUSTOM|${customBadgeIcon}|${customBadgeLabel || 'текст'}|${customBadgeCss}`} />
+                                <BadgeChip id={`CUSTOM|${customBadgeIcon}|${customBadgeLabel || t.adminTextFallback}|${customBadgeCss}`} />
                               </div>
                               <div className="field-grid-2">
                                 <label className="input-block compact">
-                                  <span>Иконка</span>
+                                  <span>{t.adminIcon}</span>
                                   <input
                                     value={customBadgeIcon}
                                     onChange={e => setCustomBadgeIcon(e.target.value)}
@@ -4055,11 +4087,11 @@ function App() {
                                   />
                                 </label>
                                 <label className="input-block compact">
-                                  <span>Текст</span>
+                                  <span>{t.adminText}</span>
                                   <input
                                     value={customBadgeLabel}
                                     onChange={e => setCustomBadgeLabel(e.target.value)}
-                                    placeholder="Мой бейдж"
+                                    placeholder={t.adminMyBadge}
                                     maxLength={20}
                                   />
                                 </label>
@@ -4080,9 +4112,9 @@ function App() {
                                   type="button"
                                   className={`custom-badge-style-btn${customBadgeCss === 'badge-default' ? ' active' : ''}`}
                                   onClick={() => setCustomBadgeCss('badge-default')}
-                                  title="Без анимации"
+                                  title={t.adminNoAnim}
                                 >
-                                  <span className="profile-badge-chip badge-default"><span className="badge-icon">—</span><span className="badge-label">Без</span></span>
+                                  <span className="profile-badge-chip badge-default"><span className="badge-icon">—</span><span className="badge-label">{t.adminNoAnim}</span></span>
                                 </button>
                               </div>
                               <button
@@ -4099,7 +4131,7 @@ function App() {
                                   setCustomBadgeLabel('')
                                 }}
                               >
-                                <Plus size={14} /> Добавить
+                                <Plus size={14} /> {t.adminAdd}
                               </button>
                             </div>
                           )}
@@ -4108,23 +4140,23 @@ function App() {
                         <div className="toggle-grid admin-toggle-grid">
                           <button className={adminDraft.isVisible ? 'toggle-card active' : 'toggle-card danger'} type="button" onClick={() => setAdminDraft(c => c ? { ...c, isVisible: !c.isVisible } : c)}>
                             {adminDraft.isVisible ? <Eye size={16} /> : <EyeOff size={16} />}
-                            <span>Видимость</span>
+                            <span>{t.adminVisibility}</span>
                           </button>
                           <button className={adminDraft.geoAllowed ? 'toggle-card active' : 'toggle-card danger'} type="button" onClick={() => setAdminDraft(c => c ? { ...c, geoAllowed: !c.geoAllowed } : c)}>
                             <MapPin size={16} />
-                            <span>Гео</span>
+                            <span>{t.adminGeo}</span>
                           </button>
                           <button className={adminDraft.preferences.allowInbox ? 'toggle-card active' : 'toggle-card'} type="button" onClick={() => toggleAdminPref('allowInbox')}>
                             <MessageCircle size={16} />
-                            <span>Личка</span>
+                            <span>{t.adminInbox}</span>
                           </button>
                           <button className={adminDraft.preferences.showCity ? 'toggle-card active' : 'toggle-card'} type="button" onClick={() => toggleAdminPref('showCity')}>
                             <MapPin size={16} />
-                            <span>Город</span>
+                            <span>{t.adminCity}</span>
                           </button>
                           <button className={adminDraft.preferences.neonProfile ? 'toggle-card active' : 'toggle-card'} type="button" onClick={() => toggleAdminPref('neonProfile')}>
                             <Sparkles size={16} />
-                            <span>Неон</span>
+                            <span>{t.adminNeon}</span>
                           </button>
                           <button className={adminDraft.preferences.emailAlerts ? 'toggle-card active' : 'toggle-card'} type="button" onClick={() => toggleAdminPref('emailAlerts')}>
                             <Bell size={16} />
@@ -4136,28 +4168,28 @@ function App() {
                         <div className="admin-editor-actions">
                           {adminDraft.ban ? (
                             <button type="button" className="secondary-btn wide" onClick={() => void adminUnban(adminDraft.id)}>
-                              <Ban size={14} /> Снять бан ({adminDraft.ban.type})
+                              <Ban size={14} /> {t.adminRemoveBan} ({adminDraft.ban.type})
                             </button>
                           ) : (
                             <button type="button" className="secondary-btn danger wide" onClick={() => {
                               setBanUserId(adminDraft.id)
                               setAdminSection('bans')
                             }}>
-                              <Ban size={14} /> Забанить
+                              <Ban size={14} /> {t.adminBanUser}
                             </button>
                           )}
                           {adminDraft.status === 'suspended' ? (
                             <button type="button" className="secondary-btn wide" onClick={() => void adminFreeze(adminDraft.id, false)}>
-                              <Snowflake size={14} /> Разморозить
+                              <Snowflake size={14} /> {t.adminUnfreeze}
                             </button>
                           ) : (
                             <button type="button" className="secondary-btn danger wide" onClick={() => {
                               setAdminConfirmAction({
-                                label: `Заморозить аккаунт ${adminDraft.name}?`,
+                                label: `${t.adminFreezeConfirm} ${adminDraft.name}?`,
                                 action: () => { void adminFreeze(adminDraft.id, true); setAdminConfirmAction(null) }
                               })
                             }}>
-                              <Snowflake size={14} /> Заморозить
+                              <Snowflake size={14} /> {t.adminFreeze}
                             </button>
                           )}
                         </div>
@@ -4169,10 +4201,10 @@ function App() {
                 {adminSection === 'badges' && (
                   <div className="admin-section-view">
                     <div className="admin-section-head">
-                      <BadgeCheck size={18} /> Каталог префиксов
+                      <BadgeCheck size={18} /> {t.adminBadgeCatalog}
                     </div>
                     <p className="admin-badges-desc">
-                      Все доступные префиксы. Для выдачи откройте пользователя в разделе «Пользователи» и используйте вкладку «Создать» в редакторе префиксов.
+                      {t.adminBadgeCatalogDesc}
                     </p>
                     <div className="admin-badges-catalog-grid">
                       {BADGE_CATALOG.map(def => (
@@ -4187,18 +4219,18 @@ function App() {
                     </div>
 
                     <div className="admin-section-subhead" style={{marginTop: 8}}>
-                      Быстрая выдача/отзыв
+                      {t.adminQuickGrant}
                     </div>
                     <div className="admin-quick-badge-form">
                       <label className="input-block">
-                        <span>ID или handle пользователя</span>
+                        <span>{t.adminUserIdHandle}</span>
                         <input
                           id="quick-badge-user"
                           placeholder="@handle или user ID"
                         />
                       </label>
                       <label className="input-block">
-                        <span>Выбери префикс</span>
+                        <span>{t.adminChooseBadge}</span>
                         <div className="admin-badge-picker">
                           {BADGE_CATALOG.map(def => (
                             <button
@@ -4208,12 +4240,12 @@ function App() {
                               title={def.label}
                               onClick={() => {
                                 const userInput = (document.getElementById('quick-badge-user') as HTMLInputElement)?.value?.trim()
-                                if (!userInput) { showToast('Введи ID или handle', 'error'); return }
+                                if (!userInput) { showToast(t.adminEnterIdHandle, 'error'); return }
                                 // Find user from list
                                 const found = adminUsers.find(u =>
                                   u.id === userInput || u.handle === userInput || u.handle === '@' + userInput
                                 )
-                                if (!found) { showToast('Пользователь не найден в загруженном списке', 'error'); return }
+                                if (!found) { showToast(t.adminUserNotFound, 'error'); return }
                                 const has = found.badges?.includes(def.id)
                                 // Patch via user editor
                                 const newBadges = has
@@ -4224,7 +4256,7 @@ function App() {
                                 setTimeout(() => {
                                   setAdminDraft(c => c ? { ...c, badges: newBadges, badgesText: newBadges.join(', ') } : c)
                                   setAdminSection('users')
-                                  showToast(has ? `Префикс ${def.label} убран` : `Префикс ${def.label} добавлен — не забудь сохранить!`, 'info')
+                                  showToast(has ? `${t.adminBadgeRemoved}: ${def.label}` : `${t.adminBadgeAdded}: ${def.label}`, 'info')
                                 }, 100)
                               }}
                             >
@@ -4241,7 +4273,7 @@ function App() {
                 {adminSection === 'reports' && (
                   <div className="admin-section-view">
                     <div className="admin-section-head">
-                      <Ban size={18} /> Жалобы на пользователей
+                      <Ban size={18} /> {t.adminReportsTitle}
                     </div>
 
                     {/* Filter tabs */}
@@ -4257,7 +4289,7 @@ function App() {
                               else { el.style.display = el.classList.contains(`status-${f}`) ? '' : 'none' }
                             })
                           }}>
-                          {f === 'all' ? 'Все' : f === 'open' ? '◻ Открытые' : f === 'resolved' ? '◻ Решённые' : '◻ Отклонённые'}
+                          {f === 'all' ? t.adminFilterAll : f === 'open' ? t.adminFilterOpen : f === 'resolved' ? t.adminFilterResolved : t.adminFilterDismissed}
                           <span className="report-filter-count">
                             {f === 'all' ? reports.length : reports.filter(r => r.status === f).length}
                           </span>
@@ -4267,8 +4299,8 @@ function App() {
 
                     {reports.length === 0 ? (
                       <div className="chats-empty" style={{ padding: '20px' }}>
-                        <p>◻ Жалоб пока нет</p>
-                        <span>Новые обращения пользователей появятся здесь</span>
+                        <p>◻ {t.adminNoReports}</p>
+                        <span>{t.adminNoReportsHint}</span>
                       </div>
                     ) : (
                       <div className="reports-list">
@@ -4285,11 +4317,11 @@ function App() {
                               <div className="report-card-badges">
                                 {report.priority && report.priority !== 'medium' && (
                                   <span className={`report-priority-badge ${report.priority}`}>
-                                    {report.priority === 'low' ? '◻ Низкий' : report.priority === 'high' ? '◻ Высокий' : report.priority === 'critical' ? '◻ Критичный' : '◻ Средний'}
+                                    {report.priority === 'low' ? t.adminPriorityLow : report.priority === 'high' ? t.adminPriorityHigh : report.priority === 'critical' ? t.adminPriorityCritical : t.adminPriorityMedium}
                                   </span>
                                 )}
                                 <span className={`report-status-pill ${report.status}`}>
-                                  {report.status === 'open' ? '◻ Открыт' : report.status === 'resolved' ? '◻ Решён' : '◻ Отклонён'}
+                                  {report.status === 'open' ? t.adminStatusOpen : report.status === 'resolved' ? t.adminStatusResolved : t.adminStatusDismissed}
                                 </span>
                               </div>
                             </div>
@@ -4303,23 +4335,23 @@ function App() {
 
                             {report.contact && (
                               <div className="report-card-contact">
-                                <small>◻ Контакт:</small> {report.contact}
+                                <small>◻ {t.adminContact}</small> {report.contact}
                               </div>
                             )}
 
                             <div className="report-card-reporter">
-                              <small>◻ Отправил:</small> {report.reporterName} (@{report.reporterHandle})
+                              <small>◻ {t.adminSentBy}</small> {report.reporterName} (@{report.reporterHandle})
                             </div>
 
                             {report.resolvedByName && (
                               <div className="report-card-resolver">
-                                <small>◻ Обработал:</small> {report.resolvedByName}
+                                <small>◻ {t.adminResolvedBy}</small> {report.resolvedByName}
                               </div>
                             )}
 
                             {report.relatedPosts && report.relatedPosts.length > 0 && (
                               <div className="report-related-posts">
-                                <small className="report-posts-label">◻ Связанные посты:</small>
+                                <small className="report-posts-label">◻ {t.adminRelatedPosts}</small>
                                 {report.relatedPosts.map(post => (
                                   <div key={post.id} className="report-related-post">
                                     <div className="report-related-post-body">
@@ -4337,13 +4369,13 @@ function App() {
                             {report.status === 'open' && (
                               <div className="report-card-actions">
                                 <button className="secondary-btn compact-btn" onClick={() => void openUserProfile(report.targetUserId)}>
-                                  <User size={14} /> Профиль
+                                  <User size={14} /> {t.adminProfile}
                                 </button>
                                 <button className="primary-btn compact-btn" onClick={() => void updateReportStatus(report.id, 'resolved')}>
-                                  <BadgeCheck size={14} /> Решено
+                                  <BadgeCheck size={14} /> {t.adminResolved}
                                 </button>
                                 <button className="secondary-btn compact-btn danger" onClick={() => void updateReportStatus(report.id, 'dismissed')}>
-                                  <X size={14} /> Отклонить
+                                  <X size={14} /> {t.adminDismiss}
                                 </button>
                               </div>
                             )}
@@ -4358,18 +4390,18 @@ function App() {
                 {adminSection === 'support' && (
                   <div className="admin-section-view">
                     <div className="admin-section-head">
-                      <MessageCircle size={18} /> Заявки в поддержку
+                      <MessageCircle size={18} /> {t.adminSupportTitle}
                       <button className="secondary-btn compact-btn" style={{marginLeft:'auto'}} onClick={() => void loadSupportTickets()}>
                         <RefreshCw size={14} />
                       </button>
                     </div>
 
                     {supportLoading ? (
-                      <div className="chats-empty" style={{ padding: '20px' }}><p>Загрузка...</p></div>
+                      <div className="chats-empty" style={{ padding: '20px' }}><p>{t.adminLoadingDots}</p></div>
                     ) : supportTickets.length === 0 ? (
                       <div className="chats-empty" style={{ padding: '20px' }}>
-                        <p>◻ Заявок пока нет</p>
-                        <span>Обращения пользователей в поддержку появятся здесь</span>
+                        <p>◻ {t.adminNoTickets}</p>
+                        <span>{t.adminNoTicketsHint}</span>
                       </div>
                     ) : (
                       <div className="support-tickets-list">
@@ -4407,7 +4439,7 @@ function App() {
                                   <input
                                     value={supportReplyText}
                                     onChange={e => setSupportReplyText(e.target.value)}
-                                    placeholder="Ответить пользователю..."
+                                    placeholder={t.adminReplyPlaceholder}
                                     onKeyDown={e => { if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); void replySupportTicket(ticket.conversationId) } }}
                                   />
                                   <button
@@ -4431,7 +4463,7 @@ function App() {
                 {adminSection === 'bans' && (
                   <div className="admin-section-view">
                     <div className="admin-section-head">
-                      <Ban size={18} /> Управление банами
+                      <Ban size={18} /> {t.adminBanManage}
                     </div>
 
                     {/* Issue ban form */}
@@ -4442,56 +4474,56 @@ function App() {
                       </label>
                       <div className="field-grid-2">
                         <label className="input-block">
-                          <span>Тип бана</span>
+                          <span>{t.adminBanType}</span>
                           <select value={banType} onChange={e => setBanType(e.target.value as BanType)}>
-                            <option value="global">Глобальный</option>
-                            <option value="chat">Бан чата</option>
+                            <option value="global">{t.adminBanGlobal}</option>
+                            <option value="chat">{t.adminBanChat}</option>
                           </select>
                         </label>
                         <label className="input-block">
-                          <span>Длительность (мин)</span>
-                          <input type="number" min="0" value={banDuration} onChange={e => setBanDuration(e.target.value)} placeholder="пусто = навсегда" />
+                          <span>{t.adminBanDuration}</span>
+                          <input type="number" min="0" value={banDuration} onChange={e => setBanDuration(e.target.value)} placeholder={t.adminEmptyForeverHint} />
                         </label>
                       </div>
                       <label className="input-block">
-                        <span>Причина</span>
-                        <input value={banReason} onChange={e => setBanReason(e.target.value)} placeholder="Причина блокировки" />
+                        <span>{t.adminReason}</span>
+                        <input value={banReason} onChange={e => setBanReason(e.target.value)} placeholder={t.adminBanReason} />
                       </label>
                       <div className="admin-ban-presets">
-                        <button type="button" className="secondary-btn compact-btn" onClick={() => setBanDuration('30')}><Timer size={12} /> 30 мин</button>
-                        <button type="button" className="secondary-btn compact-btn" onClick={() => setBanDuration('60')}><Timer size={12} /> 1 час</button>
-                        <button type="button" className="secondary-btn compact-btn" onClick={() => setBanDuration('1440')}><Timer size={12} /> 1 день</button>
-                        <button type="button" className="secondary-btn compact-btn" onClick={() => setBanDuration('10080')}><Timer size={12} /> 7 дней</button>
-                        <button type="button" className="secondary-btn compact-btn danger" onClick={() => setBanDuration('')}><Ban size={12} /> Навсегда</button>
+                        <button type="button" className="secondary-btn compact-btn" onClick={() => setBanDuration('30')}><Timer size={12} /> 30 {t.adminMin}</button>
+                        <button type="button" className="secondary-btn compact-btn" onClick={() => setBanDuration('60')}><Timer size={12} /> 1 {t.adminHour}</button>
+                        <button type="button" className="secondary-btn compact-btn" onClick={() => setBanDuration('1440')}><Timer size={12} /> 1 {t.adminDay}</button>
+                        <button type="button" className="secondary-btn compact-btn" onClick={() => setBanDuration('10080')}><Timer size={12} /> 7 {t.adminDays}</button>
+                        <button type="button" className="secondary-btn compact-btn danger" onClick={() => setBanDuration('')}><Ban size={12} /> {t.adminForever}</button>
                       </div>
                       <button className="primary-btn wide" onClick={() => {
                         setAdminConfirmAction({
-                          label: `Забанить ${banUserId} (${banType}, ${banDuration ? banDuration + ' мин' : 'навсегда'})`,
+                          label: `${t.adminBanConfirm} ${banUserId} (${banType}, ${banDuration ? banDuration + ` ${t.adminMin}` : t.adminForever})`,
                           action: () => { void adminBan(); setAdminConfirmAction(null) }
                         })
                       }} disabled={!banUserId || isBanning}>
-                        <Ban size={16} /> {isBanning ? 'Баню...' : 'Выдать бан'}
+                        <Ban size={16} /> {isBanning ? t.adminBanning : t.adminBanIssue}
                       </button>
                     </div>
 
                     {/* Active bans list */}
                     <div className="admin-bans-list">
                       <div className="admin-section-subhead" style={{marginTop: 12}}>
-                        Активные баны
+                        {t.adminActiveBans}
                       </div>
                       {adminUsers.filter(u => u.ban).length === 0 && (
-                        <div className="chats-empty" style={{padding: '16px'}}><p>Нет активных банов</p></div>
+                        <div className="chats-empty" style={{padding: '16px'}}><p>{t.adminNoActiveBans}</p></div>
                       )}
                       {adminUsers.filter(u => u.ban).map(u => (
                         <div key={u.id} className="admin-ban-item">
                           <div className="admin-ban-info">
                             <strong>{u.name}</strong>
                             <span className="admin-ban-handle">{u.handle}</span>
-                            <span className={`admin-ban-type ${u.ban!.type}`}>{u.ban!.type === 'global' ? '◉ Глобальный' : '◎ Чат'}</span>
+                            <span className={`admin-ban-type ${u.ban!.type}`}>{u.ban!.type === 'global' ? `◉ ${t.adminGlobalBan}` : `◎ ${t.adminChatBan}`}</span>
                             <span className="admin-ban-reason">{u.ban!.reason}</span>
                             {u.ban!.until && <span className="admin-ban-until"><Timer size={11} /> до {new Date(u.ban!.until).toLocaleString('ru')}</span>}
                           </div>
-                          <button className="secondary-btn compact-btn" onClick={() => void adminUnban(u.id)}>Разбан</button>
+                          <button className="secondary-btn compact-btn" onClick={() => void adminUnban(u.id)}>{t.adminUnban}</button>
                         </div>
                       ))}
                     </div>
@@ -4502,7 +4534,7 @@ function App() {
                 {adminSection === 'audit' && (
                   <div className="admin-section-view">
                     <div className="admin-section-head">
-                      <Search size={18} /> Журнал — Audit log
+                      <Search size={18} /> {t.adminAuditTitle}
                     </div>
                     <div className="audit-list">
                       {auditLog.slice(0, 50).map(item => (
@@ -4512,7 +4544,7 @@ function App() {
                           <small>{frt(item.createdAt)}</small>
                         </div>
                       ))}
-                      {auditLog.length === 0 && <div className="chats-empty" style={{padding: '20px'}}><p>Лог пуст</p></div>}
+                      {auditLog.length === 0 && <div className="chats-empty" style={{padding: '20px'}}><p>{t.adminAuditEmpty}</p></div>}
                     </div>
                   </div>
                 )}
@@ -4521,12 +4553,12 @@ function App() {
                 {adminSection === 'broadcast' && (
                   <div className="admin-section-view">
                     <div className="admin-section-head">
-                      <Send size={18} /> Системное сообщение
+                      <Send size={18} /> {t.adminBroadcastTitle}
                     </div>
 
                     <div className="broadcast-mode-tabs">
-                      <button className={broadcastMode === 'all' ? 'broadcast-mode-tab active' : 'broadcast-mode-tab'} onClick={() => setBroadcastMode('all')}>Всем</button>
-                      <button className={broadcastMode === 'selected' ? 'broadcast-mode-tab active' : 'broadcast-mode-tab'} onClick={() => setBroadcastMode('selected')}>Выбранным</button>
+                      <button className={broadcastMode === 'all' ? 'broadcast-mode-tab active' : 'broadcast-mode-tab'} onClick={() => setBroadcastMode('all')}>{t.adminBroadcastAll}</button>
+                      <button className={broadcastMode === 'selected' ? 'broadcast-mode-tab active' : 'broadcast-mode-tab'} onClick={() => setBroadcastMode('selected')}>{t.adminBroadcastSelected}</button>
                     </div>
 
                     {broadcastMode === 'selected' && (
@@ -4562,7 +4594,7 @@ function App() {
 
                         {broadcastSelectedUsers.length > 0 && (
                           <div className="broadcast-selected-tags">
-                            <span className="broadcast-selected-label">Выбрано: {broadcastSelectedUsers.length}</span>
+                            <span className="broadcast-selected-label">{t.adminBroadcastSelectedCount}: {broadcastSelectedUsers.length}</span>
                             {broadcastSelectedUsers.map(u => (
                               <span key={u.id} className="broadcast-tag">
                                 {u.name}
@@ -4576,19 +4608,19 @@ function App() {
 
                     <p className="broadcast-desc">
                       {broadcastMode === 'all'
-                        ? `Отправить от имени >]Regellik всем пользователям`
-                        : `Отправить от имени >]Regellik выбранным (${broadcastSelectedUsers.length})`}
+                        ? t.adminBroadcastDescAll
+                        : `${t.adminBroadcastDescSel} (${broadcastSelectedUsers.length})`}
                     </p>
                     <div className="broadcast-input-row">
                       <textarea
                         className="broadcast-input"
                         value={broadcastText}
                         onChange={e => setBroadcastText(e.target.value)}
-                        placeholder="Текст рассылки..."
+                        placeholder={t.adminBroadcastPlaceholder}
                         rows={2}
                       />
                       <button className="primary-btn compact-btn" onClick={() => void sendBroadcast()} disabled={isBroadcasting || !broadcastText.trim()}>
-                        <Send size={14} /> {isBroadcasting ? '...' : 'Отправить'}
+                        <Send size={14} /> {isBroadcasting ? '...' : t.adminBroadcastSend}
                       </button>
                     </div>
                   </div>
@@ -4601,11 +4633,11 @@ function App() {
                     <div className="compose-modal-sheet admin-confirm-sheet">
                       <div className="admin-confirm-content">
                         <div className="admin-confirm-icon">!</div>
-                        <h3>Подтвердить действие?</h3>
+                        <h3>{t.adminConfirmTitle}</h3>
                         <p>{adminConfirmAction.label}</p>
                         <div className="admin-confirm-btns">
                           <button className="secondary-btn" onClick={() => setAdminConfirmAction(null)}>{t.cancel}</button>
-                          <button className="primary-btn" onClick={adminConfirmAction.action}>Подтвердить</button>
+                          <button className="primary-btn" onClick={adminConfirmAction.action}>{t.adminConfirmBtn}</button>
                         </div>
                       </div>
                     </div>
@@ -4746,10 +4778,10 @@ function App() {
                             )}
                             <div className="thr-actions">
                               <button
-                                className={`thr-action-btn${post.boostedByViewer ? ' active heart' : ''}`}
+                                className={`thr-action-btn${post.boostedByViewer ? ' active energy' : ''}`}
                                 onClick={() => void boostPost(post.id)}
                               >
-                                <Heart size={18} fill={post.boostedByViewer ? 'currentColor' : 'none'} />
+                                <Zap size={18} fill={post.boostedByViewer ? 'currentColor' : 'none'} />
                                 {post.boosts > 0 && <span>{post.boosts}</span>}
                               </button>
                               <button
@@ -4816,8 +4848,8 @@ function App() {
       )}
 
       {reportProfileOpen && (
-        <div className="center-modal-wrap">
-          <div className="center-modal-backdrop" onClick={() => setReportProfileOpen(false)} />
+        <div className={`center-modal-wrap${closingModal === 'report' ? ' closing' : ''}`}>
+          <div className="center-modal-backdrop" onClick={() => closeModalAnimated('report', () => setReportProfileOpen(false))} />
           <div className="center-modal-box report-center-box">
             <div className="center-modal-glow report-glow" />
             <div className="report-modal-header">
@@ -4833,7 +4865,7 @@ function App() {
                   }
                 </p>
               </div>
-              <button className="center-modal-close" onClick={() => setReportProfileOpen(false)}><X size={18} /></button>
+              <button className="center-modal-close" onClick={() => closeModalAnimated('report', () => setReportProfileOpen(false))}><X size={18} /></button>
             </div>
 
             {viewedProfile && viewedProfile.posts.length > 0 && (
@@ -4914,7 +4946,7 @@ function App() {
             </label>
 
             <div className="center-modal-actions">
-              <button className="secondary-btn" onClick={() => setReportProfileOpen(false)}>{t.cancel}</button>
+              <button className="secondary-btn" onClick={() => closeModalAnimated('report', () => setReportProfileOpen(false))}>{t.cancel}</button>
               <button className="primary-btn report-send-btn" onClick={() => void submitProfileReport()} disabled={isSubmittingReport}>
                 <Send size={14} /> {isSubmittingReport ? '...' : t.reportSendBtn}
               </button>
@@ -4925,8 +4957,8 @@ function App() {
 
       {/* === SUPPORT 24/7 MODAL === */}
       {supportOpen && (
-        <div className="center-modal-wrap">
-          <div className="center-modal-backdrop" onClick={() => { if (!isSendingSupport) { setSupportOpen(false); setSupportSent(false); setSupportMessage('') } }} />
+        <div className={`center-modal-wrap${closingModal === 'support' ? ' closing' : ''}`}>
+          <div className="center-modal-backdrop" onClick={() => { if (!isSendingSupport) closeModalAnimated('support', () => { setSupportOpen(false); setSupportSent(false); setSupportMessage('') }) }} />
           <div className="center-modal-box support-center-box">
             <div className="center-modal-glow support-glow" />
             {supportSent ? (
@@ -4939,10 +4971,12 @@ function App() {
                 <h3>{t.supportSentTitle}</h3>
                 <p>{t.supportSentDesc}</p>
                 <button className="primary-btn" onClick={() => {
-                  setSupportOpen(false)
-                  setSupportSent(false)
-                  setSupportMessage('')
-                  setActiveTab('chats')
+                  closeModalAnimated('support', () => {
+                    setSupportOpen(false)
+                    setSupportSent(false)
+                    setSupportMessage('')
+                    setActiveTab('chats')
+                  })
                 }}>
                   {t.supportGoChat}
                 </button>
@@ -4957,7 +4991,7 @@ function App() {
                       <span className="support-online-badge"><span className="online-dot" />{t.supportSubtitle}</span>
                     </div>
                   </div>
-                  <button className="center-modal-close" onClick={() => { setSupportOpen(false); setSupportMessage('') }}><X size={20} /></button>
+                  <button className="center-modal-close" onClick={() => closeModalAnimated('support', () => { setSupportOpen(false); setSupportMessage('') })}><X size={20} /></button>
                 </div>
 
                 <div className="support-response-hint">
@@ -4998,7 +5032,7 @@ function App() {
                 </div>
 
                 <div className="center-modal-actions">
-                  <button className="secondary-btn" onClick={() => { setSupportOpen(false); setSupportMessage('') }}>{t.supportCancel}</button>
+                  <button className="secondary-btn" onClick={() => closeModalAnimated('support', () => { setSupportOpen(false); setSupportMessage('') })}>{t.supportCancel}</button>
                   <button
                     className="primary-btn support-send-btn"
                     onClick={() => void submitSupport()}
