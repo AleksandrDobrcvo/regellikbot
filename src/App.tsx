@@ -2338,10 +2338,10 @@ function App() {
             {(authMode === 'login' || regLangStep) && (
             <div className="auth-method-tabs">
               <button className={authMethod === 'password' ? 'auth-method-tab active' : 'auth-method-tab'} onClick={() => setAuthMethod('password')}>
-                <ShieldCheck size={13} /> {t.password}
+                <img src="/tg-icons/lock.webp" className="tg-icon-sm" alt="" /> {t.password}
               </button>
               <button className={authMethod === 'code' ? 'auth-method-tab active' : 'auth-method-tab'} onClick={() => setAuthMethod('code')}>
-                <Mail size={13} /> Email-{t.sendCode}
+                <img src="/tg-icons/mail.webp" className="tg-icon-sm" alt="" /> Email-{t.sendCode}
               </button>
             </div>
             )}
@@ -2351,7 +2351,7 @@ function App() {
               {authMethod === 'password' ? (
                 authMode === 'login' ? (
                   <form className="email-card" onSubmit={loginWithPassword}>
-                    <div className="auth-title"><ShieldCheck size={16} />{t.loginByPassword}</div>
+                    <div className="auth-title"><img src="/tg-icons/lock.webp" className="tg-icon-sm" alt="" />{t.loginByPassword}</div>
                     <input value={emailValue} onChange={e => setEmailValue(e.target.value)} placeholder={t.email} type="email" required autoComplete="email" />
                     <div className="auth-password-wrap">
                       <input
@@ -2377,7 +2377,7 @@ function App() {
                   </form>
                 ) : (
                   <form className="email-card" onSubmit={registerWithPassword}>
-                    <div className="auth-title"><ShieldCheck size={16} />{t.registerByPassword}</div>
+                    <div className="auth-title"><img src="/tg-icons/lock.webp" className="tg-icon-sm" alt="" />{t.registerByPassword}</div>
                     <div className="auth-note">{t.passwordMin}</div>
                     <input value={emailName} onChange={e => setEmailName(e.target.value)} placeholder={t.name} required />
                     <input value={emailValue} onChange={e => setEmailValue(e.target.value)} placeholder={t.email} type="email" required autoComplete="email" />
@@ -2420,7 +2420,7 @@ function App() {
               ) : emailStep === 'email' ? (
                 <form className="email-card" onSubmit={sendEmailCode}>
                   <div className="auth-title">
-                    <Mail size={16} />
+                    <img src="/tg-icons/mail.webp" className="tg-icon-sm" alt="" />
                     {authMode === 'register' ? t.registerByEmail : t.enterByEmail}
                   </div>
                   <div className="auth-note">
@@ -2435,14 +2435,14 @@ function App() {
                     <input className="auth-captcha-input" value={captchaAnswer} onChange={e => setCaptchaAnswer(e.target.value.replace(/[^0-9-]/g, ''))} placeholder="?" type="text" inputMode="numeric" required />
                   </div>
                   <button className="primary-btn wide" type="submit" disabled={isSendingCode || !siteSettings.emailAuthEnabled || !captchaAnswer}>
-                    <Mail size={16} />
+                    <img src="/tg-icons/mail.webp" className="tg-icon-sm" alt="" />
                     {isSendingCode ? t.sending : t.sendCode}
                   </button>
                 </form>
               ) : (
                 <form className="email-card" onSubmit={signInEmail}>
                   <div className="auth-title">
-                    <ShieldCheck size={16} />
+                    <img src="/tg-icons/shield.webp" className="tg-icon-sm" alt="" />
                     {t.confirm}
                   </div>
                   <div className="auth-note code-sent-note">
@@ -2461,7 +2461,7 @@ function App() {
                     autoFocus
                   />
                   <button className="primary-btn wide" type="submit" disabled={emailCode.length < 6}>
-                    <ShieldCheck size={16} />
+                    <img src="/tg-icons/energy.webp" className="tg-icon-sm" alt="" />
                     {authMode === 'register' ? t.registerBtn : t.loginBtn}
                   </button>
                   <button type="button" className="auth-switch-btn back-btn" onClick={() => { setEmailStep('email'); setEmailCode('') }}>
@@ -2655,7 +2655,7 @@ function App() {
                 <span key={u.id} className="top-user-chip">
                   <span className="top-user-avatar">{u.avatarUrl ? <img src={u.avatarUrl} alt="" /> : <span>{(u.name || '?')[0]}</span>}</span>
                   <span className="top-user-name">{u.name}</span>
-                  <span className="top-user-energy">⚡{u.powers}</span>
+                  <span className="top-user-energy"><img src="/tg-icons/energy.webp" className="tg-icon-inline" alt="" />{u.powers}</span>
                   {i < topActiveUsers.length - 1 && <span className="top-user-sep">•</span>}
                 </span>
               )) : (
