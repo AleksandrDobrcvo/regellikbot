@@ -2344,13 +2344,14 @@ app.post('/api/users/:userId/report', (request, response) => {
   const viewer = requireUser(request, response, state)
   if (!viewer) return
 
-  const target = state.users.find(user => user.id === request.params.userId)
-  if (!target) {
+  const isGeneral = request.params.userId === 'general'
+  const target = isGeneral ? null : state.users.find(user => user.id === request.params.userId)
+  if (!isGeneral && !target) {
     response.status(404).json({ error: 'Пользователь не найден' })
     return
   }
 
-  if (target.id === viewer.id) {
+  if (target && target.id === viewer.id) {
     response.status(400).json({ error: 'Нельзя пожаловаться на себя' })
     return
   }
@@ -2364,7 +2365,7 @@ app.post('/api/users/:userId/report', (request, response) => {
   }
 
   let reportedPost = null
-  if (postId) {
+  if (postId && target) {
     reportedPost = state.posts.find((post) => post.id === postId && post.authorId === target.id)
     if (!reportedPost) {
       response.status(404).json({ error: 'Публикация для жалобы не найдена' })
@@ -2377,9 +2378,9 @@ app.post('/api/users/:userId/report', (request, response) => {
     reporterId: viewer.id,
     reporterName: viewer.name,
     reporterHandle: viewer.handle,
-    targetUserId: target.id,
-    targetUserName: target.name,
-    targetUserHandle: target.handle,
+    targetUserId: target ? target.id : null,
+    targetUserName: target ? target.name : 'Общая жалоба',
+    targetUserHandle: target ? target.handle : '@general',
     postId: reportedPost?.id || null,
     postPreview: reportedPost ? String(reportedPost.text || '').slice(0, 180) : null,
     category: category || 'Другое',
@@ -2393,8 +2394,10 @@ app.post('/api/users/:userId/report', (request, response) => {
 
   state.reports.unshift(report)
   state.reports = state.reports.slice(0, 500)
-  pushAudit(state, 'report.create', viewer.id, target.id, `Жалоба на ${target.handle}${report.postId ? `, пост ${report.postId}` : ''}. Категория: ${report.category}.`)
-  notifyAdminsAboutReport(state, report, viewer, target)
+  const auditTarget = target ? target.id : 'general'
+  const auditDesc = target ? `Жалоба на ${target.handle}${report.postId ? `, пост ${report.postId}` : ''}. Категория: ${report.category}.` : `Общая жалоба. Категория: ${report.category}.`
+  pushAudit(state, 'report.create', viewer.id, auditTarget, auditDesc)
+  if (target) notifyAdminsAboutReport(state, report, viewer, target)
   saveState(state)
   response.json({ ok: true, report })
 })

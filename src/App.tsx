@@ -2364,7 +2364,7 @@ function App() {
                       </button>
                     )}
                     <div className="corner-menu-divider" />
-                    <button style={{'--i': 8} as React.CSSProperties} className="corner-menu-item muted-item" onClick={() => { closeMenu(); setSupportOpen(true) }}>
+                    <button style={{'--i': 8} as React.CSSProperties} className="corner-menu-item muted-item" onClick={() => { closeMenu(); openReportForPost() }}>
                       <span className="menu-emoji bw">❗️</span> {t.shikoyat}
                     </button>
                     <button style={{'--i': 9} as React.CSSProperties} className="corner-menu-item muted-item" onClick={() => { closeMenu(); setSupportOpen(true) }}>
