@@ -40,7 +40,6 @@ import {
   Trash2,
   TrendingUp,
   User,
-  UserCog,
   Users,
   Wallet,
   X,
@@ -2378,39 +2377,39 @@ function App() {
                 {isSignedIn && (
                   <>
                     <button style={{'--i': 0} as React.CSSProperties} className={activeTab === 'profile' ? 'corner-menu-item active' : 'corner-menu-item'} onClick={() => switchTab('profile', closeMenu)}>
-                      <User size={16} /> {t.tabProfile}
+                      <img src="/tg-icons/user.webp" className="tg-icon" alt="" /> {t.tabProfile}
                     </button>
                     <button style={{'--i': 1} as React.CSSProperties} className={activeTab === 'chats' ? 'corner-menu-item active' : 'corner-menu-item'} onClick={() => switchTab('chats', closeMenu)}>
-                      <span className="menu-emoji bw">💬</span> {t.chatlar}
+                      <img src="/tg-icons/chat.webp" className="tg-icon" alt="" /> {t.chatlar}
                       {chatUnread > 0 && <span className="menu-badge">{chatUnread}</span>}
                     </button>
                     <button style={{'--i': 2} as React.CSSProperties} className={activeTab === 'trends' ? 'corner-menu-item active' : 'corner-menu-item'} onClick={() => switchTab('trends', closeMenu)}>
-                      <span className="menu-emoji bw">#️⃣</span> {t.global}
+                      <img src="/tg-icons/hash.webp" className="tg-icon" alt="" /> {t.global}
                     </button>
                     <button style={{'--i': 3} as React.CSSProperties} className={activeTab === 'radar' ? 'corner-menu-item active' : 'corner-menu-item'} onClick={() => switchTab('radar', () => { closeMenu(); void loadRadar() })}>
-                      <span className="menu-emoji bw">👤</span> {t.kontaktlar}
+                      <img src="/tg-icons/users.webp" className="tg-icon" alt="" /> {t.kontaktlar}
                     </button>
                     <button style={{'--i': 4} as React.CSSProperties} className={activeTab === 'transactions' ? 'corner-menu-item active' : 'corner-menu-item'} onClick={() => switchTab('transactions', closeMenu)}>
-                      <Wallet size={16} /> {t.hamyon}
+                      <img src="/tg-icons/wallet.webp" className="tg-icon" alt="" /> {t.hamyon}
                     </button>
                     <button style={{'--i': 5} as React.CSSProperties} className={activeTab === 'settings' ? 'corner-menu-item active' : 'corner-menu-item'} onClick={() => switchTab('settings', closeMenu)}>
-                      <span className="menu-emoji bw">⚙</span> {t.sozlamalar}
+                      <img src="/tg-icons/settings.webp" className="tg-icon" alt="" /> {t.sozlamalar}
                     </button>
                     {isAdmin && (
                       <button style={{'--i': 6} as React.CSSProperties} className={activeTab === 'admin' ? 'corner-menu-item active' : 'corner-menu-item'} onClick={() => switchTab('admin', closeMenu)}>
-                        <UserCog size={16} /> {t.tabAdmin}
+                        <img src="/tg-icons/tools.webp" className="tg-icon" alt="" /> {t.tabAdmin}
                       </button>
                     )}
                     <div className="corner-menu-divider" />
                     <button style={{'--i': 7} as React.CSSProperties} className="corner-menu-item muted-item" onClick={() => { closeMenu(); openReportForPost() }}>
-                      <span className="menu-emoji bw">❗️</span> {t.shikoyat}
+                      <img src="/tg-icons/alert.webp" className="tg-icon" alt="" /> {t.shikoyat}
                     </button>
                     <button style={{'--i': 8} as React.CSSProperties} className="corner-menu-item muted-item" onClick={() => { closeMenu(); setSupportOpen(true) }}>
-                      <span className="menu-emoji bw">🛟</span> {t.support}
+                      <img src="/tg-icons/shield.webp" className="tg-icon" alt="" /> {t.support}
                     </button>
                     <div className="corner-menu-divider" />
                     <button style={{'--i': 9} as React.CSSProperties} className="corner-menu-item danger-item" onClick={() => { closeMenu(); void signOut() }}>
-                      <LogOut size={16} /> {t.exit}
+                      <img src="/tg-icons/door.webp" className="tg-icon" alt="" /> {t.exit}
                     </button>
                   </>
                 )}

@@ -3899,6 +3899,13 @@ html {
   filter: grayscale(1) brightness(1.2);
 }
 
+.tg-icon {
+  width: 18px;
+  height: 18px;
+  flex-shrink: 0;
+  object-fit: contain;
+}
+
 /* Settings language picker */
 .settings-lang-row {
   display: flex;
