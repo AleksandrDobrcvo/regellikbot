@@ -2107,25 +2107,22 @@ function App() {
       <div className="ambient-ring" style={{ right: '15%', top: '55%', width: '140px', height: '140px', '--dur': '14s', '--delay': '3s' } as React.CSSProperties} />
       <div className="ambient-ring" style={{ left: '50%', bottom: '20%', width: '200px', height: '200px', '--dur': '12s', '--delay': '6s' } as React.CSSProperties} />
 
-      {/* Toast notifications — centered popups */}
+      {/* Toast notifications — compact top bar style */}
       <div className="toast-container">
         {toasts.map(toast => (
           <div key={toast.id} className={`toast-popup ${toast.tone}`} onClick={() => dismissToast(toast.id)}>
             <div className="toast-popup-icon">
               {toast.tone === 'success'
-                ? <img src="/tg-icons/check.webp" className="tg-icon-lg" alt="" />
+                ? <img src="/tg-icons/check.webp" className="tg-icon-sm" alt="" />
                 : toast.tone === 'error'
-                ? <img src="/tg-icons/close.webp" className="tg-icon-lg" alt="" />
-                : <img src="/tg-icons/question.webp" className="tg-icon-lg" alt="" />}
+                ? <img src="/tg-icons/close.webp" className="tg-icon-sm" alt="" />
+                : <img src="/tg-icons/question.webp" className="tg-icon-sm" alt="" />}
             </div>
             <div className="toast-popup-body">
-              <div className="toast-popup-label">
-                {toast.tone === 'success' ? (lang === 'uz' ? 'Muvaffaqiyat' : 'Успех') : toast.tone === 'error' ? (lang === 'uz' ? 'Xato' : 'Ошибка') : (lang === 'uz' ? 'Axborot' : 'Инфо')}
-              </div>
               <div className="toast-popup-msg">{toast.message}</div>
             </div>
             <button className="toast-popup-close" onClick={(e) => { e.stopPropagation(); dismissToast(toast.id) }}>
-              <X size={15} />
+              <X size={12} />
             </button>
             <div className="toast-popup-progress" />
           </div>
@@ -3106,9 +3103,15 @@ function App() {
                     <button className="tk-share-btn tk-new-post-btn" title={lang === 'uz' ? "Nashr qo'shish" : 'Новая публикация'} onClick={() => setNewPostSheetOpen(true)}>
                       <Plus size={18} />
                     </button>
-                    <button className="tk-share-btn" title={t.linkCopied || 'Share'} onClick={() => {
-                      void navigator.clipboard?.writeText(`${window.location.origin}?user=${viewer.id}`)
-                      showToast(t.linkCopied || 'Link copied', 'success')
+                    <button className="tk-share-btn" title={lang === 'uz' ? 'Ulashish' : 'Поделиться'} onClick={() => {
+                      const shareUrl = `${window.location.origin}?user=${viewer.id}`
+                      const shareText = lang === 'uz' ? `Mening profilim: ${viewer.name}` : `Мой профиль: ${viewer.name}`
+                      if (navigator.share) {
+                        void navigator.share({ title: viewer.name, text: shareText, url: shareUrl })
+                      } else {
+                        void navigator.clipboard?.writeText(shareUrl)
+                        showToast(t.linkCopied || (lang === 'uz' ? 'Havola nusxalandi' : 'Ссылка скопирована'), 'success')
+                      }
                     }}>
                       <Send size={16} />
                     </button>
@@ -3841,17 +3844,29 @@ function App() {
 
                 {/* Roles */}
                 {adminSection === 'roles' && (
-                  <form className="admin-section-view" onSubmit={grantAdmin}>
-                    <div className="admin-section-head">
-                      <ShieldCheck size={18} /> {t.adminGrantRole}
+                  <form className="admin-section-view grant-role-view" onSubmit={grantAdmin}>
+                    <div className="grant-role-hero">
+                      <div className="grant-role-icon-wrap">
+                        <ShieldCheck size={28} />
+                      </div>
+                      <h2 className="grant-role-title">{t.adminGrantRole}</h2>
+                      <p className="grant-role-hint">{lang === 'uz' ? 'Foydalanuvchiga admin roli berish uchun ID, handle yoki emailni kiriting' : 'Введите ID, handle или email пользователя для выдачи роли'}</p>
                     </div>
-                    <label className="input-block">
-                      <span>{t.adminIdHandleEmail}</span>
-                      <input value={grantIdentifier} onChange={e => setGrantIdentifier(e.target.value)} placeholder="@user или email" />
-                    </label>
-                    <button className="primary-btn wide" type="submit" disabled={isGrantingAdmin}>
+                    <div className="grant-role-field-wrap">
+                      <label className="grant-role-field-label">{t.adminIdHandleEmail}</label>
+                      <div className="grant-role-input-row">
+                        <input
+                          className="grant-role-input"
+                          value={grantIdentifier}
+                          onChange={e => setGrantIdentifier(e.target.value)}
+                          placeholder={lang === 'uz' ? '@user, email yoki ID' : '@user, email или ID'}
+                          autoComplete="off"
+                        />
+                      </div>
+                    </div>
+                    <button className="grant-role-submit-btn" type="submit" disabled={isGrantingAdmin || !grantIdentifier.trim()}>
                       <ShieldCheck size={16} />
-                      {isGrantingAdmin ? t.adminGranting : t.adminGrant}
+                      {isGrantingAdmin ? (lang === 'uz' ? '...' : '...') : t.adminGrant}
                     </button>
                   </form>
                 )}
