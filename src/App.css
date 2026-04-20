@@ -12191,8 +12191,8 @@ html {
   width: 44px;
   height: 44px;
   border-radius: 14px;
-  background: linear-gradient(135deg, rgba(99, 102, 241, 0.12), rgba(168, 85, 247, 0.08));
-  border: 1px solid rgba(99, 102, 241, 0.18);
+  background: rgba(255, 255, 255, 0.06);
+  border: 1px solid rgba(255, 255, 255, 0.1);
   display: flex;
   align-items: center;
   justify-content: center;
@@ -12307,18 +12307,18 @@ html {
 }
 
 .support-cat-btn:hover {
-  background: rgba(99, 102, 241, 0.08);
+  background: rgba(255, 255, 255, 0.07);
   color: var(--text);
-  border-color: rgba(99, 102, 241, 0.2);
+  border-color: rgba(255, 255, 255, 0.18);
   transform: translateY(-2px);
-  box-shadow: 0 4px 16px rgba(99, 102, 241, 0.1);
+  box-shadow: 0 4px 16px rgba(0, 0, 0, 0.2);
 }
 
 .support-cat-btn.active {
-  background: linear-gradient(135deg, rgba(99, 102, 241, 0.14), rgba(168, 85, 247, 0.1));
-  color: rgba(199, 210, 254, 1);
-  border-color: rgba(99, 102, 241, 0.3);
-  box-shadow: 0 0 20px rgba(99, 102, 241, 0.1), inset 0 0 12px rgba(99, 102, 241, 0.05);
+  background: rgba(255, 255, 255, 0.1);
+  color: rgba(255, 255, 255, 0.95);
+  border-color: rgba(255, 255, 255, 0.25);
+  box-shadow: 0 0 20px rgba(255, 255, 255, 0.05), inset 0 0 12px rgba(255, 255, 255, 0.03);
   transform: translateY(-2px);
 }
 
@@ -12388,13 +12388,13 @@ html {
   position: absolute;
   inset: 0;
   border-radius: 50%;
-  border: 2px solid rgba(99, 102, 241, 0.3);
+  border: 2px solid rgba(255, 255, 255, 0.2);
   animation: sentRingPulse 1.6s ease-out infinite;
 }
 
 .support-sent-ring.r2 {
   animation-delay: 0.6s;
-  border-color: rgba(168, 85, 247, 0.15);
+  border-color: rgba(255, 255, 255, 0.1);
 }
 
 @keyframes sentRingPulse {
@@ -13283,7 +13283,15 @@ html {
 }
 
 .support-glow {
-  background: radial-gradient(ellipse at 40% 20%, rgba(99, 102, 241, 0.05) 0%, transparent 60%);
+  background: radial-gradient(ellipse at 40% 20%, rgba(255, 255, 255, 0.02) 0%, transparent 60%);
+}
+
+/* Support modal overrides: no scroll, no blue tint */
+.support-center-box {
+  overflow: hidden !important;
+  max-height: none !important;
+  background:
+    linear-gradient(165deg, rgba(14, 16, 22, 0.99), rgba(8, 10, 14, 1)) !important;
 }
 
 .center-modal-close {
