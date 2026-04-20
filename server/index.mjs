@@ -2893,8 +2893,10 @@ app.post('/api/posts', (request, response) => {
   if (!viewer) return
 
   const POST_COST = 25
-  if (viewer.powers < POST_COST) {
-    const lang = getUserLang(viewer)
+  const isAdmin = viewer.role === 'admin'
+  const lang = getUserLang(viewer)
+
+  if (!isAdmin && viewer.powers < POST_COST) {
     const msg = lang === 'ru'
       ? `Недостаточно энергии для публикации (нужно ${POST_COST} ⚡)`
       : `Post uchun yetarli energiya yo'q (${POST_COST} ⚡ kerak)`
@@ -2914,9 +2916,11 @@ app.post('/api/posts', (request, response) => {
     return
   }
 
-  // Deduct energy
-  viewer.powers = Math.round((viewer.powers - POST_COST) * 100) / 100
-  pushPowerLog(viewer, 'post_created', -POST_COST, lang === 'ru' ? 'Публикация в Global' : 'Global ga post')
+  // Deduct energy (skip for admin)
+  if (!isAdmin) {
+    viewer.powers = Math.round((viewer.powers - POST_COST) * 100) / 100
+    pushPowerLog(viewer, 'post_created', -POST_COST, lang === 'ru' ? 'Публикация в Global' : 'Global ga post')
+  }
 
   const post = {
     id: `post-${Date.now()}-${crypto.randomUUID().slice(0, 8)}`,
