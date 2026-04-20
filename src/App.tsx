@@ -594,6 +594,7 @@ function App() {
   const [transferResult, setTransferResult] = useState<{ok: boolean; name?: string; handle?: string; amount?: number; fee?: number; error?: string} | null>(null)
   const [newPostText, setNewPostText] = useState('')
   const [newPostImages, setNewPostImages] = useState<string[]>([])
+  const [newPostSheetOpen, setNewPostSheetOpen] = useState(false)
   const [isCreatingPost, setIsCreatingPost] = useState(false)
   const [postConfirmOpen, setPostConfirmOpen] = useState(false)
   const [expandedPostComments, setExpandedPostComments] = useState<Set<string>>(new Set())
@@ -1641,33 +1642,30 @@ function App() {
     const files = Array.from(event.target.files || [])
     if (files.length === 0) return
 
-    const nextImages: string[] = []
-    for (const file of files.slice(0, Math.max(0, 6 - newPostImages.length))) {
-      if (!file.type.match(/^image\/(png|jpeg|webp|gif)$/)) {
-        showToast(t.photoFormat, 'error')
-        continue
-      }
-      if (file.size > 768 * 1024) {
-        showToast(t.photoSize, 'error')
-        continue
-      }
-      const dataUrl = await new Promise<string>((resolve, reject) => {
-        const reader = new FileReader()
-        reader.onload = () => resolve(reader.result as string)
-        reader.onerror = reject
-        reader.readAsDataURL(file)
-      })
-      nextImages.push(dataUrl)
+    // Only 1 photo allowed
+    const file = files[0]
+    if (!file.type.match(/^image\/(png|jpeg|webp|gif)$/)) {
+      showToast(t.photoFormat, 'error')
+      event.target.value = ''
+      return
     }
-
-    if (nextImages.length > 0) {
-      setNewPostImages((current) => [...current, ...nextImages].slice(0, 6))
+    if (file.size > 768 * 1024) {
+      showToast(t.photoSize, 'error')
+      event.target.value = ''
+      return
     }
+    const dataUrl = await new Promise<string>((resolve, reject) => {
+      const reader = new FileReader()
+      reader.onload = () => resolve(reader.result as string)
+      reader.onerror = reject
+      reader.readAsDataURL(file)
+    })
+    setNewPostImages([dataUrl])
     event.target.value = ''
   }
 
   const createPost = async () => {
-    if (!viewer || !sessionToken || !newPostText.trim()) return
+    if (!viewer || !sessionToken || !newPostImages.length) return
     if (viewer.powers < 25) {
       showToast(t.postNotEnoughEnergy, 'error')
       return
@@ -1681,6 +1679,7 @@ function App() {
       setPosts(prev => [data.post, ...prev])
       setNewPostText('')
       setNewPostImages([])
+      setNewPostSheetOpen(false)
       if (typeof data.newPowers === 'number') {
         setViewer(v => v ? { ...v, powers: data.newPowers! } : v)
       }
@@ -2823,61 +2822,15 @@ function App() {
                   </div>
                 </div>
 
-                {/* Composer */}
-                <div className="trends-composer">
-                  <div className="trends-composer-avatar">
-                    {viewer.avatarUrl
-                      ? <img src={viewer.avatarUrl} alt="" />
-                      : <span>{viewer.name[0]}</span>
-                    }
-                  </div>
-                  <div className="trends-composer-body">
-                    <textarea
-                      className="trends-composer-input"
-                      value={newPostText}
-                      onChange={(e) => setNewPostText(e.target.value)}
-                      placeholder={t.sharePlaceholder}
-                      rows={3}
-                      maxLength={500}
-                    />
-                    {newPostImages.length > 0 && (
-                      <div className="post-image-preview-grid">
-                        {newPostImages.map((image, index) => (
-                          <div key={`${image.slice(0, 24)}-${index}`} className="post-image-preview-wrap multi">
-                            <img src={image} alt={t.publication} className="post-image-preview" />
-                            <button className="post-image-remove-btn" type="button" onClick={() => setNewPostImages((current) => current.filter((_, imageIndex) => imageIndex !== index))}>
-                              <X size={14} />
-                            </button>
-                          </div>
-                        ))}
-                      </div>
-                    )}
-                    <div className="trends-composer-footer">
-                      <label className="secondary-btn compact-btn post-upload-btn">
-                        <Camera size={14} />
-                        {t.photo} {newPostImages.length > 0 ? `${newPostImages.length}/6` : ''}
-                        <input type="file" accept="image/png,image/jpeg,image/webp,image/gif" onChange={handlePostImageUpload} hidden multiple />
-                      </label>
-                      <span className={newPostText.length > 450 ? 'trends-char-counter warn' : 'trends-char-counter'}>
-                        {newPostText.length}/500
-                      </span>
-                      <button
-                        className="primary-btn compact-btn"
-                        onClick={() => {
-                          if (!viewer || !newPostText.trim()) return
-                          if (viewer.powers < 25) {
-                            showToast(t.postNotEnoughEnergyShort, 'error')
-                            return
-                          }
-                          setPostConfirmOpen(true)
-                        }}
-                        disabled={isCreatingPost || !newPostText.trim()}
-                      >
-                        <Send size={14} />
-                        {isCreatingPost ? '...' : t.publish}
-                      </button>
+                {/* Composer trigger */}
+                <div className="trends-composer-trigger">
+                  <button className="trends-compose-cta" onClick={() => setNewPostSheetOpen(true)}>
+                    <div className="compose-cta-icon"><Plus size={22} /></div>
+                    <div className="compose-cta-text">
+                      <strong>{lang === 'uz' ? 'Nashr qo\'shish' : 'Создать публикацию'}</strong>
+                      <span>{lang === 'uz' ? 'Fotosurat va tavsif' : 'Фото + описание'}</span>
                     </div>
-                  </div>
+                  </button>
                 </div>
 
                 {/* Feed */}
@@ -3149,6 +3102,9 @@ function App() {
                   <div className="tk-profile-actions">
                     <button className="tk-edit-btn" onClick={() => setProfileEditOpen(true)}>
                       {lang === 'uz' ? 'Profilni tahrirlash' : 'Редактировать профиль'}
+                    </button>
+                    <button className="tk-share-btn tk-new-post-btn" title={lang === 'uz' ? "Nashr qo'shish" : 'Новая публикация'} onClick={() => setNewPostSheetOpen(true)}>
+                      <Plus size={18} />
                     </button>
                     <button className="tk-share-btn" title={t.linkCopied || 'Share'} onClick={() => {
                       void navigator.clipboard?.writeText(`${window.location.origin}?user=${viewer.id}`)
@@ -4978,6 +4934,61 @@ function App() {
         </div>
       )}
 
+      {/* New post compose sheet */}
+      {newPostSheetOpen && viewer && (
+        <div className="compose-sheet-layer">
+          <div className="compose-sheet-backdrop" onClick={() => { if (!isCreatingPost) { setNewPostSheetOpen(false); setNewPostText(''); setNewPostImages([]) } }} />
+          <div className="compose-sheet">
+            <div className="compose-sheet-handle" />
+            <div className="compose-sheet-head">
+              <span>{lang === 'uz' ? 'Nashr qo\'shish' : 'Новая публикация'}</span>
+              <button className="sheet-close-btn" onClick={() => { setNewPostSheetOpen(false); setNewPostText(''); setNewPostImages([]) }}><X size={18} /></button>
+            </div>
+
+            {/* Photo upload area */}
+            {newPostImages.length === 0 ? (
+              <label className="compose-photo-drop">
+                <Camera size={32} />
+                <strong>{lang === 'uz' ? 'Fotosurat yuklash' : 'Загрузить фото'}</strong>
+                <span>{lang === 'uz' ? 'PNG, JPG, WEBP — maks. 768 KB' : 'PNG, JPG, WEBP — макс. 768 КБ'}</span>
+                <input type="file" accept="image/png,image/jpeg,image/webp,image/gif" onChange={handlePostImageUpload} hidden />
+              </label>
+            ) : (
+              <div className="compose-photo-preview">
+                <img src={newPostImages[0]} alt="" />
+                <button className="compose-photo-remove" onClick={() => setNewPostImages([])}><X size={16} /></button>
+              </div>
+            )}
+
+            {/* Caption */}
+            <textarea
+              className="compose-caption-input"
+              value={newPostText}
+              onChange={e => setNewPostText(e.target.value)}
+              placeholder={lang === 'uz' ? 'Tavsif yozing...' : 'Добавьте описание...'}
+              rows={4}
+              maxLength={500}
+            />
+            <span className={newPostText.length > 450 ? 'compose-char-count warn' : 'compose-char-count'}>
+              {newPostText.length}/500
+            </span>
+
+            <button
+              className="primary-btn compose-publish-btn"
+              onClick={() => {
+                if (!viewer) return
+                if (viewer.powers < 25) { showToast(t.postNotEnoughEnergyShort, 'error'); return }
+                if (!newPostImages.length) { showToast(lang === 'uz' ? 'Fotosurat tanlang' : 'Выберите фото', 'error'); return }
+                void createPost()
+              }}
+              disabled={isCreatingPost || !newPostImages.length}
+            >
+              {isCreatingPost ? '...' : <><Send size={15} /> {lang === 'uz' ? 'Nashr qilish' : 'Опубликовать'}</>}
+            </button>
+          </div>
+        </div>
+      )}
+
       {reportProfileOpen && (
         <div className={`center-modal-wrap${closingModal === 'report' ? ' closing' : ''}`}>
           <div className="center-modal-backdrop" onClick={() => closeModalAnimated('report', () => setReportProfileOpen(false))} />
@@ -5030,25 +5041,6 @@ function App() {
                 >
                   <img src={r.icon} className="tg-icon-cat" alt="" />
                   <span>{r.label}</span>
-                </button>
-              ))}
-            </div>
-
-            <div className="report-label">{t.reportPriority}</div>
-            <div className="report-priority-row">
-              {[
-                { id: 'low', label: t.reportLow, color: 'var(--muted)' },
-                { id: 'medium', label: t.reportMedium, color: 'rgba(255,200,60,0.7)' },
-                { id: 'high', label: t.reportHigh, color: 'rgba(255,120,50,0.7)' },
-                { id: 'critical', label: t.reportCritical, color: 'rgba(220,50,50,0.7)' },
-              ].map(p => (
-                <button
-                  key={p.id}
-                  className={reportPriority === p.id ? 'report-priority-btn active' : 'report-priority-btn'}
-                  style={reportPriority === p.id ? {'--pri-color': p.color} as React.CSSProperties : undefined}
-                  onClick={() => setReportPriority(p.id)}
-                >
-                  {p.label}
                 </button>
               ))}
             </div>
