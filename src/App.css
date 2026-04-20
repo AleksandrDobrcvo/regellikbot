@@ -3015,6 +3015,17 @@ html {
   flex-shrink: 0;
 }
 
+.report-card-target[style*="cursor:pointer"]:hover .report-card-avatar,
+.report-card-target[style*="cursor: pointer"]:hover .report-card-avatar {
+  border-color: rgba(255, 255, 255, 0.35);
+}
+
+.report-card-target[style*="cursor:pointer"]:hover .report-card-info strong,
+.report-card-target[style*="cursor: pointer"]:hover .report-card-info strong {
+  text-decoration: underline;
+  text-underline-offset: 2px;
+}
+
 .report-card-info {
   min-width: 0;
 }

@@ -4349,11 +4349,11 @@ function App() {
                         {reports.map(report => (
                           <article key={report.id} className={`report-card status-${report.status}`}>
                             <div className="report-card-header">
-                              <div className="report-card-target">
+                              <div className="report-card-target" style={report.targetUserId ? {cursor:'pointer'} : {}} onClick={report.targetUserId ? () => void openUserProfile(report.targetUserId!) : undefined}>
                                 <div className="report-card-avatar">{report.targetUserName?.[0]?.toUpperCase() || '?'}</div>
                                 <div className="report-card-info">
                                   <strong>{report.targetUserName}</strong>
-                                  <span>@{report.targetUserHandle}</span>
+                                  <span>{report.targetUserHandle}</span>
                                 </div>
                               </div>
                               <div className="report-card-badges">
@@ -4382,7 +4382,7 @@ function App() {
                             )}
 
                             <div className="report-card-reporter">
-                              <small>◻ {t.adminSentBy}</small> {report.reporterName} (@{report.reporterHandle})
+                              <small>◻ {t.adminSentBy}</small> {report.reporterName} ({report.reporterHandle})
                             </div>
 
                             {report.resolvedByName && (
@@ -4410,9 +4410,11 @@ function App() {
 
                             {report.status === 'open' && (
                               <div className="report-card-actions">
-                                <button className="secondary-btn compact-btn" onClick={() => void openUserProfile(report.targetUserId)}>
-                                  <User size={14} /> {t.adminProfile}
-                                </button>
+                                {report.targetUserId && (
+                                  <button className="secondary-btn compact-btn" onClick={() => void openUserProfile(report.targetUserId!)}>
+                                    <User size={14} /> {t.adminProfile}
+                                  </button>
+                                )}
                                 <button className="primary-btn compact-btn" onClick={() => void updateReportStatus(report.id, 'resolved')}>
                                   <BadgeCheck size={14} /> {t.adminResolved}
                                 </button>
@@ -4458,7 +4460,7 @@ function App() {
                                 )}
                                 <div className="support-ticket-info">
                                   <strong>{ticket.userName}</strong>
-                                  <span>@{ticket.userHandle}</span>
+                                  <span>{ticket.userHandle}</span>
                                 </div>
                               </div>
                               <div className="support-ticket-meta">
