@@ -3299,12 +3299,14 @@ if (existsSync(indexHtmlPath)) {
 }
 
 function broadcastOnline() {
-  // Count only authenticated (logged-in) WebSocket connections
-  let authCount = 0
+  // Count unique authenticated users (not connections — one user may have multiple tabs)
+  const onlineUserIds = new Set()
   for (const client of wss.clients) {
-    if (client.readyState === 1 && client._userId) authCount++
+    if (client.readyState === 1 && client._userId) {
+      onlineUserIds.add(client._userId)
+    }
   }
-  const payload = JSON.stringify({ type: 'online', count: authCount })
+  const payload = JSON.stringify({ type: 'online', count: onlineUserIds.size })
   for (const client of wss.clients) {
     if (client.readyState === 1) {
       client.send(payload)
