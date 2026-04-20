@@ -5636,6 +5636,16 @@ html {
   align-items: center;
   gap: 8px;
   margin-bottom: 12px;
+  width: 100%;
+  box-sizing: border-box;
+}
+
+.chats-screen {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+  width: 100%;
+  overflow-x: hidden;
 }
 
 .chats-search-row {
@@ -5650,6 +5660,7 @@ html {
   color: var(--muted);
   flex: 1;
   min-width: 0;
+  overflow: hidden;
 }
 
 .chats-search-input {
