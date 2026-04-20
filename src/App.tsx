@@ -602,7 +602,7 @@ function App() {
   // Auth password
   // const [authMethod, setAuthMethod] = useState<'password' | 'code'>('password')
   // const [regLangStep, setRegLangStep] = useState(false)
-  const [authFlowStep, setAuthFlowStep] = useState<'email' | 'name' | 'password' | 'confirm' | 'captcha'>('email')
+  const [authFlowStep, setAuthFlowStep] = useState<'email' | 'name' | 'password' | 'confirm' | 'captcha' | 'forgot-captcha' | 'reset-code' | 'reset-pass' | 'reset-confirm'>('email')
   const [authPassword, setAuthPassword] = useState('')
   const [authConfirmPassword, setAuthConfirmPassword] = useState('')
   const [authPasswordVisible, setAuthPasswordVisible] = useState(false)
@@ -610,6 +610,10 @@ function App() {
   const [captchaToken, setCaptchaToken] = useState('')
   const [captchaQuestion, setCaptchaQuestion] = useState('')
   const [captchaAnswer, setCaptchaAnswer] = useState('')
+  const [resetCode, setResetCode] = useState('')
+  const [resetNewPassword, setResetNewPassword] = useState('')
+  const [resetConfirmPassword, setResetConfirmPassword] = useState('')
+  const [isSendingReset, setIsSendingReset] = useState(false)
   // Transfer
   const [transferOpen, setTransferOpen] = useState(false)
   const [transferHandle, setTransferHandle] = useState('')
@@ -1273,6 +1277,44 @@ function App() {
         const cap = await apiRequest<{ token: string; question: string }>('/api/captcha')
         setCaptchaToken(cap.token); setCaptchaQuestion(cap.question); setCaptchaAnswer('')
       } catch { /* ignore */ }
+    } finally {
+      setIsAuthingPassword(false)
+    }
+  }
+
+  const sendForgotCode = async () => {
+    if (!emailValue.trim()) return
+    setIsSendingReset(true)
+    try {
+      await apiRequest<{ ok: boolean; hint?: string }>('/api/auth/forgot', {
+        method: 'POST',
+        body: JSON.stringify({ email: emailValue.trim(), captchaToken, captchaAnswer: Number(captchaAnswer) }),
+      })
+      showToast(t.forgotSent, 'success')
+      setAuthFlowStep('reset-code')
+    } catch (err) {
+      showToast(err instanceof Error ? err.message : t.codeSendError, 'error')
+      try {
+        const cap = await apiRequest<{ token: string; question: string }>('/api/captcha')
+        setCaptchaToken(cap.token); setCaptchaQuestion(cap.question); setCaptchaAnswer('')
+      } catch { /* ignore */ }
+    } finally {
+      setIsSendingReset(false)
+    }
+  }
+
+  const submitResetPassword = async () => {
+    if (!resetCode.trim() || !resetNewPassword || resetNewPassword !== resetConfirmPassword) return
+    setIsAuthingPassword(true)
+    try {
+      const data = await apiRequest<AuthResponse>('/api/auth/reset-password', {
+        method: 'POST',
+        body: JSON.stringify({ email: emailValue.trim(), code: resetCode.trim(), newPassword: resetNewPassword }),
+      })
+      showToast(t.resetSuccess, 'success')
+      await completeAuth(data)
+    } catch (err) {
+      showToast(err instanceof Error ? err.message : t.authError, 'error')
     } finally {
       setIsAuthingPassword(false)
     }
@@ -2337,6 +2379,19 @@ function App() {
                   {t.next}
                 </button>
                 <button className="auth-back-btn" onClick={() => setAuthFlowStep(authMode === 'register' ? 'name' : 'email')}>{t.back}</button>
+                {authMode === 'login' && (
+                  <button className="auth-link-btn auth-forgot-link" onClick={() => {
+                    setResetCode(''); setResetNewPassword(''); setResetConfirmPassword(''); setCaptchaAnswer('')
+                    const fetchCap = async () => {
+                      try {
+                        const cap = await apiRequest<{ token: string; question: string }>('/api/captcha')
+                        setCaptchaToken(cap.token); setCaptchaQuestion(cap.question)
+                      } catch { /* ignore */ }
+                    }
+                    fetchCap()
+                    setAuthFlowStep('forgot-captcha')
+                  }}>{t.forgotPassword}</button>
+                )}
               </div>
             )}
 
@@ -2408,6 +2463,128 @@ function App() {
                     : (authMode === 'login' ? t.loginBtn : t.registerBtn)}
                 </button>
                 <button className="auth-back-btn" onClick={() => setAuthFlowStep(authMode === 'register' ? 'confirm' : 'password')}>{t.back}</button>
+              </div>
+            )}
+
+            {/* Step: Forgot Password – Captcha */}
+            {authFlowStep === 'forgot-captcha' && (
+              <div className="auth-step">
+                <div className="auth-step-icon"><img src="/tg-icons/robot.webp" alt="" /></div>
+                <h2 className="auth-step-title">{t.forgotTitle}</h2>
+                <p className="auth-step-hint">{t.forgotHint}</p>
+                <div className="auth-captcha-block">
+                  <span className="auth-captcha-question">{captchaQuestion || '...'}</span>
+                  <input
+                    className="auth-step-input auth-captcha-input"
+                    value={captchaAnswer}
+                    onChange={e => setCaptchaAnswer(e.target.value.replace(/[^0-9-]/g, ''))}
+                    placeholder="?"
+                    type="text"
+                    inputMode="numeric"
+                    autoFocus
+                  />
+                </div>
+                <button
+                  className="auth-next-btn"
+                  disabled={!captchaAnswer || isSendingReset}
+                  onClick={() => sendForgotCode()}
+                >
+                  {isSendingReset ? t.forgotSending : t.next}
+                </button>
+                <button className="auth-back-btn" onClick={() => setAuthFlowStep('password')}>{t.back}</button>
+              </div>
+            )}
+
+            {/* Step: Reset – Enter Code */}
+            {authFlowStep === 'reset-code' && (
+              <div className="auth-step">
+                <div className="auth-step-icon"><img src="/tg-icons/mail.webp" alt="" /></div>
+                <h2 className="auth-step-title">{t.resetCodeTitle}</h2>
+                <p className="auth-step-hint">{t.resetCodeHint}</p>
+                <input
+                  className="auth-step-input"
+                  value={resetCode}
+                  onChange={e => setResetCode(e.target.value.replace(/[^0-9]/g, '').slice(0, 6))}
+                  placeholder="000000"
+                  type="text"
+                  inputMode="numeric"
+                  maxLength={6}
+                  autoFocus
+                />
+                <button
+                  className="auth-next-btn"
+                  disabled={resetCode.length !== 6}
+                  onClick={() => setAuthFlowStep('reset-pass')}
+                >
+                  {t.next}
+                </button>
+                <button className="auth-back-btn" onClick={() => setAuthFlowStep('forgot-captcha')}>{t.back}</button>
+              </div>
+            )}
+
+            {/* Step: Reset – New Password */}
+            {authFlowStep === 'reset-pass' && (
+              <div className="auth-step">
+                <div className="auth-step-icon"><img src="/tg-icons/lock.webp" alt="" /></div>
+                <h2 className="auth-step-title">{t.resetNewPassTitle}</h2>
+                <p className="auth-step-hint">{t.resetNewPassHint}</p>
+                <div className="auth-password-wrap">
+                  <input
+                    className="auth-step-input"
+                    value={resetNewPassword}
+                    onChange={e => setResetNewPassword(e.target.value)}
+                    placeholder={t.password}
+                    type={authPasswordVisible ? 'text' : 'password'}
+                    autoComplete="new-password"
+                    minLength={8}
+                    autoFocus
+                  />
+                  <button type="button" className="auth-eye-btn" onClick={() => setAuthPasswordVisible(v => !v)}>
+                    {authPasswordVisible ? <EyeOff size={16} /> : <Eye size={16} />}
+                  </button>
+                </div>
+                <button
+                  className="auth-next-btn"
+                  disabled={!resetNewPassword || resetNewPassword.length < 8}
+                  onClick={() => setAuthFlowStep('reset-confirm')}
+                >
+                  {t.next}
+                </button>
+                <button className="auth-back-btn" onClick={() => setAuthFlowStep('reset-code')}>{t.back}</button>
+              </div>
+            )}
+
+            {/* Step: Reset – Confirm New Password */}
+            {authFlowStep === 'reset-confirm' && (
+              <div className="auth-step">
+                <div className="auth-step-icon"><img src="/tg-icons/shield.webp" alt="" /></div>
+                <h2 className="auth-step-title">{t.resetConfirmTitle}</h2>
+                <p className="auth-step-hint">{t.resetConfirmHint}</p>
+                <div className="auth-password-wrap">
+                  <input
+                    className="auth-step-input"
+                    value={resetConfirmPassword}
+                    onChange={e => setResetConfirmPassword(e.target.value)}
+                    placeholder={t.passwordRepeat}
+                    type={authPasswordVisible ? 'text' : 'password'}
+                    autoComplete="new-password"
+                    autoFocus
+                  />
+                  <button type="button" className="auth-eye-btn" onClick={() => setAuthPasswordVisible(v => !v)}>
+                    {authPasswordVisible ? <EyeOff size={16} /> : <Eye size={16} />}
+                  </button>
+                </div>
+                {resetConfirmPassword && resetNewPassword !== resetConfirmPassword && (
+                  <div className="auth-pass-mismatch">{t.passwordMismatch}</div>
+                )}
+                <button
+                  className="auth-next-btn"
+                  disabled={!resetConfirmPassword || resetNewPassword !== resetConfirmPassword || isAuthingPassword}
+                  onClick={() => submitResetPassword()}
+                >
+                  {isAuthingPassword ? t.signingIn : t.resetBtn}
+                </button>
+                <button className="auth-back-btn" onClick={() => setAuthFlowStep('reset-pass')}>{t.back}</button>
               </div>
             )}
 

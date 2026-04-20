@@ -1554,6 +1554,12 @@ html {
   gap: 12px;
 }
 
+.auth-forgot-link {
+  margin-top: 8px;
+  font-size: 13px;
+  font-weight: 500;
+}
+
 .auth-link-btn {
   background: none;
   border: none;

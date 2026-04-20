@@ -1561,6 +1561,128 @@ app.post('/api/auth/password', (request, response) => {
   response.json({ token, viewer: publicUser(user, state), isNewUser: false })
 })
 
+// ── Forgot password: send reset code ──
+app.post('/api/auth/forgot', async (request, response) => {
+  const lang = reqLang(request)
+  const clientIp = request.headers['x-forwarded-for']?.split(',')[0]?.trim() || request.socket.remoteAddress || 'unknown'
+  if (!rateLimit(`forgot:${clientIp}`, 5, 60000)) {
+    response.status(429).json({ error: msg(lang, 'Juda ko\'p so\'rovlar. Bir daqiqa kuting.', 'Слишком много запросов. Подожди минуту.') })
+    return
+  }
+
+  const { captchaToken, captchaAnswer } = request.body || {}
+  if (!verifyCaptcha(captchaToken, captchaAnswer)) {
+    response.status(400).json({ error: msg(lang, 'Noto\'g\'ri captcha. Qayta urinib ko\'ring.', 'Неверная капча. Попробуй ещё раз.'), captchaFailed: true })
+    return
+  }
+
+  const { email } = request.body || {}
+  if (!email) {
+    response.status(400).json({ error: msg(lang, 'Email majburiy', 'Email обязателен') })
+    return
+  }
+  const emailNorm = String(email).trim().toLowerCase()
+  if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(emailNorm)) {
+    response.status(400).json({ error: msg(lang, 'Noto\'g\'ri email formati', 'Некорректный формат email') })
+    return
+  }
+
+  const state = readState()
+  const user = state.users.find(u => u.email?.toLowerCase() === emailNorm)
+  if (!user) {
+    response.status(404).json({ error: msg(lang, 'Akkaunt topilmadi', 'Аккаунт не найден') })
+    return
+  }
+
+  // Rate-limit per email
+  const existingEntry = emailVerificationCodes.get('reset:' + emailNorm)
+  if (existingEntry && Date.now() < existingEntry.expiresAt && existingEntry.sendCount >= 3) {
+    response.status(429).json({ error: msg(lang, 'Juda ko\'p kod yuborildi. 10 daqiqa kuting.', 'Слишком много кодов. Подожди 10 минут.') })
+    return
+  }
+
+  const code = String(Math.floor(100000 + Math.random() * 900000))
+  const sendCount = (existingEntry && Date.now() < existingEntry.expiresAt ? existingEntry.sendCount : 0) + 1
+  emailVerificationCodes.set('reset:' + emailNorm, {
+    code,
+    expiresAt: Date.now() + 10 * 60 * 1000,
+    attempts: 0,
+    sendCount,
+  })
+
+  try {
+    await sendVerificationEmail(emailNorm, code)
+  } catch (err) {
+    console.error('Email send error:', err.message)
+    response.status(500).json({ error: msg(lang, 'Xat yuborib bo\'lmadi', 'Не удалось отправить письмо') })
+    return
+  }
+
+  response.json({ ok: true, hint: SMTP_HOST ? undefined : `[DEV] код: ${code}` })
+})
+
+// ── Reset password: verify code & set new password ──
+app.post('/api/auth/reset-password', (request, response) => {
+  const lang = reqLang(request)
+  const clientIp = request.headers['x-forwarded-for']?.split(',')[0]?.trim() || request.socket.remoteAddress || 'unknown'
+  if (!rateLimit(`reset:${clientIp}`, 10, 60000)) {
+    response.status(429).json({ error: msg(lang, 'Juda ko\'p urinishlar. Bir daqiqa kuting.', 'Слишком много попыток. Подожди минуту.') })
+    return
+  }
+
+  const { email, code, newPassword } = request.body || {}
+  if (!email || !code || !newPassword) {
+    response.status(400).json({ error: msg(lang, 'Barcha maydonlar to\'ldirilishi kerak', 'Все поля обязательны') })
+    return
+  }
+  if (String(newPassword).length < 8) {
+    response.status(400).json({ error: msg(lang, 'Parol kamida 8 ta belgidan iborat bo\'lishi kerak', 'Пароль минимум 8 символов') })
+    return
+  }
+
+  const emailNorm = String(email).trim().toLowerCase()
+  const codeEntry = emailVerificationCodes.get('reset:' + emailNorm)
+  if (!codeEntry) {
+    response.status(400).json({ error: msg(lang, 'Avval tasdiqlash kodini so\'rang', 'Сначала запроси код') })
+    return
+  }
+  if (Date.now() > codeEntry.expiresAt) {
+    emailVerificationCodes.delete('reset:' + emailNorm)
+    response.status(400).json({ error: msg(lang, 'Kod eskirdi. Yangi kod so\'rang.', 'Код истёк. Запроси новый.') })
+    return
+  }
+  codeEntry.attempts += 1
+  if (codeEntry.attempts > 5) {
+    emailVerificationCodes.delete('reset:' + emailNorm)
+    response.status(429).json({ error: msg(lang, 'Urinishlar soni oshdi. Yangi kod so\'rang.', 'Превышено число попыток. Запроси новый код.') })
+    return
+  }
+  if (String(code).trim() !== codeEntry.code) {
+    response.status(400).json({ error: msg(lang, `Noto'g'ri kod. Qolgan: ${Math.max(0, 5 - codeEntry.attempts)}`, `Неверный код. Осталось: ${Math.max(0, 5 - codeEntry.attempts)}`) })
+    return
+  }
+
+  emailVerificationCodes.delete('reset:' + emailNorm)
+
+  const state = readState()
+  const user = state.users.find(u => u.email?.toLowerCase() === emailNorm)
+  if (!user) {
+    response.status(404).json({ error: msg(lang, 'Akkaunt topilmadi', 'Аккаунт не найден') })
+    return
+  }
+
+  const { salt, hash } = createPasswordHash(String(newPassword))
+  user.passwordHash = hash
+  user.passwordSalt = salt
+  pushAudit(state, 'auth.password.reset', user.id, user.id, 'Пароль сброшен по email-коду.')
+  saveState(state)
+
+  // Auto-login after reset
+  const token = createSessionForUser(state, user.id, request.headers['user-agent'])
+  saveState(state)
+  response.json({ token, viewer: publicUser(user, state), isNewUser: false })
+})
+
 app.post('/api/auth/telegram', (request, response) => {
   const clientIp = request.headers['x-forwarded-for']?.split(',')[0]?.trim() || request.socket.remoteAddress || 'unknown'
   if (!rateLimit(`auth:${clientIp}`, 10, 60000)) {
