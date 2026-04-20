@@ -144,6 +144,11 @@ const defaultSiteSettings = {
   messageCost: 0,             // ⚡ messages are free
   messageEarn: 0,             // ⚡ no earn for free messages
   topUpOptions: [10, 50, 100, 250, 500, 1000], // predefined top-up amounts
+  // Admin permissions — DEV controls what admins can do
+  adminPermBan: true,
+  adminPermGrantRoles: true,
+  adminPermTopUp: true,
+  adminPermEditProfiles: true,
 }
 
 const MAX_POST_IMAGE_SIZE = 768 * 1024
@@ -1870,6 +1875,27 @@ app.post('/api/messages/send', (request, response) => {
   )
   saveState(state)
   response.json(bootstrapPayload(state, viewer))
+})
+
+app.get('/api/admin/online', (request, response) => {
+  const state = readState()
+  const viewer = resolveSession(state, (request.headers.authorization || '').replace('Bearer ', ''))
+  if (!viewer || (viewer.role !== 'admin' && viewer.handle !== DEV_HANDLE)) {
+    return response.status(403).json({ error: 'forbidden' })
+  }
+  const onlineUsers = state.users
+    .filter(u => activeSocketUserIds.has(u.id))
+    .map(u => {
+      const act = userActivity.get(u.id)
+      return {
+        id: u.id,
+        name: u.name,
+        handle: u.handle,
+        avatarUrl: u.avatarUrl || null,
+        currentActivity: act && (Date.now() - act.ts < 5 * 60 * 1000) ? act.tab : null,
+      }
+    })
+  response.json({ onlineUsers })
 })
 
 app.post('/api/admin/settings', (request, response) => {

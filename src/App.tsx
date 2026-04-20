@@ -204,6 +204,10 @@ type SiteSettings = {
   messageCost: number
   messageEarn: number
   topUpOptions: number[]
+  adminPermBan: boolean
+  adminPermGrantRoles: boolean
+  adminPermTopUp: boolean
+  adminPermEditProfiles: boolean
 }
 
 type AdminManagedUser = SessionUser & {
@@ -432,6 +436,10 @@ const DEFAULT_SITE_SETTINGS: SiteSettings = {
   messageCost: 0.1,
   messageEarn: 0.05,
   topUpOptions: [10, 50, 100, 250, 500, 1000],
+  adminPermBan: true,
+  adminPermGrantRoles: true,
+  adminPermTopUp: true,
+  adminPermEditProfiles: true,
 }
 
 function formatRelativeTime(value: string, lang: 'uz' | 'ru' = 'uz') {
@@ -522,6 +530,7 @@ function App() {
   const [reports, setReports] = useState<UserReport[]>([])
   const [onlineCount, setOnlineCount] = useState(0)
   const [isDev, setIsDev] = useState(false)
+  const [onlineUsersForDev, setOnlineUsersForDev] = useState<{id:string;name:string;handle:string;avatarUrl:string|null;currentActivity:string|null}[]>([])
   const [activeTab, setActiveTab] = useState<TabId>('feed')
   const [lang, setLang] = useState<Lang>(() => (localStorage.getItem('regellik_lang') as Lang) || 'uz')
   const t = translations[lang]
@@ -1523,6 +1532,14 @@ function App() {
     } catch { /* ignore */ } finally {
       setSupportLoading(false)
     }
+  }
+
+  const loadDevOnlineUsers = async () => {
+    if (!sessionToken) return
+    try {
+      const data = await apiRequest<{ onlineUsers: {id:string;name:string;handle:string;avatarUrl:string|null;currentActivity:string|null}[] }>('/api/admin/online', undefined, sessionToken)
+      setOnlineUsersForDev(data.onlineUsers)
+    } catch { /* ignore */ }
   }
 
   // Admin reply to support ticket
@@ -3809,18 +3826,17 @@ function App() {
                 {/* Section buttons grid */}
                 <div className="admin-nav-grid">
                   {([
-                    { id: 'economy' as const, icon: <DollarSign size={18} />, label: t.adminEconomy, desc: t.adminEconomyDesc },
-                    { id: 'site' as const, icon: <Settings2 size={18} />, label: t.adminSettings, desc: t.adminSettingsDesc },
-                    { id: 'roles' as const, icon: <ShieldCheck size={18} />, label: t.adminRoles, desc: t.adminRolesDesc },
-                    { id: 'topup' as const, icon: <Zap size={18} />, label: t.adminTopup, desc: t.adminTopupDesc },
-                    { id: 'users' as const, icon: <Users size={18} />, label: t.adminUsers, desc: t.adminUsersDesc },
-                    { id: 'reports' as const, icon: <Ban size={18} />, label: t.adminReports, desc: t.adminReportsDesc },
-                    { id: 'support' as const, icon: <MessageCircle size={18} />, label: t.adminSupport, desc: t.adminSupportDesc },
-                    { id: 'bans' as const, icon: <Ban size={18} />, label: t.adminBans, desc: t.adminBansDesc },
-                    { id: 'badges' as const, icon: <BadgeCheck size={18} />, label: t.adminBadges, desc: t.adminBadgesDesc },
-                    { id: 'audit' as const, icon: <Search size={18} />, label: t.adminAudit, desc: t.adminAuditDesc },
-                    { id: 'broadcast' as const, icon: <Send size={18} />, label: t.adminBroadcast, desc: t.adminBroadcastDesc },
-                  ]).map(sec => (
+                    { id: 'economy' as const, icon: <DollarSign size={18} />, label: t.adminEconomy, desc: t.adminEconomyDesc, perm: true },
+                    { id: 'roles' as const, icon: <ShieldCheck size={18} />, label: t.adminRoles, desc: t.adminRolesDesc, perm: isDev || siteSettings.adminPermGrantRoles },
+                    { id: 'topup' as const, icon: <Zap size={18} />, label: t.adminTopup, desc: t.adminTopupDesc, perm: isDev || siteSettings.adminPermTopUp },
+                    { id: 'users' as const, icon: <Users size={18} />, label: t.adminUsers, desc: t.adminUsersDesc, perm: true },
+                    { id: 'reports' as const, icon: <Ban size={18} />, label: t.adminReports, desc: t.adminReportsDesc, perm: true },
+                    { id: 'support' as const, icon: <MessageCircle size={18} />, label: t.adminSupport, desc: t.adminSupportDesc, perm: true },
+                    { id: 'bans' as const, icon: <Ban size={18} />, label: t.adminBans, desc: t.adminBansDesc, perm: isDev || siteSettings.adminPermBan },
+                    { id: 'badges' as const, icon: <BadgeCheck size={18} />, label: t.adminBadges, desc: t.adminBadgesDesc, perm: true },
+                    { id: 'audit' as const, icon: <Search size={18} />, label: t.adminAudit, desc: t.adminAuditDesc, perm: true },
+                    { id: 'broadcast' as const, icon: <Send size={18} />, label: t.adminBroadcast, desc: t.adminBroadcastDesc, perm: true },
+                  ] as const).filter(sec => sec.perm).map(sec => (
                     <button
                       key={sec.id}
                       className="admin-nav-btn"
@@ -3834,7 +3850,7 @@ function App() {
                     </button>
                   ))}
                   {isDev && (
-                    <button className="admin-nav-btn dev-nav-btn" onClick={() => setAdminSection('dev')}>
+                    <button className="admin-nav-btn dev-nav-btn" onClick={() => { setAdminSection('dev'); void loadDevOnlineUsers() }}>
                       <div className="admin-nav-icon"><Monitor size={18} /></div>
                       <div className="admin-nav-text">
                         <strong>DEV</strong>
@@ -4082,8 +4098,8 @@ function App() {
                               setAdminConfirmAction(null)
                             }
                           })
-                        }} disabled={isSavingAdminUser}>
-                          <Save size={14} /> {isSavingAdminUser ? '...' : t.adminSave}
+                        }} disabled={isSavingAdminUser || (!isDev && !siteSettings.adminPermEditProfiles)}>
+                          <Save size={14} /> {isSavingAdminUser ? '...' : (!isDev && !siteSettings.adminPermEditProfiles) ? (lang === 'uz' ? 'Huquq yo\'q' : 'Нет прав') : t.adminSave}
                         </button>
                       </div>
 
@@ -4328,6 +4344,7 @@ function App() {
                         </div>
 
                         {/* Inline ban/freeze controls in editor */}
+                        {(isDev || siteSettings.adminPermBan) && (
                         <div className="admin-editor-actions">
                           {adminDraft.ban ? (
                             <button type="button" className="secondary-btn wide" onClick={() => void adminUnban(adminDraft.id)}>
@@ -4356,6 +4373,7 @@ function App() {
                             </button>
                           )}
                         </div>
+                        )}
                       </form>
                   </div>
                 )}
@@ -4817,7 +4835,7 @@ function App() {
                           onClick={() => {
                             const next = !siteSettings.maintenanceMode
                             setSiteSettings(s => ({ ...s, maintenanceMode: next }))
-                            void apiRequest('/api/admin/settings', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ ...siteSettings, maintenanceMode: next }) }, sessionToken!)
+                            void apiRequest('/api/admin/settings', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ settings: { ...siteSettings, maintenanceMode: next } }) }, sessionToken!)
                               .then(() => showToast(next ? (lang === 'uz' ? 'Texnik ishlar yoqildi' : 'Режим тех. работ включён') : (lang === 'uz' ? 'O\'chirildi' : 'Режим выключен'), next ? 'error' : 'success'))
                           }}
                         >
@@ -4843,7 +4861,7 @@ function App() {
                         />
                       </label>
                       <button className="primary-btn compact-btn" style={{ alignSelf: 'flex-start' }} onClick={() => {
-                        void apiRequest('/api/admin/settings', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(siteSettings) }, sessionToken!)
+                        void apiRequest('/api/admin/settings', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ settings: siteSettings }) }, sessionToken!)
                           .then(() => showToast(lang === 'uz' ? 'Saqlandi' : 'Сохранено', 'success'))
                       }}>
                         <Save size={13} /> {lang === 'uz' ? 'Saqlash' : 'Сохранить'}
@@ -4875,7 +4893,38 @@ function App() {
                               const next = !siteSettings[item.key]
                               const updated = { ...siteSettings, [item.key]: next }
                               setSiteSettings(updated)
-                              void apiRequest('/api/admin/settings', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(updated) }, sessionToken!)
+                              void apiRequest('/api/admin/settings', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ settings: updated }) }, sessionToken!)
+                                .then(() => showToast('OK', 'success'))
+                            }}
+                          >
+                            <span className="dev-chip-dot" />
+                            {item.label}
+                          </button>
+                        ))}
+                      </div>
+                    </div>
+
+                    {/* Admin permissions */}
+                    <div className="dev-card">
+                      <div className="dev-card-head">
+                        <ShieldCheck size={15} />
+                        <strong>{lang === 'uz' ? 'Admin huquqlari' : 'Права администраторов'}</strong>
+                      </div>
+                      <div className="dev-toggle-grid">
+                        {([
+                          { key: 'adminPermBan' as const, label: lang === 'uz' ? 'Ban / Freeze' : 'Бан / Фриз' },
+                          { key: 'adminPermGrantRoles' as const, label: lang === 'uz' ? 'Rol berish' : 'Выдавать роли' },
+                          { key: 'adminPermTopUp' as const, label: lang === 'uz' ? 'Balans' : 'Баланс' },
+                          { key: 'adminPermEditProfiles' as const, label: lang === 'uz' ? 'Profilni tahrirlash' : 'Редакт. профили' },
+                        ] as const).map(item => (
+                          <button
+                            key={item.key}
+                            className={`dev-toggle-chip${siteSettings[item.key] ? ' active' : ''}`}
+                            onClick={() => {
+                              const next = !siteSettings[item.key]
+                              const updated = { ...siteSettings, [item.key]: next }
+                              setSiteSettings(updated)
+                              void apiRequest('/api/admin/settings', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ settings: updated }) }, sessionToken!)
                                 .then(() => showToast('OK', 'success'))
                             }}
                           >
@@ -4891,12 +4940,17 @@ function App() {
                       <div className="dev-card-head">
                         <Users size={15} />
                         <strong>{lang === 'uz' ? 'Hozir onlayn' : 'Сейчас онлайн'} — {onlineCount}</strong>
+                        <button
+                          className="dev-toggle-chip"
+                          style={{ marginLeft: 'auto', fontSize: '11px', padding: '3px 8px' }}
+                          onClick={() => void loadDevOnlineUsers()}
+                        >↻ {lang === 'uz' ? 'Yangilash' : 'Обновить'}</button>
                       </div>
                       <div className="dev-activity-list">
-                        {adminUsers.filter(u => u.isOnline).length === 0 && (
+                        {onlineUsersForDev.length === 0 && (
                           <span className="dev-empty">{lang === 'uz' ? 'Hech kim yo\'q' : 'Никого нет'}</span>
                         )}
-                        {adminUsers.filter(u => u.isOnline).map(u => (
+                        {onlineUsersForDev.map(u => (
                           <div key={u.id} className="dev-activity-row">
                             <div className="dev-act-avatar">
                               {u.avatarUrl ? <img src={u.avatarUrl} alt="" /> : <span>{u.name[0]}</span>}
