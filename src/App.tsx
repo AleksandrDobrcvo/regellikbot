@@ -2660,8 +2660,9 @@ function App() {
                 </span>
               )) : (
                 <>
-                  <span>TEZKOR</span><span>•</span><span>XAVFSIZ</span><span>•</span><span>MAXFIY</span>
-                  <span>•</span><span>TEZKOR</span><span>•</span><span>XAVFSIZ</span><span>•</span><span>MAXFIY</span>
+                  <span>{t.brandSubtitle}</span>
+                  <span>•</span>
+                  <span>{t.brandSubtitle}</span>
                 </>
               )}
             </div>
