@@ -2297,11 +2297,15 @@ app.delete('/api/admin/posts/:postId', (request, response) => {
   response.json({ ok: true })
 })
 
-// --- Public user profile ---
+// --- Public user profile (authenticated) ---
 app.get('/api/users/:userId/public', (request, response) => {
   const state = readState()
-  const viewer = requireUser(request, response, state)
-  if (!viewer) return
+  // Allow guest access (no token required)
+  const token = request.headers['x-session-token'] || request.query.token
+  const viewer = token ? state.users.find(u => {
+    const sess = state.sessions?.find(s => s.token === token)
+    return sess && u.id === sess.userId
+  }) : null
 
   const target = state.users.find(u => u.id === request.params.userId)
   if (!target) {
@@ -2309,7 +2313,7 @@ app.get('/api/users/:userId/public', (request, response) => {
     return
   }
   // Increment profile views if not self
-  if (target.id !== viewer.id) {
+  if (viewer && target.id !== viewer.id) {
     target.profileViews = (target.profileViews || 0) + 1
     saveState(state)
   }
@@ -2333,7 +2337,52 @@ app.get('/api/users/:userId/public', (request, response) => {
       postCount: social.postCount,
     },
     posts: getUserPosts(state, target.id, viewer).slice(0, 24),
-    isFollowing: target.id !== viewer.id ? isFollowingUser(state, viewer.id, target.id) : false,
+    isFollowing: viewer && target.id !== viewer.id ? isFollowingUser(state, viewer.id, target.id) : false,
+  })
+})
+
+// --- Public profile by handle (no auth required) ---
+app.get('/api/users/by-handle/:handle/public', (request, response) => {
+  const state = readState()
+  const token = request.headers['x-session-token'] || request.query.token
+  const viewer = token ? state.users.find(u => {
+    const sess = state.sessions?.find(s => s.token === token)
+    return sess && u.id === sess.userId
+  }) : null
+
+  const rawHandle = request.params.handle
+  const handle = rawHandle.startsWith('@') ? rawHandle : '@' + rawHandle
+  const target = state.users.find(u => u.handle.toLowerCase() === handle.toLowerCase())
+  if (!target) {
+    response.status(404).json({ error: 'Пользователь не найден' })
+    return
+  }
+  // Redirect to the by-id handler logic
+  if (viewer && target.id !== viewer.id) {
+    target.profileViews = (target.profileViews || 0) + 1
+    saveState(state)
+  }
+  const social = getFollowCounts(state, target.id)
+  response.json({
+    user: {
+      id: target.id,
+      name: target.name,
+      handle: target.handle,
+      bio: target.bio,
+      tagline: target.tagline,
+      avatarUrl: target.avatarUrl,
+      badges: target.badges || [],
+      powers: target.powers,
+      city: target.city,
+      country: target.country,
+      joinedAt: target.joinedAt,
+      profileViews: target.profileViews || 0,
+      followerCount: social.followerCount,
+      followingCount: social.followingCount,
+      postCount: social.postCount,
+    },
+    posts: getUserPosts(state, target.id, viewer).slice(0, 24),
+    isFollowing: viewer && target.id !== viewer.id ? isFollowingUser(state, viewer.id, target.id) : false,
   })
 })
 

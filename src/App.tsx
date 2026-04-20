@@ -919,6 +919,26 @@ function App() {
           setSessionToken('')
           showToast(t.sessionExpired, 'error')
         }
+
+        // Deep-link: open profile from URL path /@handle (handled via separate useEffect)
+        if (!cancelled) {
+          const pathMatch = window.location.pathname.match(/^\/@([\w.]+)$/)
+          if (pathMatch) {
+            const handleSlug = pathMatch[1]
+            // Small delay to ensure component is fully mounted
+            setTimeout(() => {
+              const clean = handleSlug
+              void apiRequest<ProfileViewData>(`/api/users/by-handle/${encodeURIComponent(clean)}/public`, {}, sessionToken || undefined)
+                .then(profileData => {
+                  setViewedProfile(profileData)
+                  setProfileViewTab('posts')
+                  setReportPostId('')
+                  switchTab('profile-view')
+                })
+                .catch(() => {})
+            }, 100)
+          }
+        }
       } catch (error) {
         if (!cancelled) {
           showToast(error instanceof Error ? error.message : t.loadError, 'error')
@@ -1758,19 +1778,23 @@ function App() {
   }
 
   const openUserProfile = async (userId: string) => {
-    if (!sessionToken) return
     try {
-      const data = await apiRequest<ProfileViewData>(`/api/users/${userId}/public`, {}, sessionToken)
+      const data = await apiRequest<ProfileViewData>(`/api/users/${userId}/public`, {}, sessionToken || undefined)
       setViewedProfile(data)
       setProfileViewTab('posts')
       setReportPostId('')
-      // Track recently viewed
-      const entry = { id: data.user.id, name: data.user.name, handle: data.user.handle, avatarUrl: data.user.avatarUrl || null }
-      setRecentlyViewedUsers(prev => {
-        const updated = [entry, ...prev.filter(u => u.id !== data.user.id)].slice(0, 20)
-        localStorage.setItem('rvu', JSON.stringify(updated))
-        return updated
-      })
+      // Update browser URL to /@handle for shareability
+      const handle = data.user.handle.replace(/^@/, '')
+      window.history.pushState({}, '', `/@${handle}`)
+      // Track recently viewed (only when logged in)
+      if (viewer) {
+        const entry = { id: data.user.id, name: data.user.name, handle: data.user.handle, avatarUrl: data.user.avatarUrl || null }
+        setRecentlyViewedUsers(prev => {
+          const updated = [entry, ...prev.filter(u => u.id !== data.user.id)].slice(0, 20)
+          localStorage.setItem('rvu', JSON.stringify(updated))
+          return updated
+        })
+      }
       switchTab('profile-view')
     } catch (error) {
       showToast(error instanceof Error ? error.message : t.error, 'error')
@@ -1782,6 +1806,7 @@ function App() {
     setReportProfileOpen(false)
     setReportPostId('')
     setLightboxOpen(false)
+    window.history.pushState({}, '', '/')
     switchTab('trends')
   }
 
@@ -3102,7 +3127,8 @@ function App() {
                       <Plus size={18} />
                     </button>
                     <button className="tk-share-btn" title={lang === 'uz' ? 'Ulashish' : 'Поделиться'} onClick={() => {
-                      const shareUrl = `${window.location.origin}?user=${viewer.id}`
+                      const handle = viewer.handle.replace(/^@/, '')
+                      const shareUrl = `${window.location.origin}/@${handle}`
                       const shareText = lang === 'uz' ? `Mening profilim: ${viewer.name}` : `Мой профиль: ${viewer.name}`
                       if (navigator.share) {
                         void navigator.share({ title: viewer.name, text: shareText, url: shareUrl })
