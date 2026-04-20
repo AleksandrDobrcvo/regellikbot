@@ -590,6 +590,7 @@ function App() {
   const [newPostText, setNewPostText] = useState('')
   const [newPostImages, setNewPostImages] = useState<string[]>([])
   const [isCreatingPost, setIsCreatingPost] = useState(false)
+  const [postConfirmOpen, setPostConfirmOpen] = useState(false)
   const [expandedPostComments, setExpandedPostComments] = useState<Set<string>>(new Set())
   const [closingCommentPosts, setClosingCommentPosts] = useState<Set<string>>(new Set())
   const [commentTexts, setCommentTexts] = useState<Record<string, string>>({})
@@ -772,7 +773,6 @@ function App() {
   }, [locationLabel, locationState, viewer?.city, viewer?.country, lang, t])
   const selectedAdminUser = useMemo(() => adminUsers.find((item) => item.id === selectedAdminUserId) || null, [adminUsers, selectedAdminUserId])
 
-  const totalUnread = useMemo(() => conversations.reduce((sum, c) => sum + c.unreadCount, 0), [conversations])
   const systemUnread = useMemo(() => conversations.filter(c => c.isSystem).reduce((sum, c) => sum + c.unreadCount, 0), [conversations])
   const chatUnread = useMemo(() => conversations.filter(c => !c.isSystem).reduce((sum, c) => sum + c.unreadCount, 0), [conversations])
 
@@ -2319,11 +2319,10 @@ function App() {
             </button>
             <span className="header-brand" onClick={() => { switchTab('chats'); closeMenu(); }} style={{cursor:'pointer'}}>
               <span className="header-brand-icon">&gt;]</span>{
-                activeTab === 'home' ? t.tabHome :
                 activeTab === 'chats' ? t.tabChats :
                 activeTab === 'trends' ? t.tabTrends :
                 activeTab === 'radar' ? t.tabRadar :
-                activeTab === 'transactions' ? t.tabTransactions :
+                activeTab === 'transactions' ? t.hamyon :
                 activeTab === 'settings' ? t.tabSettings :
                 activeTab === 'admin' ? t.tabAdmin :
                 activeTab === 'profile' || activeTab === 'profile-view' ? t.tabProfile :
@@ -2378,10 +2377,7 @@ function App() {
 
                 {isSignedIn && (
                   <>
-                    <button style={{'--i': 0} as React.CSSProperties} className={activeTab === 'home' ? 'corner-menu-item active' : 'corner-menu-item'} onClick={() => switchTab('home', closeMenu)}>
-                      <span className="menu-emoji bw">🖊</span> {t.kabinet}
-                    </button>
-                    <button style={{'--i': 0.5} as React.CSSProperties} className={activeTab === 'profile' ? 'corner-menu-item active' : 'corner-menu-item'} onClick={() => switchTab('profile', closeMenu)}>
+                    <button style={{'--i': 0} as React.CSSProperties} className={activeTab === 'profile' ? 'corner-menu-item active' : 'corner-menu-item'} onClick={() => switchTab('profile', closeMenu)}>
                       <User size={16} /> {t.tabProfile}
                     </button>
                     <button style={{'--i': 1} as React.CSSProperties} className={activeTab === 'chats' ? 'corner-menu-item active' : 'corner-menu-item'} onClick={() => switchTab('chats', closeMenu)}>
@@ -2395,28 +2391,25 @@ function App() {
                       <span className="menu-emoji bw">👤</span> {t.kontaktlar}
                     </button>
                     <button style={{'--i': 4} as React.CSSProperties} className={activeTab === 'transactions' ? 'corner-menu-item active' : 'corner-menu-item'} onClick={() => switchTab('transactions', closeMenu)}>
-                      <span className="menu-emoji bw">👤</span> {t.otkazmalar}
+                      <Wallet size={16} /> {t.hamyon}
                     </button>
-                    <button style={{'--i': 5} as React.CSSProperties} className={activeTab === 'transactions' ? 'corner-menu-item active' : 'corner-menu-item'} onClick={() => { switchTab('transactions', closeMenu) }}>
-                      <span className="menu-emoji bw">⚡️</span> {t.quvvat}
-                    </button>
-                    <button style={{'--i': 6} as React.CSSProperties} className={activeTab === 'settings' ? 'corner-menu-item active' : 'corner-menu-item'} onClick={() => switchTab('settings', closeMenu)}>
+                    <button style={{'--i': 5} as React.CSSProperties} className={activeTab === 'settings' ? 'corner-menu-item active' : 'corner-menu-item'} onClick={() => switchTab('settings', closeMenu)}>
                       <span className="menu-emoji bw">⚙</span> {t.sozlamalar}
                     </button>
                     {isAdmin && (
-                      <button style={{'--i': 7} as React.CSSProperties} className={activeTab === 'admin' ? 'corner-menu-item active' : 'corner-menu-item'} onClick={() => switchTab('admin', closeMenu)}>
+                      <button style={{'--i': 6} as React.CSSProperties} className={activeTab === 'admin' ? 'corner-menu-item active' : 'corner-menu-item'} onClick={() => switchTab('admin', closeMenu)}>
                         <UserCog size={16} /> {t.tabAdmin}
                       </button>
                     )}
                     <div className="corner-menu-divider" />
-                    <button style={{'--i': 8} as React.CSSProperties} className="corner-menu-item muted-item" onClick={() => { closeMenu(); openReportForPost() }}>
+                    <button style={{'--i': 7} as React.CSSProperties} className="corner-menu-item muted-item" onClick={() => { closeMenu(); openReportForPost() }}>
                       <span className="menu-emoji bw">❗️</span> {t.shikoyat}
                     </button>
-                    <button style={{'--i': 9} as React.CSSProperties} className="corner-menu-item muted-item" onClick={() => { closeMenu(); setSupportOpen(true) }}>
+                    <button style={{'--i': 8} as React.CSSProperties} className="corner-menu-item muted-item" onClick={() => { closeMenu(); setSupportOpen(true) }}>
                       <span className="menu-emoji bw">🛟</span> {t.support}
                     </button>
                     <div className="corner-menu-divider" />
-                    <button style={{'--i': 10} as React.CSSProperties} className="corner-menu-item danger-item" onClick={() => { closeMenu(); void signOut() }}>
+                    <button style={{'--i': 9} as React.CSSProperties} className="corner-menu-item danger-item" onClick={() => { closeMenu(); void signOut() }}>
                       <LogOut size={16} /> {t.exit}
                     </button>
                   </>
@@ -2481,55 +2474,7 @@ function App() {
         <>
           <main className={`main-layout${pageExiting ? ' page-exiting' : ''}`}>
             {/* --- ГЛАВНАЯ (home) --- */}
-            {activeTab === 'home' && viewer && (
-              <section className="home-screen page-transition">
-                <div className="home-logo">
-                  <div className="home-logo-icon">&gt;]</div>
-                  <div className="home-logo-text">Regellik</div>
-                </div>
 
-                <p className="home-greeting">{t.hello}, <strong>{viewer.name}</strong></p>
-
-                <div className="home-stats-row">
-                  <div className="home-stat">
-                    <strong>{viewer.powers.toFixed(1)}</strong>
-                    <span>POWERS</span>
-                  </div>
-                  <div className="home-stat">
-                    <strong>{conversations.length}</strong>
-                    <span>{t.tabChats}</span>
-                  </div>
-                  <div className="home-stat">
-                    <strong>{totalUnread}</strong>
-                    <span>{t.incoming}</span>
-                  </div>
-                </div>
-
-                <div className="home-nav-grid">
-                  <button className="home-nav-btn" onClick={() => switchTab('chats')} style={{position:'relative'}}>
-                    <MessageCircle size={24} />
-                    <strong>{t.homeNavChats}</strong>
-                    <span>{t.homeNavChatsDesc}</span>
-                    {chatUnread > 0 && <span className="header-badge" style={{position:'absolute',top:8,right:8}}>{chatUnread}</span>}
-                  </button>
-                  <button className="home-nav-btn" onClick={() => switchTab('trends')}>
-                    <Flame size={24} />
-                    <strong>{t.homeNavGlobal}</strong>
-                    <span>{t.homeNavGlobalDesc}</span>
-                  </button>
-                  <button className="home-nav-btn" onClick={() => switchTab('profile')}>
-                    <User size={24} />
-                    <strong>{t.homeNavProfile}</strong>
-                    <span>{t.homeNavProfileDesc}</span>
-                  </button>
-                  <button className="home-nav-btn" onClick={() => switchTab('transactions')}>
-                    <Wallet size={24} />
-                    <strong>{t.homeNavBalance}</strong>
-                    <span>{t.homeNavBalanceDesc}</span>
-                  </button>
-                </div>
-              </section>
-            )}
 
             {/* --- ЧАТЫ (мессенджер) --- */}
             {activeTab === 'chats' && !openConvoId && !composeOpen && (
@@ -2885,16 +2830,20 @@ function App() {
                         {t.photo} {newPostImages.length > 0 ? `${newPostImages.length}/6` : ''}
                         <input type="file" accept="image/png,image/jpeg,image/webp,image/gif" onChange={handlePostImageUpload} hidden multiple />
                       </label>
-                      <span className="trends-post-cost-hint">
-                        <Zap size={12} /> 25
-                      </span>
                       <span className={newPostText.length > 450 ? 'trends-char-counter warn' : 'trends-char-counter'}>
                         {newPostText.length}/500
                       </span>
                       <button
                         className="primary-btn compact-btn"
-                        onClick={() => void createPost()}
-                        disabled={isCreatingPost || !newPostText.trim() || (viewer?.powers ?? 0) < 25}
+                        onClick={() => {
+                          if (!viewer || !newPostText.trim()) return
+                          if (viewer.powers < 25) {
+                            showToast(t.postNotEnoughEnergyShort || ':(( Chop etish uchun senga 25⚡️ kerak!', 'error')
+                            return
+                          }
+                          setPostConfirmOpen(true)
+                        }}
+                        disabled={isCreatingPost || !newPostText.trim()}
                       >
                         <Send size={14} />
                         {isCreatingPost ? '...' : t.publish}
@@ -4913,6 +4862,22 @@ function App() {
             </section>
           </main>
         </>
+      )}
+
+      {/* Post publish confirmation */}
+      {postConfirmOpen && (
+        <div className="center-modal-wrap">
+          <div className="center-modal-backdrop" onClick={() => setPostConfirmOpen(false)} />
+          <div className="center-modal-box" style={{maxWidth: 340, textAlign: 'center'}}>
+            <p style={{fontSize: 15, margin: '8px 0 18px', color: 'var(--text)'}}>
+              {t.postConfirmQuestion || `Hisobingdan 25⚡️ sarflashga tayyormisan?`}
+            </p>
+            <div className="center-modal-actions" style={{justifyContent: 'center'}}>
+              <button className="secondary-btn" onClick={() => setPostConfirmOpen(false)}>{t.postConfirmNo || "Yo'q"}</button>
+              <button className="primary-btn" onClick={() => { setPostConfirmOpen(false); void createPost() }}>{t.postConfirmYes || 'Ha'}</button>
+            </div>
+          </div>
+        </div>
       )}
 
       {reportProfileOpen && (
