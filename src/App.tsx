@@ -163,6 +163,7 @@ type Post = {
   authorHandle: string
   authorAvatarUrl: string | null
   authorBadges?: string[]
+  authorRole?: string
   text: string
   imageUrl?: string | null
   imageUrls?: string[]
@@ -656,6 +657,7 @@ function App() {
   const [reportPriority, setReportPriority] = useState('medium')
   const [reportContact, setReportContact] = useState('')
   const [isSubmittingReport, setIsSubmittingReport] = useState(false)
+  const [reportImage, setReportImage] = useState<string | null>(null)
   const [lightboxOpen, setLightboxOpen] = useState(false)
   const [lightboxImages, setLightboxImages] = useState<string[]>([])
   const [lightboxIndex, setLightboxIndex] = useState(0)
@@ -1827,7 +1829,7 @@ function App() {
       const targetId = viewedProfile ? viewedProfile.user.id : 'general'
       await apiRequest(`/api/users/${targetId}/report`, {
         method: 'POST',
-        body: JSON.stringify({ category, text: reportText.trim(), postId: reportPostId || undefined, priority: reportPriority, contact: reportContact.trim() || undefined }),
+        body: JSON.stringify({ category, text: reportText.trim(), postId: reportPostId || undefined, priority: reportPriority, contact: reportContact.trim() || undefined, image: reportImage || undefined }),
       }, sessionToken)
       setReportProfileOpen(false)
       setReportReason(t.reportCustom)
@@ -1835,6 +1837,7 @@ function App() {
       setReportPostId('')
       setReportPriority('medium')
       setReportContact('')
+      setReportImage(null)
       showToast(t.reportSent, 'success')
     } catch (error) {
       showToast(error instanceof Error ? error.message : t.reportError, 'error')
@@ -2329,22 +2332,9 @@ function App() {
             </span>
           </div>
           <div className="header-right">
-            {siteSettings.onlineCounterVisible && (
-              <div className="header-online-badge">
-                <span className="online-dot" />
-                <span>{onlineCount}</span>
-              </div>
-            )}
-            <div className="header-powers" onClick={() => { switchTab('transactions'); closeMenu(); }} style={{cursor:'pointer'}}>
-              <Zap size={14} />
-              <span>{viewer?.powers ?? 0}</span>
-            </div>
             <button className="header-bell-btn" onClick={() => { setNotifOpen(true); void loadNotifications(); }}>
               <Bell size={17} />
               {systemUnread > 0 && <span className="header-badge">{systemUnread}</span>}
-            </button>
-            <button className="header-profile-btn" onClick={() => { switchTab('profile'); closeMenu(); }}>
-              <User size={16} />
             </button>
           </div>
         </div>
@@ -2390,6 +2380,9 @@ function App() {
                   <>
                     <button style={{'--i': 0} as React.CSSProperties} className={activeTab === 'home' ? 'corner-menu-item active' : 'corner-menu-item'} onClick={() => switchTab('home', closeMenu)}>
                       <span className="menu-emoji bw">🖊</span> {t.kabinet}
+                    </button>
+                    <button style={{'--i': 0.5} as React.CSSProperties} className={activeTab === 'profile' ? 'corner-menu-item active' : 'corner-menu-item'} onClick={() => switchTab('profile', closeMenu)}>
+                      <User size={16} /> {t.tabProfile}
                     </button>
                     <button style={{'--i': 1} as React.CSSProperties} className={activeTab === 'chats' ? 'corner-menu-item active' : 'corner-menu-item'} onClick={() => switchTab('chats', closeMenu)}>
                       <span className="menu-emoji bw">💬</span> {t.chatlar}
@@ -2830,8 +2823,6 @@ function App() {
               <section className="trends-screen page-transition">
                 <div className="trends-header">
                   <div className="trends-header-left">
-                    <Flame size={20} className="trends-header-icon" />
-                    <h2>Global</h2>
                   </div>
                   <div style={{display:'flex', gap:'8px', alignItems:'center'}}>
                     <div className="trends-sort-tabs">
@@ -3052,7 +3043,8 @@ function App() {
                           <strong className="thr-author clickable-author" onClick={() => void openUserProfile(post.authorId)}>
                             {post.authorName}
                           </strong>
-                          {post.authorBadges && post.authorBadges.slice(0,2).map(b => <BadgeChip key={b} id={b} />)}
+                          {post.authorBadges?.includes('VERIFIED') && <span className="verified-check"><BadgeCheck size={14} /></span>}
+                          {post.authorRole === 'admin' && <span className="dev-tag">dev</span>}
                           <span className="thr-time">{frt(post.createdAt)}</span>
                           {trendsSort === 'top' && idx < 3 && (
                             <span className={`thr-rank rank-${idx + 1}`}>#{idx + 1}</span>
@@ -3188,10 +3180,13 @@ function App() {
                           placeholder={t.name}
                           disabled={!siteSettings.profileEditEnabled}
                         />
-                        {viewer.badges.length > 0 && (
+                        {viewer.badges.includes('VERIFIED') && (
                           <div className="profile-badges-inline">
-                            {viewer.badges.map(b => <BadgeChip key={b} id={b} />)}
+                            <span className="verified-check"><BadgeCheck size={14} /></span>
                           </div>
+                        )}
+                        {viewer.role === 'admin' && (
+                          <span className="dev-tag">dev</span>
                         )}
                       </div>
                       <div className="hero-handle-row">
@@ -4777,7 +4772,7 @@ function App() {
                   <div className="cpf-meta">
                     <div className="cpf-name-row">
                       <strong>{viewedProfile.user.name}</strong>
-                      {viewedProfile.user.badges && viewedProfile.user.badges.length > 0 && viewedProfile.user.badges.slice(0,3).map((b: string) => <BadgeChip key={b} id={b} />)}
+                      {viewedProfile.user.badges?.includes('VERIFIED') && <span className="verified-check"><BadgeCheck size={14} /></span>}
                     </div>
                     <span className="cpf-handle">{viewedProfile.user.handle}</span>
                     {viewedProfile.user.tagline && <span className="cpf-tagline">{viewedProfile.user.tagline}</span>}
@@ -5016,6 +5011,32 @@ function App() {
                 placeholder={t.reportContactHint}
                 maxLength={100}
               />
+            </label>
+
+            <label className="input-block">
+              <span className="report-label">{t.reportPhoto || 'Skrinshot'}</span>
+              <div className="report-photo-upload">
+                {reportImage ? (
+                  <div className="report-photo-preview">
+                    <img src={reportImage} alt="" />
+                    <button className="report-photo-remove" onClick={() => setReportImage(null)}><X size={10} /></button>
+                  </div>
+                ) : (
+                  <label className="report-photo-btn">
+                    <Camera size={14} />
+                    <span>{t.reportAttachPhoto || 'Fayl biriktirish'}</span>
+                    <input type="file" accept="image/*" hidden onChange={(e) => {
+                      const file = e.target.files?.[0]
+                      if (!file) return
+                      if (file.size > 512 * 1024) { showToast('Max 512KB', 'error'); return }
+                      const reader = new FileReader()
+                      reader.onload = () => setReportImage(reader.result as string)
+                      reader.readAsDataURL(file)
+                      e.target.value = ''
+                    }} />
+                  </label>
+                )}
+              </div>
             </label>
 
             <div className="center-modal-actions">

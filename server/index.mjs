@@ -771,6 +771,7 @@ function decoratePost(state, post, viewer) {
     imageUrl: imageUrls[0] || null,
     imageUrls,
     authorBadges: author ? (author.badges || []) : [],
+    authorRole: author ? author.role : 'user',
     boostedByViewer: viewer ? post.boostedBy.includes(viewer.id) : false,
     repostedByViewer: viewer ? (Array.isArray(post.repostedBy) ? post.repostedBy.includes(viewer.id) : false) : false,
     reposts: post.reposts || 0,
@@ -794,6 +795,18 @@ function notifyAdminsAboutReport(state, report, reporter, target) {
       `• Yangi shikoyat\n\n• Kimga: ${target.name} (${target.handle})\n• Kategoriya: ${report.category}\n• Kimdan: ${reporter.name}\n• Muhimlik: ${report.priority || 'medium'}`,
       `• Новая жалоба\n\n• На кого: ${target.name} (${target.handle})\n• Категория: ${report.category}\n• От: ${reporter.name}\n• Приоритет: ${report.priority || 'medium'}`
     )
+    // Email notification to admin if they have email
+    if (admin.email) {
+      const transporter = createEmailTransporter()
+      if (transporter) {
+        transporter.sendMail({
+          from: `"Regellik Reports" <${SMTP_FROM}>`,
+          to: admin.email,
+          subject: `[Жалоба] ${report.category} — ${target.name} (${target.handle})`,
+          text: `Новая жалоба\n\nНа: ${target.name} (${target.handle})\nКатегория: ${report.category}\nОт: ${reporter.name} (${reporter.handle})\nПриоритет: ${report.priority || 'medium'}\nТекст: ${report.text || '—'}\n\nОткройте панель администратора для просмотра.`,
+        }).catch(err => console.error('[SMTP] report email error:', err.message))
+      }
+    }
   }
 }
 
@@ -2373,6 +2386,13 @@ app.post('/api/users/:userId/report', (request, response) => {
   const category = String(request.body?.category || '').trim().slice(0, 80)
   const text = String(request.body?.text || '').trim().slice(0, 500)
   const postId = String(request.body?.postId || '').trim()
+  // Validate optional report image (max 512KB base64 data URL)
+  const rawImage = request.body?.image || null
+  let reportImageUrl = null
+  if (rawImage && typeof rawImage === 'string') {
+    const imgErr = validateImageDataUrl(rawImage, 512 * 1024)
+    if (!imgErr) reportImageUrl = rawImage
+  }
   if (!category && !text) {
     response.status(400).json({ error: 'Укажи причину жалобы' })
     return
@@ -2401,6 +2421,7 @@ app.post('/api/users/:userId/report', (request, response) => {
     text,
     priority: String(request.body?.priority || 'medium').slice(0, 20),
     contact: String(request.body?.contact || '').trim().slice(0, 100) || null,
+    imageUrl: reportImageUrl,
     status: 'open',
     createdAt: new Date().toISOString(),
     updatedAt: new Date().toISOString(),
@@ -2962,7 +2983,7 @@ app.post('/api/posts', (request, response) => {
   if (state.posts.length > 200) state.posts = state.posts.slice(0, 200)
   saveState(state)
 
-  response.json({ post: { ...post, authorBadges: viewer.badges || [], boostedByViewer: false, commentsCount: 0 }, newPowers: viewer.powers })
+  response.json({ post: { ...post, authorBadges: viewer.badges || [], authorRole: viewer.role, boostedByViewer: false, commentsCount: 0 }, newPowers: viewer.powers })
 })
 
 app.post('/api/posts/:id/boost', (request, response) => {

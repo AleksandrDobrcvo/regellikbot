@@ -308,6 +308,8 @@ export const translations = {
     reportAbuse: "Haqorат",
     reportAdult: "18+",
     reportFraud: "Firibgarlik",
+    reportPhoto: "Skrinshot",
+    reportAttachPhoto: "Fayl biriktirish",
     // Profile view
     profileFollow: "Obuna bo'lish",
     profileUnfollow: "Obunadan chiqish",
@@ -736,6 +738,8 @@ export const translations = {
     reportAbuse: "Оскорбления",
     reportAdult: "18+",
     reportFraud: "Мошенничество",
+    reportPhoto: "Скриншот",
+    reportAttachPhoto: "Прикрепить файл",
     // Profile view
     profileFollow: "Подписаться",
     profileUnfollow: "Отписаться",
