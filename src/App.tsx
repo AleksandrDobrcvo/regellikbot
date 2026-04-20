@@ -515,7 +515,14 @@ function App() {
   const [activeTab, setActiveTab] = useState<TabId>('feed')
   const [lang, setLang] = useState<Lang>(() => (localStorage.getItem('regellik_lang') as Lang) || 'uz')
   const t = translations[lang]
-  const switchLang = (l: Lang) => { setLang(l); localStorage.setItem('regellik_lang', l) }
+  const switchLang = (l: Lang) => {
+    setLang(l)
+    localStorage.setItem('regellik_lang', l)
+    // Sync to server so notifications use the right language
+    if (sessionToken) {
+      void apiRequest(`/api/bootstrap?token=${encodeURIComponent(sessionToken)}&lang=${l}`)
+    }
+  }
   const [authOpen, setAuthOpen] = useState(false)
   const [authMode, setAuthMode] = useState<'login' | 'register'>('login')
   const [menuOpen, setMenuOpen] = useState(false)

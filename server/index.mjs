@@ -201,7 +201,7 @@ function createSeedUser(data) {
     stats: { sent: 0, received: 0, opened: 0, referrals: 0 },
     joinedAt: new Date().toISOString(),
     telegramMeta: null,
-    ban: null, // { type: 'global'|'chat', reason: string, until: ISO|null, createdAt: ISO, adminId: string }
+    ban: null,
     passwordHash: null,
     passwordSalt: null,
     latitude: null,
@@ -210,6 +210,7 @@ function createSeedUser(data) {
     referralCode: generateReferralCode(),
     referredBy: null,
     telegramId: null,
+    lang: 'uz',
     ...data,
   })
 }
