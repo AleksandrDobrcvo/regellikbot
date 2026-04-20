@@ -5631,6 +5631,13 @@ html {
 }
 
 /* ===== CHATS SEARCH BAR (below header row) ===== */
+.chats-search-bar-wrap {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-bottom: 12px;
+}
+
 .chats-search-row {
   display: flex;
   align-items: center;
@@ -5640,8 +5647,9 @@ html {
   background: rgba(255,255,255,0.05);
   border: 1px solid rgba(255,255,255,0.1);
   border-radius: 12px;
-  margin-bottom: 12px;
   color: var(--muted);
+  flex: 1;
+  min-width: 0;
 }
 
 .chats-search-input {

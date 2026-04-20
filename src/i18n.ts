@@ -473,6 +473,8 @@ export const translations = {
     adminDays: "kun",
     adminForever: "Doimiy",
     adminLoadingDots: "Yuklanmoqda...",
+    noContactsYet: "Kontaktlar yo'q",
+    noContactsHint: "Chat boshlaganingizda kontaktlar shu yerda ko'rinadi",
   },
   ru: {
     // Auth
@@ -947,6 +949,8 @@ export const translations = {
     adminDays: "дней",
     adminForever: "Навсегда",
     adminLoadingDots: "Загрузка...",
+    noContactsYet: "Нет контактов",
+    noContactsHint: "После начала чата контакты появятся здесь",
   }
 } as const
 

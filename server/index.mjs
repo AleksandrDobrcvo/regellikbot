@@ -2399,6 +2399,13 @@ app.post('/api/users/:userId/report', (request, response) => {
   response.json({ ok: true, report })
 })
 
+app.get('/api/admin/reports', (request, response) => {
+  const state = readState()
+  const viewer = requireAdmin(request, response, state)
+  if (!viewer) return
+  response.json({ reports: adminData(state).reports })
+})
+
 app.post('/api/admin/reports/:reportId/status', (request, response) => {
   const state = readState()
   const viewer = requireAdmin(request, response, state)
@@ -2938,7 +2945,7 @@ app.post('/api/posts', (request, response) => {
   if (state.posts.length > 200) state.posts = state.posts.slice(0, 200)
   saveState(state)
 
-  response.json({ post: { ...post, boostedByViewer: false, commentsCount: 0 }, newPowers: viewer.powers })
+  response.json({ post: { ...post, authorBadges: viewer.badges || [], boostedByViewer: false, commentsCount: 0 }, newPowers: viewer.powers })
 })
 
 app.post('/api/posts/:id/boost', (request, response) => {

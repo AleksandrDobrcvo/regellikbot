@@ -1412,6 +1412,15 @@ function App() {
     }
   }
 
+  // Load admin reports
+  const loadAdminReports = async () => {
+    if (!sessionToken) return
+    try {
+      const data = await apiRequest<{ reports: UserReport[] }>('/api/admin/reports', undefined, sessionToken)
+      setReports(data.reports)
+    } catch { /* ignore */ }
+  }
+
   // Load admin support tickets
   const loadSupportTickets = async () => {
     if (!sessionToken) return
@@ -2355,7 +2364,7 @@ function App() {
                       </button>
                     )}
                     <div className="corner-menu-divider" />
-                    <button style={{'--i': 8} as React.CSSProperties} className="corner-menu-item muted-item" onClick={() => { closeMenu(); openReportForPost() }}>
+                    <button style={{'--i': 8} as React.CSSProperties} className="corner-menu-item muted-item" onClick={() => { closeMenu(); setSupportOpen(true) }}>
                       <span className="menu-emoji bw">❗️</span> {t.shikoyat}
                     </button>
                     <button style={{'--i': 9} as React.CSSProperties} className="corner-menu-item muted-item" onClick={() => { closeMenu(); setSupportOpen(true) }}>
@@ -2480,19 +2489,21 @@ function App() {
             {activeTab === 'chats' && !openConvoId && !composeOpen && (
               <section className="chats-screen page-transition">
                 {/* Поиск + радар */}
-                <div className="chats-search-row">
-                  <Search size={14} />
-                  <input
-                    className="chats-search-input"
-                    value={chatSearch}
-                    onChange={e => setChatSearch(e.target.value)}
-                    placeholder={t.search}
-                  />
-                  {chatSearch && (
-                    <button className="chats-search-clear" onClick={() => setChatSearch('')}>
-                      <X size={13} />
-                    </button>
-                  )}
+                <div className="chats-search-bar-wrap">
+                  <div className="chats-search-row">
+                    <Search size={14} />
+                    <input
+                      className="chats-search-input"
+                      value={chatSearch}
+                      onChange={e => setChatSearch(e.target.value)}
+                      placeholder={t.search}
+                    />
+                    {chatSearch && (
+                      <button className="chats-search-clear" onClick={() => setChatSearch('')}>
+                        <X size={13} />
+                      </button>
+                    )}
+                  </div>
                   <button className="chats-radar-inline-btn" onClick={() => switchTab('radar', () => void loadRadar())} title={t.nearbyTitle}>
                     <Radar size={16} />
                   </button>
@@ -2505,7 +2516,7 @@ function App() {
                   <div className="chats-empty">
                     <MessageCircle size={40} />
                     <p>{t.noChats}</p>
-                    <span>«Kontaktlar» tugmasini bosib chat boshlang</span>
+                    <span>{t.noChatsHint}</span>
                   </div>
                 )}
 
@@ -2581,7 +2592,7 @@ function App() {
                   <button className="compose-back-btn" onClick={closeCompose}>
                     <ArrowLeft size={20} />
                   </button>
-                  <h2 className="chats-title">Kontaktlar</h2>
+                  <h2 className="chats-title">{t.kontaktlar}</h2>
                 </div>
 
                 {/* Invite button */}
@@ -2605,13 +2616,13 @@ function App() {
                 {filteredKontaktlar.length === 0 && (
                   <div className="chats-empty" style={{marginTop: '24px'}}>
                     <Users size={36} />
-                    <p>Kontaktlar yo'q</p>
-                    <span>Chat boshlaganingizda kontaktlar shu yerda ko'rinadi</span>
+                    <p>{t.noContactsYet}</p>
+                    <span>{t.noContactsHint}</span>
                   </div>
                 )}
 
                 {contactUsers.length > 0 && !composeSearch && (
-                  <div className="compose-section-label">Kontaktlar</div>
+                  <div className="compose-section-label">{t.kontaktlar}</div>
                 )}
                 <div className="compose-user-list">
                   {(composeSearch ? filteredKontaktlar : contactUsers).map(u => (
@@ -3725,7 +3736,7 @@ function App() {
                     <button
                       key={sec.id}
                       className="admin-nav-btn"
-                      onClick={() => { setAdminSection(sec.id); if (sec.id === 'support') void loadSupportTickets() }}
+                      onClick={() => { setAdminSection(sec.id); if (sec.id === 'support') void loadSupportTickets(); if (sec.id === 'reports') void loadAdminReports() }}
                     >
                       <div className="admin-nav-icon">{sec.icon}</div>
                       <div className="admin-nav-text">
@@ -4278,6 +4289,9 @@ function App() {
                   <div className="admin-section-view">
                     <div className="admin-section-head">
                       <Ban size={18} /> {t.adminReportsTitle}
+                      <button className="secondary-btn compact-btn" style={{marginLeft:'auto'}} onClick={() => void loadAdminReports()}>
+                        <RefreshCw size={14} />
+                      </button>
                     </div>
 
                     {/* Filter tabs */}
