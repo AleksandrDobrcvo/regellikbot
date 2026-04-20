@@ -1600,7 +1600,7 @@ function App() {
 
   const createPost = async () => {
     if (!viewer || !sessionToken || !newPostText.trim()) return
-    if (viewer.role !== 'admin' && viewer.powers < 25) {
+    if (viewer.powers < 25) {
       showToast(t.postNotEnoughEnergy || 'Not enough energy (25 ⚡)', 'error')
       return
     }
@@ -2839,7 +2839,7 @@ function App() {
                       <button
                         className="primary-btn compact-btn"
                         onClick={() => void createPost()}
-                        disabled={isCreatingPost || !newPostText.trim() || (viewer?.role !== 'admin' && (viewer?.powers ?? 0) < 25)}
+                        disabled={isCreatingPost || !newPostText.trim() || (viewer?.powers ?? 0) < 25}
                       >
                         <Send size={14} />
                         {isCreatingPost ? '...' : t.publish}
