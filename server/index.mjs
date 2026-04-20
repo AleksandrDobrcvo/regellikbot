@@ -790,8 +790,8 @@ function notifyAdminsAboutReport(state, report, reporter, target) {
     sendBilingualNotification(
       state,
       admin.id,
-      `◻ Yangi shikoyat\n\n◻ Kimga: ${target.name} (${target.handle})\n◻ Kategoriya: ${report.category}\n◻ Kimdan: ${reporter.name}\n◻ Muhimlik: ${report.priority || 'medium'}`,
-      `◻ Новая жалоба\n\n◻ На кого: ${target.name} (${target.handle})\n◻ Категория: ${report.category}\n◻ От: ${reporter.name}\n◻ Приоритет: ${report.priority || 'medium'}`
+      `• Yangi shikoyat\n\n• Kimga: ${target.name} (${target.handle})\n• Kategoriya: ${report.category}\n• Kimdan: ${reporter.name}\n• Muhimlik: ${report.priority || 'medium'}`,
+      `• Новая жалоба\n\n• На кого: ${target.name} (${target.handle})\n• Категория: ${report.category}\n• От: ${reporter.name}\n• Приоритет: ${report.priority || 'medium'}`
     )
   }
 }
@@ -1812,8 +1812,8 @@ app.post('/api/messages/send', (request, response) => {
   recipient.stats.received += 1
   pushAudit(state, 'message.sent', viewer.id, recipient.id, 'Отправлена анонимка.')
   sendBilingualNotification(state, recipient.id,
-    '◻ Sizga yangi anonim otkritka keldi! Kiruvchilarni tekshiring.',
-    '◻ Вам пришла новая анонимная открытка! Проверьте входящие.'
+    '• Sizga yangi anonim otkritka keldi! Kiruvchilarni tekshiring.',
+    '• Вам пришла новая анонимная открытка! Проверьте входящие.'
   )
   saveState(state)
   response.json(bootstrapPayload(state, viewer))
@@ -1899,14 +1899,14 @@ app.post('/api/admin/users/update', (request, response) => {
     const removed = oldBadges.filter(b => !target.badges.includes(b))
     if (added.length) {
       sendBilingualNotification(state, target.id,
-        `◻ Yangi prefiks berildi: ${added.join(', ')}\n◻ Admin: ${viewer.name}\n\nUni sharaf bilan taqing!`,
-        `◻ Новый префикс: ${added.join(', ')}\n◻ Администратор: ${viewer.name}\n\nНосите с гордостью!`
+        `• Yangi prefiks berildi: ${added.join(', ')}\n• Admin: ${viewer.name}\n\nUni sharaf bilan taqing!`,
+        `• Новый префикс: ${added.join(', ')}\n• Администратор: ${viewer.name}\n\nНосите с гордостью!`
       )
     }
     if (removed.length) {
       sendBilingualNotification(state, target.id,
-        `◻ Prefiks olib tashlandi: ${removed.join(', ')}\n◻ Admin: ${viewer.name}`,
-        `◻ Префикс отозван: ${removed.join(', ')}\n◻ Администратор: ${viewer.name}`
+        `• Prefiks olib tashlandi: ${removed.join(', ')}\n• Admin: ${viewer.name}`,
+        `• Префикс отозван: ${removed.join(', ')}\n• Администратор: ${viewer.name}`
       )
     }
   }
@@ -1939,11 +1939,11 @@ app.post('/api/admin/users/update', (request, response) => {
   if (payload.preferences) { changesRu.push('настройки обновлены'); changesUz.push('sozlamalar yangilandi') }
 
   const ruText = changesRu.length > 0
-    ? `◻ Профиль обновлён\n◻ Администратор: ${viewer.name}\n\n${changesRu.map(c => '◻ ' + c).join('\n')}`
-    : `◻ Ваш профиль был обновлён\n◻ Администратор: ${viewer.name}`
+    ? `• Профиль обновлён\n• Администратор: ${viewer.name}\n\n${changesRu.map(c => '• ' + c).join('\n')}`
+    : `• Ваш профиль был обновлён\n• Администратор: ${viewer.name}`
   const uzText = changesUz.length > 0
-    ? `◻ Profil yangilandi\n◻ Admin: ${viewer.name}\n\n${changesUz.map(c => '◻ ' + c).join('\n')}`
-    : `◻ Profilingiz yangilandi\n◻ Admin: ${viewer.name}`
+    ? `• Profil yangilandi\n• Admin: ${viewer.name}\n\n${changesUz.map(c => '• ' + c).join('\n')}`
+    : `• Profilingiz yangilandi\n• Admin: ${viewer.name}`
   sendBilingualNotification(state, target.id, uzText, ruText)
   saveState(state)
   response.json(bootstrapPayload(state, viewer))
@@ -1977,8 +1977,8 @@ app.post('/api/admin/grant', (request, response) => {
   }
   pushAudit(state, 'admin.role.grant', viewer.id, target.id, `Выданы права admin пользователю ${target.handle}.`)
   sendBilingualNotification(state, target.id,
-    `◻ Sizga administrator huquqlari berildi!\n◻ Admin: ${viewer.name}`,
-    `◻ Вам выданы права администратора!\n◻ Администратор: ${viewer.name}`
+    `• Sizga administrator huquqlari berildi!\n• Admin: ${viewer.name}`,
+    `• Вам выданы права администратора!\n• Администратор: ${viewer.name}`
   )
   saveState(state)
   response.json(bootstrapPayload(state, viewer))
@@ -2022,11 +2022,11 @@ app.post('/api/admin/ban', (request, response) => {
   pushAudit(state, `admin.ban.${banType}`, viewer.id, target.id, `${banType === 'global' ? 'Глобальный бан' : 'Бан чата'} ${target.handle} ${durationText}. Причина: ${target.ban.reason}`)
   sendBilingualNotification(state, target.id,
     banType === 'global'
-      ? `◻ Akkauntingiz bloklandi ${durationTextUz}\n◻ Sabab: ${target.ban.reason}\n◻ Admin: ${viewer.name}`
-      : `◻ Chat bloklandi ${durationTextUz}\n◻ Sabab: ${target.ban.reason}\n◻ Admin: ${viewer.name}`,
+      ? `• Akkauntingiz bloklandi ${durationTextUz}\n• Sabab: ${target.ban.reason}\n• Admin: ${viewer.name}`
+      : `• Chat bloklandi ${durationTextUz}\n• Sabab: ${target.ban.reason}\n• Admin: ${viewer.name}`,
     banType === 'global'
-      ? `◻ Ваш аккаунт заблокирован ${durationText}\n◻ Причина: ${target.ban.reason}\n◻ Администратор: ${viewer.name}`
-      : `◻ Чат заблокирован ${durationText}\n◻ Причина: ${target.ban.reason}\n◻ Администратор: ${viewer.name}`
+      ? `• Ваш аккаунт заблокирован ${durationText}\n• Причина: ${target.ban.reason}\n• Администратор: ${viewer.name}`
+      : `• Чат заблокирован ${durationText}\n• Причина: ${target.ban.reason}\n• Администратор: ${viewer.name}`
   )
   saveState(state)
   response.json(bootstrapPayload(state, viewer))
@@ -2049,8 +2049,8 @@ app.post('/api/admin/unban', (request, response) => {
   target.ban = null
   pushAudit(state, 'admin.unban', viewer.id, target.id, `Разбан ${target.handle}${hadBan ? ` (был: ${hadBan.type})` : ''}.`)
   sendBilingualNotification(state, target.id,
-    `◻ Akkauntingiz blokdan chiqarildi\n◻ Admin: ${viewer.name}\n\nXush kelibsiz qaytib!`,
-    `◻ Ваш аккаунт разблокирован\n◻ Администратор: ${viewer.name}\n\nДобро пожаловать обратно!`
+    `• Akkauntingiz blokdan chiqarildi\n• Admin: ${viewer.name}\n\nXush kelibsiz qaytib!`,
+    `• Ваш аккаунт разблокирован\n• Администратор: ${viewer.name}\n\nДобро пожаловать обратно!`
   )
   saveState(state)
   response.json(bootstrapPayload(state, viewer))
@@ -2074,15 +2074,15 @@ app.post('/api/admin/freeze', (request, response) => {
     state.sessions = state.sessions.filter(s => s.userId !== target.id)
     pushAudit(state, 'admin.freeze', viewer.id, target.id, `Заморозка аккаунта ${target.handle}.`)
     sendBilingualNotification(state, target.id,
-      `◻ Akkauntingiz vaqtincha muzlatildi\n◻ Admin: ${viewer.name}`,
-      `◻ Ваш аккаунт временно заморожен\n◻ Администратор: ${viewer.name}`
+      `• Akkauntingiz vaqtincha muzlatildi\n• Admin: ${viewer.name}`,
+      `• Ваш аккаунт временно заморожен\n• Администратор: ${viewer.name}`
     )
   } else {
     target.status = 'active'
     pushAudit(state, 'admin.unfreeze', viewer.id, target.id, `Разморозка аккаунта ${target.handle}.`)
     sendBilingualNotification(state, target.id,
-      `◻ Akkauntingiz muzlatishdan chiqarildi\n◻ Admin: ${viewer.name}\n\nXush kelibsiz qaytib!`,
-      `◻ Ваш аккаунт разморожен\n◻ Администратор: ${viewer.name}\n\nДобро пожаловать обратно!`
+      `• Akkauntingiz muzlatishdan chiqarildi\n• Admin: ${viewer.name}\n\nXush kelibsiz qaytib!`,
+      `• Ваш аккаунт разморожен\n• Администратор: ${viewer.name}\n\nДобро пожаловать обратно!`
     )
   }
 
@@ -2153,11 +2153,11 @@ app.post('/api/admin/topup', (request, response) => {
   pushAudit(state, numAmount > 0 ? 'admin.topup' : 'admin.deduct', viewer.id, target.id, `${numAmount > 0 ? '+' : ''}${numAmount}⚡ пользователю ${target.handle} (было ${oldPowers}, стало ${target.powers}). ${reason ? 'Причина: ' + reason : ''}`)
   sendBilingualNotification(state, target.id,
     numAmount > 0
-      ? `◻ Balansingiz to'ldirildi: +${numAmount}⚡\n◻ Joriy balans: ${target.powers}⚡\n◻ Admin: ${viewer.name}${reason ? '\n◻ Sabab: ' + reason : ''}`
-      : `◻ Balansingizdan yechildi: ${Math.abs(numAmount)}⚡\n◻ Joriy balans: ${target.powers}⚡\n◻ Admin: ${viewer.name}${reason ? '\n◻ Sabab: ' + reason : ''}`,
+      ? `• Balansingiz to'ldirildi: +${numAmount}⚡\n• Joriy balans: ${target.powers}⚡\n• Admin: ${viewer.name}${reason ? '\n• Sabab: ' + reason : ''}`
+      : `• Balansingizdan yechildi: ${Math.abs(numAmount)}⚡\n• Joriy balans: ${target.powers}⚡\n• Admin: ${viewer.name}${reason ? '\n• Sabab: ' + reason : ''}`,
     numAmount > 0
-      ? `◻ Ваш баланс пополнен: +${numAmount}⚡\n◻ Текущий баланс: ${target.powers}⚡\n◻ Администратор: ${viewer.name}${reason ? '\n◻ Причина: ' + reason : ''}`
-      : `◻ С баланса списано: ${Math.abs(numAmount)}⚡\n◻ Текущий баланс: ${target.powers}⚡\n◻ Администратор: ${viewer.name}${reason ? '\n◻ Причина: ' + reason : ''}`
+      ? `• Ваш баланс пополнен: +${numAmount}⚡\n• Текущий баланс: ${target.powers}⚡\n• Администратор: ${viewer.name}${reason ? '\n• Причина: ' + reason : ''}`
+      : `• С баланса списано: ${Math.abs(numAmount)}⚡\n• Текущий баланс: ${target.powers}⚡\n• Администратор: ${viewer.name}${reason ? '\n• Причина: ' + reason : ''}`
   )
   saveState(state)
   response.json(bootstrapPayload(state, viewer))
@@ -2317,8 +2317,8 @@ app.post('/api/users/:userId/follow', (request, response) => {
     isFollowing = true
     pushAudit(state, 'follow.create', viewer.id, target.id, `${viewer.handle} подписался на ${target.handle}.`)
     sendBilingualNotification(state, target.id,
-      `◻ ${viewer.name} (@${viewer.handle}) profilingizga obuna bo'ldi`,
-      `◻ ${viewer.name} (@${viewer.handle}) подписался на ваш профиль`
+      `• ${viewer.name} (@${viewer.handle}) profilingizga obuna bo'ldi`,
+      `• ${viewer.name} (@${viewer.handle}) подписался на ваш профиль`
     )
   }
 
@@ -2436,8 +2436,8 @@ app.post('/api/admin/reports/:reportId/status', (request, response) => {
     const statusLabelRu = status === 'resolved' ? 'решена' : 'отклонена'
     const statusLabelUz = status === 'resolved' ? 'hal qilindi' : 'rad etildi'
     sendBilingualNotification(state, report.reporterId,
-      `◻ Sizning shikoyatingiz ${statusLabelUz}\n◻ Kimga: ${report.targetUserName}\n◻ Admin: ${viewer.name}`,
-      `◻ Ваша жалоба ${statusLabelRu}\n◻ На кого: ${report.targetUserName}\n◻ Администратор: ${viewer.name}`
+      `• Sizning shikoyatingiz ${statusLabelUz}\n• Kimga: ${report.targetUserName}\n• Admin: ${viewer.name}`,
+      `• Ваша жалоба ${statusLabelRu}\n• На кого: ${report.targetUserName}\n• Администратор: ${viewer.name}`
     )
   }
   saveState(state)
@@ -2509,7 +2509,7 @@ app.post('/api/admin/support/:conversationId/reply', (request, response) => {
 
   const regellikId = 'seed-regellik'
   const userId = convo.participants.find(p => p !== regellikId)
-  const replyText = `◻ ${viewer.name} (Поддержка):\n${text}`
+  const replyText = `• ${viewer.name} (Поддержка):\n${text}`
 
   const msg = {
     id: createToken(),
@@ -2732,8 +2732,8 @@ app.post('/api/conversations', (request, response) => {
     createdAt: new Date().toISOString(),
   })
   sendBilingualNotification(state, recipientId,
-    `◻ ${viewer.name} (@${viewer.handle}) siz bilan chat boshladi`,
-    `◻ ${viewer.name} (@${viewer.handle}) начал с вами чат`
+    `• ${viewer.name} (@${viewer.handle}) siz bilan chat boshladi`,
+    `• ${viewer.name} (@${viewer.handle}) начал с вами чат`
   )
   saveState(state)
   response.json({ conversationId: convoId })
@@ -3120,8 +3120,8 @@ app.post('/api/transfer', (request, response) => {
 
   pushAudit(state, 'energy.transfer', viewer.id, recipient.id, `${viewer.handle} → ${recipient.handle}: ${amt} ⚡ (fee ${fee})`)
   sendBilingualNotification(state, recipient.id,
-    `◻ Siz ${viewer.name} (@${viewer.handle}) dan ${amt}⚡ qabul qildingiz!\n◻ Joriy balans: ${recipient.powers}⚡`,
-    `◻ Вы получили ${amt}⚡ от ${viewer.name} (@${viewer.handle})\n◻ Текущий баланс: ${recipient.powers}⚡`
+    `• Siz ${viewer.name} (@${viewer.handle}) dan ${amt}⚡ qabul qildingiz!\n• Joriy balans: ${recipient.powers}⚡`,
+    `• Вы получили ${amt}⚡ от ${viewer.name} (@${viewer.handle})\n• Текущий баланс: ${recipient.powers}⚡`
   )
   saveState(state)
 

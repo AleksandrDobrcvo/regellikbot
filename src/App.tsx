@@ -764,6 +764,8 @@ function App() {
   const selectedAdminUser = useMemo(() => adminUsers.find((item) => item.id === selectedAdminUserId) || null, [adminUsers, selectedAdminUserId])
 
   const totalUnread = useMemo(() => conversations.reduce((sum, c) => sum + c.unreadCount, 0), [conversations])
+  const systemUnread = useMemo(() => conversations.filter(c => c.isSystem).reduce((sum, c) => sum + c.unreadCount, 0), [conversations])
+  const chatUnread = useMemo(() => conversations.filter(c => !c.isSystem).reduce((sum, c) => sum + c.unreadCount, 0), [conversations])
 
   const showToast = (message: string, tone: ToastTone) => {
     try { navigator.vibrate?.(80) } catch { /* ignore */ }
@@ -906,68 +908,87 @@ function App() {
 
   // WebSocket ref for real-time messages
   const wsRef = useRef<WebSocket | null>(null)
+  const wsReconnectTimer = useRef<number | null>(null)
 
   useEffect(() => {
-    const socket = new WebSocket(resolveWsUrl())
-    wsRef.current = socket
+    if (!sessionToken) return
 
-    socket.addEventListener('open', () => {
-      // Authenticate so server knows who we are
-      if (sessionToken) {
+    function connectWs() {
+      const socket = new WebSocket(resolveWsUrl())
+      wsRef.current = socket
+
+      socket.addEventListener('open', () => {
         socket.send(JSON.stringify({ type: 'auth', token: sessionToken }))
-      }
-    })
+      })
 
-    socket.addEventListener('message', (event) => {
-      try {
-        const payload = JSON.parse(event.data) as {
-          type: string;
-          count?: number;
-          conversationId?: string;
-          message?: { id: string; text: string; senderId: string; senderName: string; createdAt: string };
-          conversations?: ConversationPreview[];
-        }
-
-        if (payload.type === 'online') {
-          setOnlineCount(payload.count ?? 0)
-        }
-
-        if (payload.type === 'new_message' && payload.message && payload.conversations) {
-          // Update conversations list (already sorted by server, newest first)
-          setConversations(payload.conversations)
-
-          // If we're currently viewing this chat, add the message
-          if (payload.conversationId) {
-            setOpenConvoId(prev => {
-              if (prev === payload.conversationId) {
-                setChatMessages(msgs => {
-                  if (msgs.some(m => m.id === payload.message!.id)) return msgs
-                  return [...msgs, {
-                    id: payload.message!.id,
-                    conversationId: payload.conversationId!,
-                    senderId: payload.message!.senderId,
-                    text: payload.message!.text,
-                    createdAt: payload.message!.createdAt,
-                  }]
-                })
-              }
-              return prev
-            })
+      socket.addEventListener('message', (event) => {
+        try {
+          const payload = JSON.parse(event.data) as {
+            type: string;
+            count?: number;
+            conversationId?: string;
+            message?: { id: string; text: string; senderId: string; senderName: string; createdAt: string };
+            conversations?: ConversationPreview[];
           }
 
-          // Show toast notification if not viewing this chat
-          const senderName = payload.message.senderName || t.someone
-          const preview = payload.message.text.length > 40
-            ? payload.message.text.slice(0, 40) + '...'
-            : payload.message.text
-          showToast(`${senderName}: ${preview}`, 'info')
-        }
-      } catch {
-        // ignore malformed payloads
-      }
-    })
+          if (payload.type === 'online') {
+            setOnlineCount(payload.count ?? 0)
+          }
 
-    return () => { socket.close(); wsRef.current = null }
+          if (payload.type === 'new_message' && payload.message && payload.conversations) {
+            setConversations(payload.conversations)
+
+            if (payload.conversationId) {
+              setOpenConvoId(prev => {
+                if (prev === payload.conversationId) {
+                  setChatMessages(msgs => {
+                    if (msgs.some(m => m.id === payload.message!.id)) return msgs
+                    return [...msgs, {
+                      id: payload.message!.id,
+                      conversationId: payload.conversationId!,
+                      senderId: payload.message!.senderId,
+                      text: payload.message!.text,
+                      createdAt: payload.message!.createdAt,
+                    }]
+                  })
+                }
+                return prev
+              })
+            }
+
+            const senderName = payload.message.senderName || t.someone
+            const preview = payload.message.text.length > 40
+              ? payload.message.text.slice(0, 40) + '...'
+              : payload.message.text
+            showToast(`${senderName}: ${preview}`, 'info')
+          }
+        } catch {
+          // ignore malformed payloads
+        }
+      })
+
+      socket.addEventListener('close', () => {
+        wsRef.current = null
+        wsReconnectTimer.current = window.setTimeout(connectWs, 3000)
+      })
+    }
+
+    connectWs()
+
+    // Poll conversations every 30s as fallback
+    const pollId = window.setInterval(async () => {
+      try {
+        const data = await apiRequest<{ conversations: ConversationPreview[] }>('/api/conversations', undefined, sessionToken)
+        setConversations(data.conversations)
+      } catch { /* ignore */ }
+    }, 30000)
+
+    return () => {
+      wsRef.current?.close()
+      wsRef.current = null
+      if (wsReconnectTimer.current) window.clearTimeout(wsReconnectTimer.current)
+      window.clearInterval(pollId)
+    }
   }, [sessionToken])
 
   useEffect(() => {
@@ -2313,7 +2334,7 @@ function App() {
             </div>
             <button className="header-bell-btn" onClick={() => { setNotifOpen(true); void loadNotifications(); }}>
               <Bell size={17} />
-              {totalUnread > 0 && <span className="header-badge">{totalUnread}</span>}
+              {systemUnread > 0 && <span className="header-badge">{systemUnread}</span>}
             </button>
             <button className="header-profile-btn" onClick={() => { switchTab('profile'); closeMenu(); }}>
               <User size={16} />
@@ -2365,7 +2386,7 @@ function App() {
                     </button>
                     <button style={{'--i': 1} as React.CSSProperties} className={activeTab === 'chats' ? 'corner-menu-item active' : 'corner-menu-item'} onClick={() => switchTab('chats', closeMenu)}>
                       <span className="menu-emoji bw">💬</span> {t.chatlar}
-                      {totalUnread > 0 && <span className="menu-badge">{totalUnread}</span>}
+                      {chatUnread > 0 && <span className="menu-badge">{chatUnread}</span>}
                     </button>
                     <button style={{'--i': 2} as React.CSSProperties} className={activeTab === 'trends' ? 'corner-menu-item active' : 'corner-menu-item'} onClick={() => switchTab('trends', closeMenu)}>
                       <span className="menu-emoji bw">#️⃣</span> {t.global}
@@ -2485,10 +2506,11 @@ function App() {
                 </div>
 
                 <div className="home-nav-grid">
-                  <button className="home-nav-btn" onClick={() => switchTab('chats')}>
+                  <button className="home-nav-btn" onClick={() => switchTab('chats')} style={{position:'relative'}}>
                     <MessageCircle size={24} />
                     <strong>{t.homeNavChats}</strong>
                     <span>{t.homeNavChatsDesc}</span>
+                    {chatUnread > 0 && <span className="header-badge" style={{position:'absolute',top:8,right:8}}>{chatUnread}</span>}
                   </button>
                   <button className="home-nav-btn" onClick={() => switchTab('trends')}>
                     <Flame size={24} />
@@ -2699,11 +2721,11 @@ function App() {
                       <img className="chat-header-avatar" src={chatOtherUser.avatarUrl} alt="" />
                     ) : (
                       <div className={isSystemChat ? 'chat-header-avatar-placeholder system' : 'chat-header-avatar-placeholder'}>
-                        {isSystemChat ? '◻' : chatOtherUser?.name?.[0] || '?'}
+                        {isSystemChat ? '⚙' : chatOtherUser?.name?.[0] || '?'}
                       </div>
                     )}
                     <div>
-                      <strong>{isSystemChat ? '◻ Regellik' : chatOtherUser?.name || t.chatlar}</strong>
+                      <strong>{isSystemChat ? 'Regellik' : chatOtherUser?.name || t.chatlar}</strong>
                       <small>{isSystemChat ? t.systemChat : `@${chatOtherUser?.handle || ''}`}</small>
                     </div>
                   </div>
@@ -2728,7 +2750,7 @@ function App() {
                           </div>
                         )}
                         <div className={`chat-bubble ${isMine ? 'mine' : 'theirs'}${isSystem ? ' system' : ''}${isFirstInGroup ? ' first' : ''}${isLastInGroup ? ' last' : ''}`}>
-                          {isSystem && isFirstInGroup && <span className="chat-bubble-sender">◻ Regellik</span>}
+                          {isSystem && isFirstInGroup && <span className="chat-bubble-sender">Regellik</span>}
                           <p>{msg.text}</p>
                           {isLastInGroup && <small className="chat-bubble-time">{frt(msg.createdAt)}</small>}
                         </div>
@@ -4341,7 +4363,7 @@ function App() {
 
                     {reports.length === 0 ? (
                       <div className="chats-empty" style={{ padding: '20px' }}>
-                        <p>◻ {t.adminNoReports}</p>
+                        <p>{t.adminNoReports}</p>
                         <span>{t.adminNoReportsHint}</span>
                       </div>
                     ) : (
@@ -4369,7 +4391,7 @@ function App() {
                             </div>
 
                             <div className="report-card-category">
-                              <span className="report-cat-label">◻ {report.category}</span>
+                              <span className="report-cat-label">{report.category}</span>
                               <span className="report-card-date">{frt(report.createdAt)}</span>
                             </div>
 
@@ -4377,23 +4399,23 @@ function App() {
 
                             {report.contact && (
                               <div className="report-card-contact">
-                                <small>◻ {t.adminContact}</small> {report.contact}
+                                <small>{t.adminContact}</small> {report.contact}
                               </div>
                             )}
 
                             <div className="report-card-reporter">
-                              <small>◻ {t.adminSentBy}</small> {report.reporterName} ({report.reporterHandle})
+                              <small>{t.adminSentBy}</small> {report.reporterName} ({report.reporterHandle})
                             </div>
 
                             {report.resolvedByName && (
                               <div className="report-card-resolver">
-                                <small>◻ {t.adminResolvedBy}</small> {report.resolvedByName}
+                                <small>{t.adminResolvedBy}</small> {report.resolvedByName}
                               </div>
                             )}
 
                             {report.relatedPosts && report.relatedPosts.length > 0 && (
                               <div className="report-related-posts">
-                                <small className="report-posts-label">◻ {t.adminRelatedPosts}</small>
+                                <small className="report-posts-label">{t.adminRelatedPosts}</small>
                                 {report.relatedPosts.map(post => (
                                   <div key={post.id} className="report-related-post">
                                     <div className="report-related-post-body">
@@ -4444,7 +4466,7 @@ function App() {
                       <div className="chats-empty" style={{ padding: '20px' }}><p>{t.adminLoadingDots}</p></div>
                     ) : supportTickets.length === 0 ? (
                       <div className="chats-empty" style={{ padding: '20px' }}>
-                        <p>◻ {t.adminNoTickets}</p>
+                        <p>{t.adminNoTickets}</p>
                         <span>{t.adminNoTicketsHint}</span>
                       </div>
                     ) : (
