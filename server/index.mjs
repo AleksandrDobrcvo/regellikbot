@@ -2430,6 +2430,36 @@ app.get('/api/users/by-handle/:handle/public', (request, response) => {
   })
 })
 
+app.get('/api/users/:userId/followers', (request, response) => {
+  const state = readState()
+  const followers = state.follows
+    .filter(f => f.followingId === request.params.userId)
+    .sort((a, b) => b.createdAt.localeCompare(a.createdAt))
+    .slice(0, 100)
+    .map(f => {
+      const u = state.users.find(x => x.id === f.followerId)
+      if (!u) return null
+      return { id: u.id, name: u.name, handle: u.handle, avatarUrl: u.avatarUrl || null }
+    })
+    .filter(Boolean)
+  response.json({ users: followers })
+})
+
+app.get('/api/users/:userId/following', (request, response) => {
+  const state = readState()
+  const following = state.follows
+    .filter(f => f.followerId === request.params.userId)
+    .sort((a, b) => b.createdAt.localeCompare(a.createdAt))
+    .slice(0, 100)
+    .map(f => {
+      const u = state.users.find(x => x.id === f.followingId)
+      if (!u) return null
+      return { id: u.id, name: u.name, handle: u.handle, avatarUrl: u.avatarUrl || null }
+    })
+    .filter(Boolean)
+  response.json({ users: following })
+})
+
 app.post('/api/users/:userId/follow', (request, response) => {
   const state = readState()
   const viewer = requireUser(request, response, state)
@@ -2459,10 +2489,16 @@ app.post('/api/users/:userId/follow', (request, response) => {
     })
     isFollowing = true
     pushAudit(state, 'follow.create', viewer.id, target.id, `${viewer.handle} подписался на ${target.handle}.`)
-    sendBilingualNotification(state, target.id,
-      `• ${viewer.name} (@${viewer.handle}) profilingizga obuna bo'ldi`,
-      `• ${viewer.name} (@${viewer.handle}) подписался на ваш профиль`
-    )
+    // Send real-time WS notification instead of chat message
+    sendToUser(target.id, {
+      type: 'new_follower',
+      follower: {
+        id: viewer.id,
+        name: viewer.name,
+        handle: viewer.handle,
+        avatarUrl: viewer.avatarUrl || null,
+      },
+    })
   }
 
   if (!shouldFollow && existingIndex !== -1) {

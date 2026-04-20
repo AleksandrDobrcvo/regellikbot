@@ -672,6 +672,9 @@ function App() {
   // Profile viewer (for admins)
   const [viewedProfile, setViewedProfile] = useState<ProfileViewData | null>(null)
   const [profileViewTab, setProfileViewTab] = useState<PublicProfileTab>('posts')
+  const [followListOpen, setFollowListOpen] = useState<'followers' | 'following' | null>(null)
+  const [followListUsers, setFollowListUsers] = useState<{id:string;name:string;handle:string;avatarUrl:string|null}[]>([])
+  const [followListLoading, setFollowListLoading] = useState(false)
   const [isProfileActionLoading, setIsProfileActionLoading] = useState(false)
   const [reportProfileOpen, setReportProfileOpen] = useState(false)
   const [reportReason, setReportReason] = useState<string>(t.reportCustom)
@@ -811,6 +814,18 @@ function App() {
 
   const dismissToast = (id: number) => {
     setToasts(prev => prev.filter(t => t.id !== id))
+  }
+
+  const loadFollowList = async (userId: string, type: 'followers' | 'following') => {
+    if (!sessionToken) return
+    setFollowListLoading(true)
+    setFollowListUsers([])
+    setFollowListOpen(type)
+    try {
+      const data = await apiRequest<{ users: {id:string;name:string;handle:string;avatarUrl:string|null}[] }>(`/api/users/${userId}/${type}`, undefined, sessionToken)
+      setFollowListUsers(data.users)
+    } catch { /* ignore */ }
+    setFollowListLoading(false)
   }
 
   const deleteOwnPost = async (postId: string) => {
@@ -1033,6 +1048,14 @@ function App() {
               ? payload.message.text.slice(0, 40) + '...'
               : payload.message.text
             showToast(`${senderName}: ${preview}`, 'info')
+          }
+
+          if (payload.type === 'new_follower') {
+            const f = payload as unknown as { follower?: { name: string; handle: string } }
+            if (f.follower) {
+              showToast(`${f.follower.name} (@${f.follower.handle}) ${lang === 'uz' ? "obuna bo'ldi" : 'подписался на вас'}`, 'info')
+              setViewer(prev => prev ? { ...prev, followerCount: prev.followerCount + 1 } : prev)
+            }
           }
         } catch {
           // ignore malformed payloads
@@ -3165,8 +3188,8 @@ function App() {
                   {/* Stats row */}
                   <div className="tk-profile-stats">
                     <div className="tk-stat"><strong>{viewer.postCount}</strong><span>{t.postsCount}</span></div>
-                    <div className="tk-stat"><strong>{viewer.followerCount}</strong><span>{t.followers}</span></div>
-                    <div className="tk-stat"><strong>{viewer.followingCount}</strong><span>{t.following}</span></div>
+                    <div className="tk-stat tk-stat-clickable" onClick={() => void loadFollowList(viewer.id, 'followers')}><strong>{viewer.followerCount}</strong><span>{t.followers}</span></div>
+                    <div className="tk-stat tk-stat-clickable" onClick={() => void loadFollowList(viewer.id, 'following')}><strong>{viewer.followingCount}</strong><span>{t.following}</span></div>
                     <div className="tk-stat"><strong>{viewer.powers}</strong><span>{t.energyLabel}</span></div>
                   </div>
 
@@ -5019,6 +5042,39 @@ function App() {
         </div>
       )}
 
+      {/* Follow list modal */}
+      {followListOpen && (
+        <div className="follow-list-overlay" onClick={() => setFollowListOpen(null)}>
+          <div className="follow-list-sheet" onClick={e => e.stopPropagation()}>
+            <div className="follow-list-header">
+              <h3>{followListOpen === 'followers'
+                ? (lang === 'uz' ? 'Obunachilar' : 'Подписчики')
+                : (lang === 'uz' ? 'Obunalar' : 'Подписки')}</h3>
+              <button className="follow-list-close" onClick={() => setFollowListOpen(null)}><X size={18} /></button>
+            </div>
+            {followListLoading ? (
+              <div className="follow-list-loading">{lang === 'uz' ? 'Yuklanmoqda...' : 'Загрузка...'}</div>
+            ) : followListUsers.length === 0 ? (
+              <div className="follow-list-empty">{lang === 'uz' ? 'Hech kim yo\'q' : 'Пока никого'}</div>
+            ) : (
+              <div className="follow-list-items">
+                {followListUsers.map(u => (
+                  <div key={u.id} className="follow-list-item" onClick={() => { setFollowListOpen(null); void openUserProfile(u.id) }}>
+                    <div className="follow-list-avatar">
+                      {u.avatarUrl ? <img src={u.avatarUrl} alt="" /> : <span>{(u.name || '?')[0]}</span>}
+                    </div>
+                    <div className="follow-list-info">
+                      <strong>{u.name}</strong>
+                      <span>{u.handle}</span>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
+        </div>
+      )}
+
       {activeTab === 'profile-view' && viewedProfile && (
         <>
           <main className={`main-layout${pageExiting ? ' page-exiting' : ''}`}>
@@ -5051,8 +5107,8 @@ function App() {
                     {viewedProfile.user.tagline && <span className="cpf-tagline">{viewedProfile.user.tagline}</span>}
                     <div className="cpf-stats-row">
                       <span><strong>{viewedProfile.user.postCount}</strong> {t.profilePostsCount}</span>
-                      <span><strong>{viewedProfile.user.followerCount}</strong> {t.profileFollowersCount}</span>
-                      <span><strong>{viewedProfile.user.followingCount}</strong> {t.profileFollowingCount}</span>
+                      <span className="cpf-stat-clickable" onClick={() => void loadFollowList(viewedProfile.user.id, 'followers')}><strong>{viewedProfile.user.followerCount}</strong> {t.profileFollowersCount}</span>
+                      <span className="cpf-stat-clickable" onClick={() => void loadFollowList(viewedProfile.user.id, 'following')}><strong>{viewedProfile.user.followingCount}</strong> {t.profileFollowingCount}</span>
                     </div>
                   </div>
                 </div>
