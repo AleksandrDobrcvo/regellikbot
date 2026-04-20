@@ -1425,7 +1425,7 @@ function App() {
       other: t.supportCatOther,
     }
     const catLabel = catLabels[supportCategory] || supportCategory
-    const formattedMsg = `🎫 [${catLabel}]\n\n${supportMessage.trim()}`
+    const formattedMsg = `[${catLabel}]\n\n${supportMessage.trim()}`
     try {
       const data = await apiRequest<{ conversationId: string }>('/api/conversations', {
         method: 'POST',
@@ -1647,7 +1647,7 @@ function App() {
   const createPost = async () => {
     if (!viewer || !sessionToken || !newPostText.trim()) return
     if (viewer.powers < 25) {
-      showToast(t.postNotEnoughEnergy || 'Not enough energy (25 ⚡)', 'error')
+      showToast(t.postNotEnoughEnergy, 'error')
       return
     }
     setIsCreatingPost(true)
@@ -2665,7 +2665,7 @@ function App() {
                       <img className="chat-header-avatar" src={chatOtherUser.avatarUrl} alt="" />
                     ) : (
                       <div className={isSystemChat ? 'chat-header-avatar-placeholder system' : 'chat-header-avatar-placeholder'}>
-                        {isSystemChat ? '⚙' : chatOtherUser?.name?.[0] || '?'}
+                        {isSystemChat ? <img src="/tg-icons/settings.webp" className="tg-icon" alt="" /> : chatOtherUser?.name?.[0] || '?'}
                       </div>
                     )}
                     <div>
@@ -2837,7 +2837,7 @@ function App() {
                         onClick={() => {
                           if (!viewer || !newPostText.trim()) return
                           if (viewer.powers < 25) {
-                            showToast(t.postNotEnoughEnergyShort || ':(( Chop etish uchun senga 25⚡️ kerak!', 'error')
+                            showToast(t.postNotEnoughEnergyShort, 'error')
                             return
                           }
                           setPostConfirmOpen(true)
@@ -3367,7 +3367,7 @@ function App() {
                   {/* O'tkazish — energy transfer */}
                   <button className="transfer-cta-btn" onClick={() => { setTransferOpen(o => !o); setTransferResult(null) }}>
                     <Send size={17} style={{transform: 'rotate(-45deg)'}} />
-                    {transferOpen ? t.transferClose : `${t.transfer} ⚡`}
+                    {transferOpen ? t.transferClose : t.transfer}
                   </button>
 
                   {transferOpen && (
@@ -3384,7 +3384,7 @@ function App() {
                             <div className="transfer-success-text">
                               <strong>{t.transferSuccess}</strong>
                               <p>{transferResult.amount} <Zap size={13}/> → {transferResult.name} <span className="transfer-handle">{transferResult.handle}</span></p>
-                              <small>{t.transferFeeLabel}: {transferResult.fee} ⚡</small>
+                              <small>{t.transferFeeLabel}: {transferResult.fee} <Zap size={11}/></small>
                             </div>
                             <button className="transfer-again-btn" onClick={() => setTransferResult(null)}>{t.transferAgain}</button>
                           </div>
@@ -3409,9 +3409,9 @@ function App() {
                             </div>
                           </div>
                           <div className="transfer-conditions">
-                            <span>{t.transferCooldown}</span>
-                            <span>{t.transferAge}</span>
-                            <span>{t.transferFee}</span>
+                            <span><img src="/tg-icons/clock.webp" className="tg-icon-inline" alt="" /> {t.transferCooldown}</span>
+                            <span><img src="/tg-icons/calendar.webp" className="tg-icon-inline" alt="" /> {t.transferAge}</span>
+                            <span><img src="/tg-icons/lock.webp" className="tg-icon-inline" alt="" /> {t.transferFee}</span>
                           </div>
                           <input
                             className="transfer-input"
@@ -3433,8 +3433,8 @@ function App() {
                             />
                             {transferAmount && Number(transferAmount) >= 10 && (
                               <div className="transfer-fee-hint">
-                                <span>{t.transferCommission}: {Math.max(1, Math.floor(Number(transferAmount) * 0.05))} ⚡</span>
-                                <span>{t.transferTotal}: {Number(transferAmount) + Math.max(1, Math.floor(Number(transferAmount) * 0.05))} ⚡</span>
+                                <span>{t.transferCommission}: {Math.max(1, Math.floor(Number(transferAmount) * 0.05))} <Zap size={11}/></span>
+                                <span>{t.transferTotal}: {Number(transferAmount) + Math.max(1, Math.floor(Number(transferAmount) * 0.05))} <Zap size={11}/></span>
                               </div>
                             )}
                           </div>
@@ -4869,7 +4869,7 @@ function App() {
           <div className="center-modal-backdrop" onClick={() => setPostConfirmOpen(false)} />
           <div className="center-modal-box" style={{maxWidth: 340, textAlign: 'center'}}>
             <p style={{fontSize: 15, margin: '8px 0 18px', color: 'var(--text)'}}>
-              {t.postConfirmQuestion || `Hisobingdan 25⚡️ sarflashga tayyormisan?`}
+              {t.postConfirmQuestion}
             </p>
             <div className="center-modal-actions" style={{justifyContent: 'center'}}>
               <button className="secondary-btn" onClick={() => setPostConfirmOpen(false)}>{t.postConfirmNo || "Yo'q"}</button>
@@ -4886,7 +4886,7 @@ function App() {
             <div className="center-modal-glow report-glow" />
             <div className="report-modal-header">
               <div className="report-modal-icon-wrap">
-                <span className="report-modal-icon bw">⚠️</span>
+                <img src="/tg-icons/warning.webp" className="tg-icon-lg" alt="" />
               </div>
               <div>
                 <h2>{t.reportTitle}</h2>
@@ -4917,19 +4917,19 @@ function App() {
             <div className="report-label">{t.reportTarget}</div>
             <div className="report-reasons-grid-v2">
               {[
-                { id: 'spam', icon: '📢', label: t.reportSpam },
-                { id: 'fake', icon: '🎭', label: t.reportFake },
-                { id: 'abuse', icon: '💢', label: t.reportAbuse },
-                { id: 'adult', icon: '🔞', label: t.reportAdult },
-                { id: 'fraud', icon: '🚫', label: t.reportFraud },
-                { id: 'custom', icon: '✍️', label: t.reportCustom },
+                { id: 'spam', icon: '/tg-icons/megaphone.webp', label: t.reportSpam },
+                { id: 'fake', icon: '/tg-icons/alert.webp', label: t.reportFake },
+                { id: 'abuse', icon: '/tg-icons/fire.webp', label: t.reportAbuse },
+                { id: 'adult', icon: '/tg-icons/lock.webp', label: t.reportAdult },
+                { id: 'fraud', icon: '/tg-icons/close.webp', label: t.reportFraud },
+                { id: 'custom', icon: '/tg-icons/doc.webp', label: t.reportCustom },
               ].map(r => (
                 <button
                   key={r.id}
                   className={reportReason === r.label ? 'report-reason-btn-v2 active' : 'report-reason-btn-v2'}
                   onClick={() => setReportReason(r.label)}
                 >
-                  <span className="report-reason-icon">{r.icon}</span>
+                  <img src={r.icon} className="tg-icon-cat" alt="" />
                   <span>{r.label}</span>
                 </button>
               ))}
@@ -5024,7 +5024,7 @@ function App() {
                 <div className="support-sent-anim">
                   <div className="support-sent-ring" />
                   <div className="support-sent-ring r2" />
-                  <span className="support-sent-icon">✓</span>
+                  <img src="/tg-icons/check.webp" className="tg-icon-lg" alt="" />
                 </div>
                 <h3>{t.supportSentTitle}</h3>
                 <p>{t.supportSentDesc}</p>
@@ -5043,7 +5043,7 @@ function App() {
               <>
                 <div className="support-modal-header">
                   <div className="support-modal-brand">
-                    <div className="support-brand-icon">🛟</div>
+                    <div className="support-brand-icon"><img src="/tg-icons/shield.webp" className="tg-icon-lg" alt="" /></div>
                     <div>
                       <h2>{t.supportTitle}</h2>
                       <span className="support-online-badge"><span className="online-dot" />{t.supportSubtitle}</span>
@@ -5053,7 +5053,7 @@ function App() {
                 </div>
 
                 <div className="support-response-hint">
-                  <span className="support-clock">🕐</span>
+                  <img src="/tg-icons/clock.webp" className="tg-icon-sm" alt="" />
                   <span>{t.supportResponse}</span>
                 </div>
 
@@ -5061,17 +5061,17 @@ function App() {
                   <label className="support-label">{t.supportCategory}</label>
                   <div className="support-categories">
                     {[
-                      { id: 'technical', icon: '⚙️', label: t.supportCatTech },
-                      { id: 'account', icon: '👤', label: t.supportCatAccount },
-                      { id: 'payment', icon: '💳', label: t.supportCatPayment },
-                      { id: 'other', icon: '💬', label: t.supportCatOther },
+                      { id: 'technical', icon: '/tg-icons/settings.webp', label: t.supportCatTech },
+                      { id: 'account', icon: '/tg-icons/user.webp', label: t.supportCatAccount },
+                      { id: 'payment', icon: '/tg-icons/card.webp', label: t.supportCatPayment },
+                      { id: 'other', icon: '/tg-icons/chat.webp', label: t.supportCatOther },
                     ].map(cat => (
                       <button
                         key={cat.id}
                         className={supportCategory === cat.id ? 'support-cat-btn active' : 'support-cat-btn'}
                         onClick={() => setSupportCategory(cat.id)}
                       >
-                        <span className="support-cat-icon">{cat.icon}</span>
+                        <img src={cat.icon} className="tg-icon-cat" alt="" />
                         <span>{cat.label}</span>
                       </button>
                     ))}
