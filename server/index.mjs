@@ -887,12 +887,10 @@ function publicUser(user, state = readState()) {
 }
 
 function publicUserForAdmin(user, state = readState()) {
-  // Find last session activity
-  const userSessions = (state.sessions || []).filter(s => s.userId === user.id)
-  const lastSession = userSessions.sort((a, b) => (b.createdAt || '').localeCompare(a.createdAt || ''))[0]
-  const lastSeen = lastSession?.createdAt || user.joinedAt || null
-  // Consider online if last seen < 5 min ago
-  const isOnline = lastSeen ? (Date.now() - new Date(lastSeen).getTime() < 5 * 60 * 1000) : false
+  // isOnline = has an active WebSocket connection right now
+  const isOnline = activeSocketUserIds.has(user.id)
+  // lastSeen = when they last connected/disconnected (stored on user), fallback to joinedAt
+  const lastSeen = user.lastSeenAt || user.joinedAt || null
   return {
     ...publicUser(user, state),
     providerId: user.providerId,
@@ -1074,6 +1072,9 @@ function canSignIn(state, existingUser) {
 }
 
 const CANONICAL_HOST = process.env.CANONICAL_HOST || 'regellik.org'
+
+// Real-time set of user IDs currently connected via WebSocket
+const activeSocketUserIds = new Set()
 
 const app = express()
 const server = createServer(app)
@@ -3299,14 +3300,8 @@ if (existsSync(indexHtmlPath)) {
 }
 
 function broadcastOnline() {
-  // Count unique authenticated users (not connections — one user may have multiple tabs)
-  const onlineUserIds = new Set()
-  for (const client of wss.clients) {
-    if (client.readyState === 1 && client._userId) {
-      onlineUserIds.add(client._userId)
-    }
-  }
-  const payload = JSON.stringify({ type: 'online', count: onlineUserIds.size })
+  // Use the maintained activeSocketUserIds set (unique authenticated users)
+  const payload = JSON.stringify({ type: 'online', count: activeSocketUserIds.size })
   for (const client of wss.clients) {
     if (client.readyState === 1) {
       client.send(payload)
@@ -3335,7 +3330,14 @@ wss.on('connection', (socket) => {
         const sess = state.sessions?.find(s => s.token === msg.token)
         if (sess) {
           socket._userId = sess.userId
-          // Update online count now that this socket is authenticated
+          // Mark user as online
+          activeSocketUserIds.add(sess.userId)
+          // Update lastSeenAt
+          const user = state.users.find(u => u.id === sess.userId)
+          if (user) {
+            user.lastSeenAt = new Date().toISOString()
+            saveState(state)
+          }
           broadcastOnline()
         }
       }
@@ -3343,6 +3345,22 @@ wss.on('connection', (socket) => {
   })
 
   socket.on('close', () => {
+    if (socket._userId) {
+      // Remove from online set only if no other sockets for this user
+      const stillConnected = [...wss.clients].some(
+        c => c !== socket && c.readyState === 1 && c._userId === socket._userId
+      )
+      if (!stillConnected) {
+        activeSocketUserIds.delete(socket._userId)
+        // Update lastSeenAt on disconnect
+        const state = readState()
+        const user = state.users.find(u => u.id === socket._userId)
+        if (user) {
+          user.lastSeenAt = new Date().toISOString()
+          saveState(state)
+        }
+      }
+    }
     broadcastOnline()
   })
 })
