@@ -468,6 +468,7 @@ function normalizeState(state) {
   state.chatMessages = Array.isArray(state.chatMessages) ? state.chatMessages : []
   state.sessions = Array.isArray(state.sessions) ? state.sessions : []
   state.follows = Array.isArray(state.follows) ? state.follows : []
+  state.blocks = Array.isArray(state.blocks) ? state.blocks : []
   state.reports = Array.isArray(state.reports) ? state.reports : []
   state.posts = Array.isArray(state.posts) ? state.posts.map(p => ({
     ...p,
@@ -1091,6 +1092,31 @@ function canSignIn(state, existingUser) {
 
 const CANONICAL_HOST = process.env.CANONICAL_HOST || 'regellik.org'
 
+// ── Simple math captcha store ──
+const captchaStore = new Map() // token → { answer, expiresAt }
+function generateCaptcha() {
+  const a = Math.floor(Math.random() * 20) + 1
+  const b = Math.floor(Math.random() * 20) + 1
+  const ops = ['+', '-']
+  const op = ops[Math.floor(Math.random() * ops.length)]
+  const answer = op === '+' ? a + b : a - b
+  const token = createToken()
+  captchaStore.set(token, { answer, expiresAt: Date.now() + 5 * 60 * 1000 })
+  // Cleanup old captchas
+  for (const [k, v] of captchaStore) {
+    if (Date.now() > v.expiresAt) captchaStore.delete(k)
+  }
+  return { token, question: `${a} ${op} ${b} = ?` }
+}
+function verifyCaptcha(token, answer) {
+  if (!token || answer === undefined || answer === null) return false
+  const entry = captchaStore.get(token)
+  if (!entry) return false
+  captchaStore.delete(token)
+  if (Date.now() > entry.expiresAt) return false
+  return Number(answer) === entry.answer
+}
+
 // Real-time set of user IDs currently connected via WebSocket
 const activeSocketUserIds = new Set()
 // Real-time map: userId → current tab/activity
@@ -1156,10 +1182,45 @@ app.get('/api/bootstrap', (request, response) => {
   response.json(bootstrapPayload(state, viewer))
 })
 
+// Top active users for landing marquee
+app.get('/api/top-active', (_request, response) => {
+  const state = readState()
+  const onlineIds = [...activeSocketUserIds]
+  const users = state.users
+    .filter(u => u.isVisible && u.status === 'active')
+    .sort((a, b) => {
+      const aOnline = onlineIds.includes(a.id) ? 1 : 0
+      const bOnline = onlineIds.includes(b.id) ? 1 : 0
+      if (bOnline !== aOnline) return bOnline - aOnline
+      return (b.powers || 0) - (a.powers || 0)
+    })
+    .slice(0, 8)
+    .map(u => ({
+      id: u.id,
+      name: u.name,
+      handle: u.handle,
+      avatarUrl: u.avatarUrl || null,
+      powers: u.powers || 0,
+    }))
+  response.json({ users })
+})
+
+// ── Captcha endpoint ──
+app.get('/api/captcha', (_request, response) => {
+  const cap = generateCaptcha()
+  response.json({ token: cap.token, question: cap.question })
+})
+
 app.post('/api/auth/send-code', async (request, response) => {
   const clientIp = request.headers['x-forwarded-for']?.split(',')[0]?.trim() || request.socket.remoteAddress || 'unknown'
   if (!rateLimit(`sendcode:${clientIp}`, 5, 60000)) {
     response.status(429).json({ error: 'Слишком много запросов. Подожди минуту.' })
+    return
+  }
+
+  const { captchaToken, captchaAnswer } = request.body || {}
+  if (!verifyCaptcha(captchaToken, captchaAnswer)) {
+    response.status(400).json({ error: 'Неверная капча. Попробуй ещё раз.', captchaFailed: true })
     return
   }
 
@@ -1384,6 +1445,12 @@ app.post('/api/auth/password', (request, response) => {
   const clientIp = request.headers['x-forwarded-for']?.split(',')[0]?.trim() || request.socket.remoteAddress || 'unknown'
   if (!rateLimit(`auth:${clientIp}`, 10, 60000)) {
     response.status(429).json({ error: 'Слишком много попыток. Подожди минуту.' })
+    return
+  }
+
+  const { captchaToken, captchaAnswer } = request.body || {}
+  if (!verifyCaptcha(captchaToken, captchaAnswer)) {
+    response.status(400).json({ error: 'Неверная капча. Попробуй ещё раз.', captchaFailed: true })
     return
   }
 
@@ -2427,7 +2494,36 @@ app.get('/api/users/by-handle/:handle/public', (request, response) => {
     },
     posts: getUserPosts(state, target.id, viewer).slice(0, 24),
     isFollowing: viewer && target.id !== viewer.id ? isFollowingUser(state, viewer.id, target.id) : false,
+    isBlocked: viewer && target.id !== viewer.id ? state.blocks.some(b => b.blockerId === viewer.id && b.blockedId === target.id) : false,
   })
+})
+
+// ── Block / Unblock user ──
+app.post('/api/users/:userId/block', (request, response) => {
+  const state = readState()
+  const token = request.headers.authorization?.replace('Bearer ', '') || ''
+  const viewer = resolveSession(state, token)
+  if (!viewer) { response.status(401).json({ error: 'Unauthorized' }); return }
+  const targetId = request.params.userId
+  if (targetId === viewer.id) { response.status(400).json({ error: 'Нельзя заблокировать себя' }); return }
+  const target = state.users.find(u => u.id === targetId)
+  if (!target) { response.status(404).json({ error: 'Пользователь не найден' }); return }
+
+  const existing = state.blocks.findIndex(b => b.blockerId === viewer.id && b.blockedId === targetId)
+  let isBlocked
+  if (existing >= 0) {
+    state.blocks.splice(existing, 1)
+    isBlocked = false
+    pushAudit(state, 'block.remove', viewer.id, targetId, `${viewer.handle} разблокировал ${target.handle}`)
+  } else {
+    state.blocks.push({ id: createToken(), blockerId: viewer.id, blockedId: targetId, createdAt: new Date().toISOString() })
+    isBlocked = true
+    // Also unfollow in both directions
+    state.follows = state.follows.filter(f => !(f.followerId === viewer.id && f.followingId === targetId) && !(f.followerId === targetId && f.followingId === viewer.id))
+    pushAudit(state, 'block.create', viewer.id, targetId, `${viewer.handle} заблокировал ${target.handle}`)
+  }
+  saveState(state)
+  response.json({ isBlocked })
 })
 
 app.get('/api/users/:userId/followers', (request, response) => {
@@ -2896,6 +2992,16 @@ app.post('/api/conversations', (request, response) => {
     return
   }
 
+  // Block check
+  const blocked = state.blocks.some(b =>
+    (b.blockerId === viewer.id && b.blockedId === recipientId) ||
+    (b.blockerId === recipientId && b.blockedId === viewer.id)
+  )
+  if (blocked) {
+    response.status(403).json({ error: 'Невозможно начать диалог с этим пользователем' })
+    return
+  }
+
   // 50km distance check
   if (!isWithinRange(viewer, recipient)) {
     response.status(403).json({ error: 'Пользователь слишком далеко (>50 км)' })
@@ -3001,6 +3107,19 @@ app.post('/api/conversations/:id/messages', (request, response) => {
   if (!convo || !convo.participants.includes(viewer.id)) {
     response.status(404).json({ error: 'Чат не найден' })
     return
+  }
+
+  // Block check: if either user blocked the other, deny messaging
+  const otherId = convo.participants.find(p => p !== viewer.id)
+  if (otherId) {
+    const blocked = state.blocks.some(b =>
+      (b.blockerId === viewer.id && b.blockedId === otherId) ||
+      (b.blockerId === otherId && b.blockedId === viewer.id)
+    )
+    if (blocked) {
+      response.status(403).json({ error: 'Сообщение не может быть отправлено' })
+      return
+    }
   }
 
   const text = String(request.body?.text || '').trim()

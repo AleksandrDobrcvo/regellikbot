@@ -279,6 +279,7 @@ type ProfileViewData = {
   user: PublicProfileUser
   posts: Post[]
   isFollowing: boolean
+  isBlocked: boolean
 }
 
 type PublicProfileTab = 'posts' | 'info'
@@ -529,6 +530,7 @@ function App() {
   const [auditLog, setAuditLog] = useState<AuditLogItem[]>([])
   const [reports, setReports] = useState<UserReport[]>([])
   const [onlineCount, setOnlineCount] = useState(0)
+  const [topActiveUsers, setTopActiveUsers] = useState<{id:string;name:string;handle:string;avatarUrl:string|null;powers:number}[]>([])
   const [isDev, setIsDev] = useState(false)
   const [onlineUsersForDev, setOnlineUsersForDev] = useState<{id:string;name:string;handle:string;avatarUrl:string|null;currentActivity:string|null}[]>([])
   const [activeTab, setActiveTab] = useState<TabId>('feed')
@@ -602,6 +604,9 @@ function App() {
   const [authConfirmPassword, setAuthConfirmPassword] = useState('')
   const [authPasswordVisible, setAuthPasswordVisible] = useState(false)
   const [isAuthingPassword, setIsAuthingPassword] = useState(false)
+  const [captchaToken, setCaptchaToken] = useState('')
+  const [captchaQuestion, setCaptchaQuestion] = useState('')
+  const [captchaAnswer, setCaptchaAnswer] = useState('')
   // Transfer
   const [transferOpen, setTransferOpen] = useState(false)
   const [transferHandle, setTransferHandle] = useState('')
@@ -788,6 +793,15 @@ function App() {
   useEffect(() => {
     if (authOpen) {
       setMenuOpen(false)
+      // Load captcha
+      void (async () => {
+        try {
+          const cap = await apiRequest<{ token: string; question: string }>('/api/captcha')
+          setCaptchaToken(cap.token)
+          setCaptchaQuestion(cap.question)
+          setCaptchaAnswer('')
+        } catch { /* ignore */ }
+      })()
     }
   }, [authOpen])
 
@@ -992,6 +1006,18 @@ function App() {
       cancelled = true
     }
   }, [sessionToken])
+
+  // Fetch top active users for landing ticker
+  useEffect(() => {
+    if (isSignedIn) return
+    const load = async () => {
+      try {
+        const data = await apiRequest<{ users: {id:string;name:string;handle:string;avatarUrl:string|null;powers:number}[] }>('/api/top-active')
+        setTopActiveUsers(data.users)
+      } catch { /* ignore */ }
+    }
+    void load()
+  }, [isSignedIn])
 
   // WebSocket ref for real-time messages
   const wsRef = useRef<WebSocket | null>(null)
@@ -1218,12 +1244,19 @@ function App() {
           email: emailValue.trim(),
           name: emailName.trim() || undefined,
           mode: authMode,
+          captchaToken,
+          captchaAnswer: Number(captchaAnswer),
         }),
       })
       setEmailStep('code')
       showToast(result.hint || t.codeSentMail, 'success')
     } catch (error) {
       showToast(error instanceof Error ? error.message : t.codeSendError, 'error')
+      // Refresh captcha on failure
+      try {
+        const cap = await apiRequest<{ token: string; question: string }>('/api/captcha')
+        setCaptchaToken(cap.token); setCaptchaQuestion(cap.question); setCaptchaAnswer('')
+      } catch { /* ignore */ }
     } finally {
       setIsSendingCode(false)
     }
@@ -1262,11 +1295,15 @@ function App() {
     try {
       const data = await apiRequest<AuthResponse>('/api/auth/password', {
         method: 'POST',
-        body: JSON.stringify({ mode: 'login', email: emailValue.trim(), password: authPassword }),
+        body: JSON.stringify({ mode: 'login', email: emailValue.trim(), password: authPassword, captchaToken, captchaAnswer: Number(captchaAnswer) }),
       })
       await completeAuth(data)
     } catch (err) {
       showToast(err instanceof Error ? err.message : t.loginError, 'error')
+      try {
+        const cap = await apiRequest<{ token: string; question: string }>('/api/captcha')
+        setCaptchaToken(cap.token); setCaptchaQuestion(cap.question); setCaptchaAnswer('')
+      } catch { /* ignore */ }
     } finally {
       setIsAuthingPassword(false)
     }
@@ -1281,12 +1318,16 @@ function App() {
     try {
       const data = await apiRequest<AuthResponse>('/api/auth/password', {
         method: 'POST',
-        body: JSON.stringify({ mode: 'register', email: emailValue.trim(), name: emailName.trim(), password: authPassword }),
+        body: JSON.stringify({ mode: 'register', email: emailValue.trim(), name: emailName.trim(), password: authPassword, captchaToken, captchaAnswer: Number(captchaAnswer) }),
       })
       await completeAuth(data)
       showToast(t.accountCreated, 'success')
     } catch (err) {
       showToast(err instanceof Error ? err.message : t.registerError, 'error')
+      try {
+        const cap = await apiRequest<{ token: string; question: string }>('/api/captcha')
+        setCaptchaToken(cap.token); setCaptchaQuestion(cap.question); setCaptchaAnswer('')
+      } catch { /* ignore */ }
     } finally {
       setIsAuthingPassword(false)
     }
@@ -1914,6 +1955,26 @@ function App() {
     }
   }
 
+  const toggleBlockViewedProfile = async () => {
+    if (!sessionToken || !viewedProfile) return
+    setIsProfileActionLoading(true)
+    try {
+      const data = await apiRequest<{ isBlocked: boolean }>(
+        `/api/users/${viewedProfile.user.id}/block`,
+        { method: 'POST' },
+        sessionToken,
+      )
+      setViewedProfile(current => current ? { ...current, isBlocked: data.isBlocked } : current)
+      showToast(data.isBlocked
+        ? (lang === 'uz' ? 'Foydalanuvchi bloklandi' : 'Пользователь заблокирован')
+        : (lang === 'uz' ? 'Blok olib tashlandi' : 'Пользователь разблокирован'), 'success')
+    } catch (error) {
+      showToast(error instanceof Error ? error.message : t.error, 'error')
+    } finally {
+      setIsProfileActionLoading(false)
+    }
+  }
+
   const submitProfileReport = async () => {
     if (!sessionToken) return
     const category = reportReason === t.reportCustom ? '' : reportReason
@@ -2297,7 +2358,11 @@ function App() {
                         {authPasswordVisible ? <EyeOff size={15} /> : <Eye size={15} />}
                       </button>
                     </div>
-                    <button className="primary-btn wide" type="submit" disabled={isAuthingPassword || !emailValue.trim() || !authPassword}>
+                    <div className="auth-captcha">
+                      <span className="auth-captcha-q">{captchaQuestion || '...'}</span>
+                      <input className="auth-captcha-input" value={captchaAnswer} onChange={e => setCaptchaAnswer(e.target.value.replace(/[^0-9-]/g, ''))} placeholder="?" type="text" inputMode="numeric" required />
+                    </div>
+                    <button className="primary-btn wide" type="submit" disabled={isAuthingPassword || !emailValue.trim() || !authPassword || !captchaAnswer}>
                       {isAuthingPassword ? t.signingIn : t.loginBtn}
                     </button>
                   </form>
@@ -2334,7 +2399,11 @@ function App() {
                     {authPassword && authConfirmPassword && authPassword !== authConfirmPassword && (
                       <div className="auth-pass-mismatch">{t.passwordMismatch}</div>
                     )}
-                    <button className="primary-btn wide" type="submit" disabled={isAuthingPassword || authPassword !== authConfirmPassword || authPassword.length < 8}>
+                    <div className="auth-captcha">
+                      <span className="auth-captcha-q">{captchaQuestion || '...'}</span>
+                      <input className="auth-captcha-input" value={captchaAnswer} onChange={e => setCaptchaAnswer(e.target.value.replace(/[^0-9-]/g, ''))} placeholder="?" type="text" inputMode="numeric" required />
+                    </div>
+                    <button className="primary-btn wide" type="submit" disabled={isAuthingPassword || authPassword !== authConfirmPassword || authPassword.length < 8 || !captchaAnswer}>
                       {isAuthingPassword ? t.creating : t.registerBtn}
                     </button>
                   </form>
@@ -2352,7 +2421,11 @@ function App() {
                     <input value={emailName} onChange={(e) => setEmailName(e.target.value)} placeholder={t.name} required />
                   )}
                   <input value={emailValue} onChange={(e) => setEmailValue(e.target.value)} placeholder={t.email} type="email" required />
-                  <button className="primary-btn wide" type="submit" disabled={isSendingCode || !siteSettings.emailAuthEnabled}>
+                  <div className="auth-captcha">
+                    <span className="auth-captcha-q">{captchaQuestion || '...'}</span>
+                    <input className="auth-captcha-input" value={captchaAnswer} onChange={e => setCaptchaAnswer(e.target.value.replace(/[^0-9-]/g, ''))} placeholder="?" type="text" inputMode="numeric" required />
+                  </div>
+                  <button className="primary-btn wide" type="submit" disabled={isSendingCode || !siteSettings.emailAuthEnabled || !captchaAnswer}>
                     <Mail size={16} />
                     {isSendingCode ? t.sending : t.sendCode}
                   </button>
@@ -2569,27 +2642,21 @@ function App() {
 
           <div className="landing-marquee">
             <div className="landing-marquee-track">
-              <span>{t.marquee1}</span>
-              <span>•</span>
-              <span>{t.marquee2}</span>
-              <span>•</span>
-              <span>{t.marquee3}</span>
-              <span>•</span>
-              <span>{t.marquee1}</span>
-              <span>•</span>
-              <span>{t.marquee2}</span>
-              <span>•</span>
-              <span>{t.marquee3}</span>
+              {topActiveUsers.length > 0 ? topActiveUsers.map((u, i) => (
+                <span key={u.id} className="top-user-chip">
+                  <span className="top-user-avatar">{u.avatarUrl ? <img src={u.avatarUrl} alt="" /> : <span>{(u.name || '?')[0]}</span>}</span>
+                  <span className="top-user-name">{u.name}</span>
+                  <span className="top-user-energy">⚡{u.powers}</span>
+                  {i < topActiveUsers.length - 1 && <span className="top-user-sep">•</span>}
+                </span>
+              )) : (
+                <>
+                  <span>TEZKOR</span><span>•</span><span>XAVFSIZ</span><span>•</span><span>MAXFIY</span>
+                  <span>•</span><span>TEZKOR</span><span>•</span><span>XAVFSIZ</span><span>•</span><span>MAXFIY</span>
+                </>
+              )}
             </div>
           </div>
-
-          <footer className="app-footer">
-            <span>&gt;]Regellik 2026</span>
-            <span>{t.footerRules}</span>
-            <span>{t.footerAbout}</span>
-            <span>FAQ</span>
-            <span>{t.footerContact}</span>
-          </footer>
         </main>
       )}
 
@@ -5130,6 +5197,11 @@ function App() {
                     </button>
                     <button className="cpf-btn danger" onClick={() => openReportForPost()}>
                       <Ban size={14} />
+                    </button>
+                    <button className={`cpf-btn${viewedProfile.isBlocked ? ' danger' : ''}`} onClick={() => void toggleBlockViewedProfile()} disabled={isProfileActionLoading}>
+                      <ShieldCheck size={14} /> {viewedProfile.isBlocked
+                        ? (lang === 'uz' ? 'Blokdan chiqarish' : 'Разблокировать')
+                        : (lang === 'uz' ? 'Bloklash' : 'Заблокировать')}
                     </button>
                   </div>
                 )}
