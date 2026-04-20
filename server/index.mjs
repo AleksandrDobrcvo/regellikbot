@@ -133,6 +133,8 @@ const defaultSiteSettings = {
   geoRequiredForSend: true,
   registrationsOpen: true,
   maintenanceMode: false,
+  maintenanceTitle: 'Технические работы',
+  maintenanceMessage: 'Сервер временно недоступен. Скоро вернёмся!',
   onlineCounterVisible: true,
   publicFeedVisible: true,
   inboxEnabled: true,
@@ -924,7 +926,12 @@ function directoryItem(user) {
 }
 
 function adminUserItem(user, state = readState()) {
-  return publicUserForAdmin(user, state)
+  const base = publicUserForAdmin(user, state)
+  const act = userActivity.get(user.id)
+  return {
+    ...base,
+    currentActivity: act && (Date.now() - act.ts < 5 * 60 * 1000) ? act.tab : null,
+  }
 }
 
 function resolveSession(state, token) {
@@ -986,6 +993,11 @@ function bootstrapPayload(state, viewer) {
     ? visibleUsers.filter((u) => u.id === viewer.id || isWithinRange(viewer, u))
     : visibleUsers
 
+  // Is this the developer user?
+  const isDev = viewer && DEV_HANDLE
+    ? viewer.handle.replace(/^@/, '') === DEV_HANDLE
+    : false
+
   return {
     viewer: viewer ? publicUser(viewer, state) : null,
     siteSettings: state.siteSettings,
@@ -1001,6 +1013,7 @@ function bootstrapPayload(state, viewer) {
     directory: nearbyUsers.map(directoryItem),
     conversations: viewer ? getConversationsForUser(state, viewer.id) : [],
     adminData: viewer?.role === 'admin' ? adminData(state) : null,
+    isDev,
     posts: state.posts
       .map(p => decoratePost(state, p, viewer))
       .sort((a, b) => b.boosts - a.boosts || b.createdAt.localeCompare(a.createdAt))
@@ -1075,6 +1088,10 @@ const CANONICAL_HOST = process.env.CANONICAL_HOST || 'regellik.org'
 
 // Real-time set of user IDs currently connected via WebSocket
 const activeSocketUserIds = new Set()
+// Real-time map: userId → current tab/activity
+const userActivity = new Map()
+// Dev handle (set DEV_HANDLE env var to your @handle)
+const DEV_HANDLE = (process.env.DEV_HANDLE || '').replace(/^@/, '')
 
 const app = express()
 const server = createServer(app)
@@ -3340,6 +3357,10 @@ wss.on('connection', (socket) => {
           }
           broadcastOnline()
         }
+      }
+      // Track current tab/activity
+      if (msg.type === 'activity' && socket._userId && typeof msg.tab === 'string') {
+        userActivity.set(socket._userId, { tab: msg.tab, ts: Date.now() })
       }
     } catch { /* ignore */ }
   })

@@ -194,6 +194,8 @@ type SiteSettings = {
   geoRequiredForSend: boolean
   registrationsOpen: boolean
   maintenanceMode: boolean
+  maintenanceTitle: string
+  maintenanceMessage: string
   onlineCounterVisible: boolean
   publicFeedVisible: boolean
   inboxEnabled: boolean
@@ -209,6 +211,7 @@ type AdminManagedUser = SessionUser & {
   isVisible: boolean
   lastSeen: string | null
   isOnline: boolean
+  currentActivity: string | null
 }
 
 type AuditLogItem = {
@@ -366,6 +369,7 @@ type BootstrapResponse = {
   conversations: ConversationPreview[]
   siteSettings: SiteSettings
   adminData: AdminData | null
+  isDev?: boolean
   posts?: Post[]
   powerLog?: Transaction[]
 }
@@ -418,6 +422,8 @@ const DEFAULT_SITE_SETTINGS: SiteSettings = {
   geoRequiredForSend: true,
   registrationsOpen: true,
   maintenanceMode: false,
+  maintenanceTitle: 'Технические работы',
+  maintenanceMessage: 'Сервер временно недоступен. Скоро вернёмся!',
   onlineCounterVisible: true,
   publicFeedVisible: true,
   inboxEnabled: true,
@@ -515,6 +521,7 @@ function App() {
   const [auditLog, setAuditLog] = useState<AuditLogItem[]>([])
   const [reports, setReports] = useState<UserReport[]>([])
   const [onlineCount, setOnlineCount] = useState(0)
+  const [isDev, setIsDev] = useState(false)
   const [activeTab, setActiveTab] = useState<TabId>('feed')
   const [lang, setLang] = useState<Lang>(() => (localStorage.getItem('regellik_lang') as Lang) || 'uz')
   const t = translations[lang]
@@ -629,7 +636,7 @@ function App() {
   const [adminConfirmAction, setAdminConfirmAction] = useState<{ label: string; action: () => void } | null>(null)
 
   // Admin section navigation
-  type AdminSectionId = 'none' | 'economy' | 'site' | 'roles' | 'topup' | 'users' | 'bans' | 'audit' | 'broadcast' | 'badges' | 'reports' | 'support'
+  type AdminSectionId = 'none' | 'economy' | 'site' | 'roles' | 'topup' | 'users' | 'bans' | 'audit' | 'broadcast' | 'badges' | 'reports' | 'support' | 'dev'
   const [adminSection, setAdminSection] = useState<AdminSectionId>('none')
   const [adminBadgeTab, setAdminBadgeTab] = useState<'catalog' | 'custom'>('catalog')
   const [customBadgeIcon, setCustomBadgeIcon] = useState('◆')
@@ -720,6 +727,10 @@ function App() {
       setActiveTab(newTab)
       setOpenConvoId(null)
       cb?.()
+      // Report activity to server
+      if (wsRef.current?.readyState === 1) {
+        wsRef.current.send(JSON.stringify({ type: 'activity', tab: newTab }))
+      }
     }, 250)
   }
 
@@ -842,6 +853,7 @@ function App() {
     setAdminUsers(data.adminData?.users ?? [])
     setAuditLog(data.adminData?.auditLog ?? [])
     setReports(data.adminData?.reports ?? [])
+    if (data.isDev !== undefined) setIsDev(data.isDev)
     if (data.posts) setPosts(data.posts)
     if (data.powerLog) setPowerLog(data.powerLog)
   }
@@ -2103,6 +2115,29 @@ function App() {
 
   return (
     <div className={isSignedIn ? 'app-shell has-header' : 'app-shell'}>
+
+      {/* ===== MAINTENANCE SCREEN ===== */}
+      {siteSettings.maintenanceMode && !isAdmin && !isDev && (
+        <div className="maintenance-screen">
+          <div className="mnt-bg-rings">
+            <div className="mnt-ring r1" />
+            <div className="mnt-ring r2" />
+            <div className="mnt-ring r3" />
+          </div>
+          <div className="mnt-content">
+            <div className="mnt-icon-wrap">
+              <div className="mnt-icon-glow" />
+              <img src="/tg-icons/settings.webp" className="mnt-icon" alt="" />
+            </div>
+            <h1 className="mnt-title">{siteSettings.maintenanceTitle || 'Технические работы'}</h1>
+            <p className="mnt-message">{siteSettings.maintenanceMessage || 'Сервер временно недоступен. Скоро вернёмся!'}</p>
+            <div className="mnt-progress-bar"><div className="mnt-progress-fill" /></div>
+            <div className="mnt-dots">
+              <span /><span /><span />
+            </div>
+          </div>
+        </div>
+      )}
       {!introDone && createPortal(
         <div className="intro-overlay" onAnimationEnd={(e) => { if (e.animationName === 'introFadeOut') setIntroDone(true); }}>
           <div className="intro-logo">
@@ -3798,6 +3833,15 @@ function App() {
                       </div>
                     </button>
                   ))}
+                  {isDev && (
+                    <button className="admin-nav-btn dev-nav-btn" onClick={() => setAdminSection('dev')}>
+                      <div className="admin-nav-icon"><Monitor size={18} /></div>
+                      <div className="admin-nav-text">
+                        <strong>DEV</strong>
+                        <span>{lang === 'uz' ? 'Chuqur sozlamalar' : 'Глубокие настройки'}</span>
+                      </div>
+                    </button>
+                  )}
                 </div>
                 </>)}
 
@@ -4049,6 +4093,26 @@ function App() {
                           void navigator.clipboard.writeText(adminDraft.id)
                           showToast(t.adminIdCopied, 'success')
                         }}><Copy size={12} /></button>
+                      </div>
+
+                      {/* Live activity — visible to admins */}
+                      <div className="admin-user-live-card">
+                        <div className="admin-live-dot-wrap">
+                          <span className={`admin-live-dot${adminDraft.isOnline ? ' online' : ''}`} />
+                        </div>
+                        <div className="admin-live-info">
+                          <span className="admin-live-status">{adminDraft.isOnline ? (lang === 'uz' ? 'Onlayn' : 'Онлайн') : (adminDraft.lastSeen ? `${lang === 'uz' ? 'Oxirgi faollik' : 'Был'}: ${formatRelativeTime(adminDraft.lastSeen, lang)}` : (lang === 'uz' ? 'Hech qachon' : 'Никогда'))}</span>
+                          {adminDraft.isOnline && adminDraft.currentActivity && (
+                            <span className="admin-live-tab">
+                              {lang === 'uz' ? 'Hozir: ' : 'Сейчас: '}
+                              <strong>{adminDraft.currentActivity}</strong>
+                            </span>
+                          )}
+                        </div>
+                        <div className="admin-live-views">
+                          <Eye size={12} />
+                          <span>{adminDraft.profileViews ?? 0}</span>
+                        </div>
                       </div>
 
                         <div className="field-grid-3">
@@ -4726,6 +4790,125 @@ function App() {
                       <button className="primary-btn compact-btn" onClick={() => void sendBroadcast()} disabled={isBroadcasting || !broadcastText.trim()}>
                         <Send size={14} /> {isBroadcasting ? '...' : t.adminBroadcastSend}
                       </button>
+                    </div>
+                  </div>
+                )}
+
+                {/* DEV — only for developer */}
+                {adminSection === 'dev' && isDev && (
+                  <div className="admin-section-view dev-section-view">
+                    <div className="dev-section-head">
+                      <div className="dev-section-title-wrap">
+                        <Monitor size={20} />
+                        <div>
+                          <h2>DEV Console</h2>
+                          <span>{lang === 'uz' ? 'Chuqur sozlamalar' : 'Глубокие настройки проекта'}</span>
+                        </div>
+                      </div>
+                    </div>
+
+                    {/* Maintenance block */}
+                    <div className="dev-card">
+                      <div className="dev-card-head">
+                        <Settings2 size={15} />
+                        <strong>{lang === 'uz' ? 'Texnik ishlar' : 'Технические работы'}</strong>
+                        <button
+                          className={`dev-toggle-pill${siteSettings.maintenanceMode ? ' active danger' : ''}`}
+                          onClick={() => {
+                            const next = !siteSettings.maintenanceMode
+                            setSiteSettings(s => ({ ...s, maintenanceMode: next }))
+                            void apiRequest('/api/admin/settings', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ ...siteSettings, maintenanceMode: next }) }, sessionToken!)
+                              .then(() => showToast(next ? (lang === 'uz' ? 'Texnik ishlar yoqildi' : 'Режим тех. работ включён') : (lang === 'uz' ? 'O\'chirildi' : 'Режим выключен'), next ? 'error' : 'success'))
+                          }}
+                        >
+                          {siteSettings.maintenanceMode ? (lang === 'uz' ? 'YOQILGAN' : 'ВКЛЮЧЁН') : (lang === 'uz' ? 'O\'chiq' : 'Выкл')}
+                        </button>
+                      </div>
+                      <label className="input-block compact">
+                        <span>{lang === 'uz' ? 'Sarlavha' : 'Заголовок'}</span>
+                        <input
+                          value={siteSettings.maintenanceTitle ?? ''}
+                          onChange={e => setSiteSettings(s => ({ ...s, maintenanceTitle: e.target.value }))}
+                          placeholder="Технические работы"
+                        />
+                      </label>
+                      <label className="input-block compact">
+                        <span>{lang === 'uz' ? 'Xabar' : 'Сообщение'}</span>
+                        <textarea
+                          rows={2}
+                          value={siteSettings.maintenanceMessage ?? ''}
+                          onChange={e => setSiteSettings(s => ({ ...s, maintenanceMessage: e.target.value }))}
+                          placeholder="Сервер временно недоступен. Скоро вернёмся!"
+                          style={{ resize: 'none', fontFamily: 'inherit', fontSize: '13px' }}
+                        />
+                      </label>
+                      <button className="primary-btn compact-btn" style={{ alignSelf: 'flex-start' }} onClick={() => {
+                        void apiRequest('/api/admin/settings', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(siteSettings) }, sessionToken!)
+                          .then(() => showToast(lang === 'uz' ? 'Saqlandi' : 'Сохранено', 'success'))
+                      }}>
+                        <Save size={13} /> {lang === 'uz' ? 'Saqlash' : 'Сохранить'}
+                      </button>
+                    </div>
+
+                    {/* Toggles */}
+                    <div className="dev-card">
+                      <div className="dev-card-head">
+                        <Zap size={15} />
+                        <strong>{lang === 'uz' ? 'Tezkor tugmalar' : 'Быстрые тумблеры'}</strong>
+                      </div>
+                      <div className="dev-toggle-grid">
+                        {([
+                          { key: 'telegramAuthEnabled' as const, label: 'TG Auth' },
+                          { key: 'emailAuthEnabled' as const, label: 'Email Auth' },
+                          { key: 'registrationsOpen' as const, label: lang === 'uz' ? 'Reg.' : 'Рег-ция' },
+                          { key: 'geoRequiredForSend' as const, label: 'Geo Req' },
+                          { key: 'onlineCounterVisible' as const, label: 'Online' },
+                          { key: 'publicFeedVisible' as const, label: 'Feed' },
+                          { key: 'inboxEnabled' as const, label: 'Inbox' },
+                          { key: 'devBadgeVisible' as const, label: 'DEV badge' },
+                          { key: 'profileEditEnabled' as const, label: lang === 'uz' ? 'Tahrir' : 'Редакт.' },
+                        ] as const).map(item => (
+                          <button
+                            key={item.key}
+                            className={`dev-toggle-chip${siteSettings[item.key] ? ' active' : ''}`}
+                            onClick={() => {
+                              const next = !siteSettings[item.key]
+                              const updated = { ...siteSettings, [item.key]: next }
+                              setSiteSettings(updated)
+                              void apiRequest('/api/admin/settings', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(updated) }, sessionToken!)
+                                .then(() => showToast('OK', 'success'))
+                            }}
+                          >
+                            <span className="dev-chip-dot" />
+                            {item.label}
+                          </button>
+                        ))}
+                      </div>
+                    </div>
+
+                    {/* Online users activity */}
+                    <div className="dev-card">
+                      <div className="dev-card-head">
+                        <Users size={15} />
+                        <strong>{lang === 'uz' ? 'Hozir onlayn' : 'Сейчас онлайн'} — {onlineCount}</strong>
+                      </div>
+                      <div className="dev-activity-list">
+                        {adminUsers.filter(u => u.isOnline).length === 0 && (
+                          <span className="dev-empty">{lang === 'uz' ? 'Hech kim yo\'q' : 'Никого нет'}</span>
+                        )}
+                        {adminUsers.filter(u => u.isOnline).map(u => (
+                          <div key={u.id} className="dev-activity-row">
+                            <div className="dev-act-avatar">
+                              {u.avatarUrl ? <img src={u.avatarUrl} alt="" /> : <span>{u.name[0]}</span>}
+                              <span className="dev-act-dot" />
+                            </div>
+                            <div className="dev-act-info">
+                              <span className="dev-act-name">{u.name}</span>
+                              <span className="dev-act-tab">{u.currentActivity ?? '—'}</span>
+                            </div>
+                          </div>
+                        ))}
+                      </div>
                     </div>
                   </div>
                 )}
