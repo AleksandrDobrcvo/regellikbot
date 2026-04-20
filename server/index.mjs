@@ -2253,6 +2253,21 @@ app.post('/api/admin/broadcast', (request, response) => {
   response.json({ ok: true, sent })
 })
 
+// --- User delete own post ---
+app.delete('/api/posts/:postId', (request, response) => {
+  const state = readState()
+  const viewer = requireUser(request, response, state)
+  if (!viewer) return
+  const { postId } = request.params
+  const idx = state.posts.findIndex(p => p.id === postId)
+  if (idx === -1) { response.status(404).json({ error: 'Пост не найден' }); return }
+  const post = state.posts[idx]
+  if (post.authorId !== viewer.id) { response.status(403).json({ error: 'Нет доступа' }); return }
+  state.posts.splice(idx, 1)
+  saveState(state)
+  response.json({ ok: true })
+})
+
 // --- Admin delete post ---
 app.delete('/api/admin/posts/:postId', (request, response) => {
   const state = readState()

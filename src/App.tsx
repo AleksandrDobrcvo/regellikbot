@@ -44,6 +44,7 @@ import {
   Wallet,
   X,
   Zap,
+  MoreHorizontal,
 } from 'lucide-react'
 import './App.css'
 import { translations } from './i18n'
@@ -541,6 +542,8 @@ function App() {
   const [isSavingSite, setIsSavingSite] = useState(false)
   const [isSavingAdminUser, setIsSavingAdminUser] = useState(false)
   const [isGrantingAdmin, setIsGrantingAdmin] = useState(false)
+  const [profileEditOpen, setProfileEditOpen] = useState(false)
+  const [postMenuId, setPostMenuId] = useState<string | null>(null)
   const [profileName, setProfileName] = useState('')
   const [profileHandle, setProfileHandle] = useState('@regellik')
   const [handleStatus, setHandleStatus] = useState<'idle' | 'checking' | 'available' | 'taken'>('idle')
@@ -779,7 +782,23 @@ function App() {
     try { navigator.vibrate?.(80) } catch { /* ignore */ }
     const id = ++toastCounter.current
     setToasts(prev => [...prev, { id, message, tone }])
-    setTimeout(() => setToasts(prev => prev.filter(t => t.id !== id)), 2800)
+    setTimeout(() => setToasts(prev => prev.filter(t => t.id !== id)), 3500)
+  }
+
+  const dismissToast = (id: number) => {
+    setToasts(prev => prev.filter(t => t.id !== id))
+  }
+
+  const deleteOwnPost = async (postId: string) => {
+    if (!sessionToken) return
+    try {
+      await apiRequest(`/api/posts/${postId}`, { method: 'DELETE' }, sessionToken)
+      setPosts(prev => prev.filter(p => p.id !== postId))
+      setPostMenuId(null)
+      showToast(lang === 'uz' ? 'Post o\'chirildi' : 'Пост удалён', 'success')
+    } catch (error) {
+      showToast(error instanceof Error ? error.message : t.error, 'error')
+    }
   }
 
   const checkHandleAvailability = (handle: string) => {
@@ -2086,20 +2105,27 @@ function App() {
       <div className="ambient-ring" style={{ right: '15%', top: '55%', width: '140px', height: '140px', '--dur': '14s', '--delay': '3s' } as React.CSSProperties} />
       <div className="ambient-ring" style={{ left: '50%', bottom: '20%', width: '200px', height: '200px', '--dur': '12s', '--delay': '6s' } as React.CSSProperties} />
 
-      {/* Toast notifications */}
-      <div style={{ position: 'fixed', top: 'calc(16px + env(safe-area-inset-top, 0px))', right: '16px', zIndex: 9999, display: 'flex', flexDirection: 'column', gap: '10px', pointerEvents: 'none' }}>
+      {/* Toast notifications — centered popups */}
+      <div className="toast-container">
         {toasts.map(toast => (
-          <div key={toast.id} className={`toast-box ${toast.tone}`}>
-            <div className="toast-icon">
-              {toast.tone === 'success' ? '✓' : toast.tone === 'error' ? '✕' : 'ℹ'}
+          <div key={toast.id} className={`toast-popup ${toast.tone}`} onClick={() => dismissToast(toast.id)}>
+            <div className="toast-popup-icon">
+              {toast.tone === 'success'
+                ? <img src="/tg-icons/check.webp" className="tg-icon-lg" alt="" />
+                : toast.tone === 'error'
+                ? <img src="/tg-icons/close.webp" className="tg-icon-lg" alt="" />
+                : <img src="/tg-icons/question.webp" className="tg-icon-lg" alt="" />}
             </div>
-            <div className="toast-content">
-              <div className="toast-label">
+            <div className="toast-popup-body">
+              <div className="toast-popup-label">
                 {toast.tone === 'success' ? (lang === 'uz' ? 'Muvaffaqiyat' : 'Успех') : toast.tone === 'error' ? (lang === 'uz' ? 'Xato' : 'Ошибка') : (lang === 'uz' ? 'Axborot' : 'Инфо')}
               </div>
-              <div className="toast-message">{toast.message}</div>
+              <div className="toast-popup-msg">{toast.message}</div>
             </div>
-            <div className="toast-progress" />
+            <button className="toast-popup-close" onClick={(e) => { e.stopPropagation(); dismissToast(toast.id) }}>
+              <X size={15} />
+            </button>
+            <div className="toast-popup-progress" />
           </div>
         ))}
       </div>
@@ -3103,131 +3129,58 @@ function App() {
 
             {/* --- ПРОФИЛЬ --- */}
             {activeTab === 'profile' && viewer && (
-              <section className="profile-screen deep-profile-screen page-transition">
-                {/* Герой — аватар + inline-редактирование */}
-                <article className="panel-card profile-hero compact-hero">
-                  <div className="profile-hero-main">
-                    <div className="profile-avatar-large avatar-upload-wrap">
-                      {viewer.avatarUrl ? <img src={viewer.avatarUrl} alt={viewer.name} /> : <span>{viewer.name[0]}</span>}
-                      <label className="avatar-upload-overlay" title={t.uploadAvatar}>
-                        <Camera size={20} />
-                        <input type="file" accept="image/png,image/jpeg,image/webp,image/gif" onChange={handleAvatarUpload} hidden disabled={isUploadingAvatar} />
-                      </label>
-                      {viewer.avatarUrl && (
-                        <button className="avatar-delete-btn" type="button" onClick={() => void deleteAvatar()} title={t.deleteAvatar}>
-                          <X size={14} />
-                        </button>
-                      )}
-                    </div>
-                    <div className="profile-hero-edit">
-                      <div className="profile-name-badges-row">
-                        <input
-                          className="hero-name-input"
-                          value={profileName}
-                          onChange={(e) => setProfileName(e.target.value)}
-                          placeholder={t.name}
-                          disabled={!siteSettings.profileEditEnabled}
-                        />
-                        {viewer.badges.includes('VERIFIED') && (
-                          <div className="profile-badges-inline">
-                            <span className="verified-check"><BadgeCheck size={14} /></span>
-                          </div>
-                        )}
-                        {viewer.role === 'admin' && (
-                          <span className="dev-tag">dev</span>
-                        )}
-                      </div>
-                      <div className="hero-handle-row">
-                        <input
-                          className="hero-handle-input"
-                          value={profileHandle}
-                          onChange={(e) => changeHandle(e.target.value)}
-                          placeholder="@handle"
-                          disabled={!siteSettings.profileEditEnabled}
-                        />
-                        <button type="button" className="handle-dice-btn hero-dice" onClick={randomHandle} title={t.randomNick}>
-                          <Dices size={14} />
-                        </button>
-                      </div>
-                      {handleStatus !== 'idle' && (
-                        <div className={`handle-status ${handleStatus}`}>
-                      {handleStatus === 'checking' && t.checkingHandle}
-                          {handleStatus === 'available' && t.handleAvailable}
-                          {handleStatus === 'taken' && t.handleTaken}
-                        </div>
-                      )}
-                      <input
-                        className="hero-tagline-input"
-                        value={profileTagline}
-                        onChange={(e) => setProfileTagline(e.target.value)}
-                        placeholder={t.taglinePlaceholder}
-                        maxLength={72}
-                        disabled={!siteSettings.profileEditEnabled}
-                      />
-                    </div>
+              <section className="tk-profile-screen page-transition">
+
+                {/* ── TikTok-style profile header ── */}
+                <div className="tk-profile-header">
+                  <div className="tk-avatar-wrap">
+                    {viewer.avatarUrl
+                      ? <img src={viewer.avatarUrl} alt={viewer.name} className="tk-avatar-img" />
+                      : <span className="tk-avatar-letter">{viewer.name[0]}</span>}
+                  </div>
+                  <div className="tk-profile-name">
+                    {viewer.name}
+                    {viewer.badges.includes('VERIFIED') && <span className="verified-check"><BadgeCheck size={15} /></span>}
+                    {viewer.role === 'admin' && <span className="dev-tag">dev</span>}
+                  </div>
+                  <div className="tk-profile-handle">{viewer.handle}</div>
+                  {viewer.tagline && <div className="tk-profile-tagline">{viewer.tagline}</div>}
+                  {viewer.bio && <div className="tk-profile-bio">{viewer.bio}</div>}
+
+                  {/* Stats row */}
+                  <div className="tk-profile-stats">
+                    <div className="tk-stat"><strong>{viewer.postCount}</strong><span>{t.postsCount}</span></div>
+                    <div className="tk-stat"><strong>{viewer.followerCount}</strong><span>{t.followers}</span></div>
+                    <div className="tk-stat"><strong>{viewer.followingCount}</strong><span>{t.following}</span></div>
+                    <div className="tk-stat"><strong>{viewer.powers}</strong><span>{t.energyLabel}</span></div>
                   </div>
 
-                  <textarea
-                    className="hero-bio-input"
-                    value={profileBio}
-                    onChange={(e) => setProfileBio(e.target.value)}
-                    placeholder={t.bioPlaceholder}
-                    rows={2}
-                    disabled={!siteSettings.profileEditEnabled}
-                  />
+                  {/* Action buttons */}
+                  <div className="tk-profile-actions">
+                    <button className="tk-edit-btn" onClick={() => setProfileEditOpen(true)}>
+                      {lang === 'uz' ? 'Profilni tahrirlash' : 'Редактировать профиль'}
+                    </button>
+                    <button className="tk-share-btn" title={t.linkCopied || 'Share'} onClick={() => {
+                      void navigator.clipboard?.writeText(`${window.location.origin}?user=${viewer.id}`)
+                      showToast(t.linkCopied || 'Link copied', 'success')
+                    }}>
+                      <Send size={16} />
+                    </button>
+                  </div>
 
-                  {(profileName !== viewer.name || profileHandle !== viewer.handle || profileBio !== (viewer.bio || '') || profileTagline !== (viewer.tagline || '')) && siteSettings.profileEditEnabled && (
-                    <div className="hero-save-row">
-                      <button className="primary-btn compact-btn" onClick={saveProfile} disabled={isSavingProfile}>
-                        <Save size={14} />
-                        {isSavingProfile ? '...' : t.save}
-                      </button>
-                      <button className="secondary-btn compact-btn" type="button" onClick={() => {
-                        setProfileName(viewer.name)
-                        setProfileHandle(viewer.handle)
-                        setProfileBio(viewer.bio || '')
-                        setProfileTagline(viewer.tagline || '')
-                      }}>
-                        {t.cancel}
-                      </button>
-                    </div>
-                  )}
-
-                  {/* Compact meta chips row */}
-                  <div className="profile-meta-chips">
+                  {/* Meta chips */}
+                  <div className="profile-meta-chips tk-meta-chips">
                     <span className="profile-meta-chip"><Hash size={11} />#{viewer.numericId || '—'}</span>
                     {viewer.telegramId && <span className="profile-meta-chip tg"><Smartphone size={11} />{viewer.telegramId}</span>}
                     {isAdmin && <span className="profile-meta-chip admin"><ShieldCheck size={11} />Admin</span>}
-                    <span className="profile-meta-chip">
-                      {viewer.preferences.showContact !== false ? (viewer.email || 'Telegram') : '—'}
-                      <button className="profile-meta-eye" type="button" onClick={() => void updatePreference('showContact' as keyof UserPreferences, viewer.preferences.showContact === false)}>
-                        {viewer.preferences.showContact !== false ? <Eye size={10} /> : <EyeOff size={10} />}
-                      </button>
-                    </span>
-                    <span className="profile-meta-chip muted">
-                      <MapPin size={11} />
-                      {viewer.preferences.showCity !== false && (viewer?.city || (locationState === 'granted' && locationLabel)) ? viewerLocation : '—'}
-                      <button className="profile-meta-eye" type="button" onClick={() => void updatePreference('showCity', !viewer.preferences.showCity)}>
-                        {viewer.preferences.showCity !== false ? <Eye size={10} /> : <EyeOff size={10} />}
-                      </button>
-                    </span>
                     <span className="profile-meta-chip muted">{formatDate(viewer.joinedAt)}</span>
                   </div>
+                </div>
 
-                  <div className="profile-quick-stats four-col">
-                    <div><strong>{viewer.postCount}</strong><span>{t.postsCount}</span></div>
-                    <div><strong>{viewer.followerCount}</strong><span>{t.followers}</span></div>
-                    <div><strong>{viewer.followingCount}</strong><span>{t.following}</span></div>
-                    <div><strong>{viewer.powers}</strong><span>{t.energyLabel}</span></div>
-                  </div>
-                </article>
-
-                <article className="panel-card profile-publications-card">
-                  <div className="panel-head">
-                    <div>
-                      <span className="eyebrow"># {t.tabProfile}</span>
-                      <h2>{t.publications}</h2>
-                    </div>
+                {/* ── Publications ── */}
+                <div className="tk-profile-posts">
+                  <div className="tk-posts-header">
+                    <span className="eyebrow">{t.publications}</span>
                     <span className="profile-posts-counter">{ownPosts.length}</span>
                   </div>
                   {ownPosts.length === 0 ? (
@@ -3250,6 +3203,35 @@ function App() {
                             <div className="thr-header">
                               <strong className="thr-author">{viewer.name}</strong>
                               <span className="thr-time">{frt(post.createdAt)}</span>
+                              {/* Post options menu */}
+                              <div className="post-options-wrap">
+                                <button className="post-options-btn" onClick={() => setPostMenuId(postMenuId === post.id ? null : post.id)}>
+                                  <MoreHorizontal size={16} />
+                                </button>
+                                {postMenuId === post.id && (
+                                  <>
+                                    <div className="post-options-backdrop" onClick={() => setPostMenuId(null)} />
+                                    <div className="post-options-menu">
+                                      <button onClick={() => {
+                                        void navigator.clipboard?.writeText(`${window.location.origin}?post=${post.id}`)
+                                        showToast(t.linkCopied || 'Link copied', 'success')
+                                        setPostMenuId(null)
+                                      }}>
+                                        <img src="/tg-icons/link.webp" className="tg-icon-sm" alt="" />
+                                        {lang === 'uz' ? 'Havolani nusxa olish' : 'Скопировать ссылку'}
+                                      </button>
+                                      <button onClick={() => void repostPost(post.id).then(() => setPostMenuId(null))}>
+                                        <img src="/tg-icons/trending.webp" className="tg-icon-sm" alt="" />
+                                        {t.repostAction}
+                                      </button>
+                                      <button className="danger" onClick={() => void deleteOwnPost(post.id)}>
+                                        <img src="/tg-icons/trash.webp" className="tg-icon-sm" alt="" />
+                                        {lang === 'uz' ? 'O\'chirish' : 'Удалить'}
+                                      </button>
+                                    </div>
+                                  </>
+                                )}
+                              </div>
                             </div>
                             {post.text && <p className="thr-text">{post.text}</p>}
                             {(post.imageUrls?.length || post.imageUrl) && (
@@ -3274,18 +3256,13 @@ function App() {
                                 <MessageSquare size={18} />
                                 {(post.commentsCount || post.comments.length) > 0 && <span>{post.commentsCount || post.comments.length}</span>}
                               </button>
-                              <button className="thr-action-btn disabled">
+                              <button
+                                className={`thr-action-btn${post.repostedByViewer ? ' active repost' : ''}`}
+                                onClick={() => void repostPost(post.id)}
+                              >
                                 <RefreshCw size={17} />
                                 {(post.reposts || 0) > 0 && <span>{post.reposts}</span>}
                               </button>
-                              <button className="thr-action-btn" onClick={() => { void navigator.clipboard?.writeText(`${window.location.origin}?post=${post.id}`); showToast(t.linkCopied || 'Link copied', 'success') }}>
-                                <Send size={17} />
-                              </button>
-                              {isAdmin && (
-                                <button className="thr-action-btn danger" onClick={() => void adminDeletePost(post.id)}>
-                                  <Trash2 size={15} />
-                                </button>
-                              )}
                             </div>
                             {(expandedPostComments.has(post.id) || closingCommentPosts.has(post.id)) && (
                               <div className={`thr-comments${closingCommentPosts.has(post.id) ? ' closing' : ''}`}>
@@ -3318,10 +3295,109 @@ function App() {
                       ))}
                     </div>
                   )}
-                </article>
+                </div>
 
               </section>
             )}
+
+            {/* ── Edit Profile Modal ── */}
+            {profileEditOpen && viewer && (
+              <div className="profile-edit-layer">
+                <div className="profile-edit-backdrop" onClick={() => setProfileEditOpen(false)} />
+                <div className="profile-edit-sheet">
+                  <div className="profile-edit-head">
+                    <span>{lang === 'uz' ? 'Profilni tahrirlash' : 'Редактировать профиль'}</span>
+                    <button className="sheet-close-btn" onClick={() => setProfileEditOpen(false)}><X size={18} /></button>
+                  </div>
+
+                  {/* Avatar */}
+                  <div className="profile-edit-avatar-row">
+                    <div className="profile-avatar-large avatar-upload-wrap">
+                      {viewer.avatarUrl ? <img src={viewer.avatarUrl} alt={viewer.name} /> : <span>{viewer.name[0]}</span>}
+                      <label className="avatar-upload-overlay" title={t.uploadAvatar}>
+                        <Camera size={20} />
+                        <input type="file" accept="image/png,image/jpeg,image/webp,image/gif" onChange={handleAvatarUpload} hidden disabled={isUploadingAvatar} />
+                      </label>
+                      {viewer.avatarUrl && (
+                        <button className="avatar-delete-btn" type="button" onClick={() => void deleteAvatar()} title={t.deleteAvatar}>
+                          <X size={14} />
+                        </button>
+                      )}
+                    </div>
+                  </div>
+
+                  {/* Fields */}
+                  <div className="profile-edit-fields">
+                    <label className="profile-edit-label">{t.name}</label>
+                    <input
+                      className="profile-edit-input"
+                      value={profileName}
+                      onChange={(e) => setProfileName(e.target.value)}
+                      placeholder={t.name}
+                      disabled={!siteSettings.profileEditEnabled}
+                    />
+
+                    <label className="profile-edit-label">Handle</label>
+                    <div className="hero-handle-row">
+                      <input
+                        className="profile-edit-input"
+                        value={profileHandle}
+                        onChange={(e) => changeHandle(e.target.value)}
+                        placeholder="@handle"
+                        disabled={!siteSettings.profileEditEnabled}
+                      />
+                      <button type="button" className="handle-dice-btn hero-dice" onClick={randomHandle} title={t.randomNick}>
+                        <Dices size={14} />
+                      </button>
+                    </div>
+                    {handleStatus !== 'idle' && (
+                      <div className={`handle-status ${handleStatus}`}>
+                        {handleStatus === 'checking' && t.checkingHandle}
+                        {handleStatus === 'available' && t.handleAvailable}
+                        {handleStatus === 'taken' && t.handleTaken}
+                      </div>
+                    )}
+
+                    <label className="profile-edit-label">{t.taglinePlaceholder}</label>
+                    <input
+                      className="profile-edit-input"
+                      value={profileTagline}
+                      onChange={(e) => setProfileTagline(e.target.value)}
+                      placeholder={t.taglinePlaceholder}
+                      maxLength={72}
+                      disabled={!siteSettings.profileEditEnabled}
+                    />
+
+                    <label className="profile-edit-label">Bio</label>
+                    <textarea
+                      className="profile-edit-textarea"
+                      value={profileBio}
+                      onChange={(e) => setProfileBio(e.target.value)}
+                      placeholder={t.bioPlaceholder}
+                      rows={3}
+                      disabled={!siteSettings.profileEditEnabled}
+                    />
+                  </div>
+
+                  {/* Save/Cancel */}
+                  <div className="profile-edit-actions">
+                    <button className="primary-btn" onClick={() => { void saveProfile(); setProfileEditOpen(false) }} disabled={isSavingProfile}>
+                      <Save size={14} /> {isSavingProfile ? '...' : t.save}
+                    </button>
+                    <button className="secondary-btn" onClick={() => {
+                      setProfileName(viewer.name)
+                      setProfileHandle(viewer.handle)
+                      setProfileBio(viewer.bio || '')
+                      setProfileTagline(viewer.tagline || '')
+                      setProfileEditOpen(false)
+                    }}>
+                      {t.cancel}
+                    </button>
+                  </div>
+                </div>
+              </div>
+            )}
+
 
             {/* --- ТРАНЗАКЦИИ --- */}
             {activeTab === 'transactions' && (
