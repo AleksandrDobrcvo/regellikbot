@@ -2881,114 +2881,101 @@ function App() {
                 {/* Feed */}
                 {trendsView === 'grid' ? (
                   <>
-                    {/* Instagram-style grid */}
-                    {sortedPosts.length === 0 && (
+                    {sortedPosts.filter(p => p.imageUrls?.length || p.imageUrl).length === 0 && (
                       <div className="trends-empty">
                         <Flame size={40} />
                         <p>{t.feedEmpty}</p>
                         <span>{t.feedEmptyHint}</span>
                       </div>
                     )}
-                    <div className="trends-grid">
-                      {sortedPosts.map((post, idx) => {
-                        const thumb = post.imageUrls?.[0] || post.imageUrl || null
+                    <div className="tk-photo-grid" style={{padding: '0 2px'}}>
+                      {sortedPosts.filter(p => p.imageUrls?.length || p.imageUrl).map((post, idx) => {
+                        const imgs = post.imageUrls?.length ? post.imageUrls : [post.imageUrl]
+                        const thumb = imgs.filter(Boolean)[0] as string
+                        const isFirst = idx === 0
                         return (
-                          <button key={post.id} className={`trends-grid-cell${thumb ? ' has-image' : ' text-only'}`} onClick={() => setGridSelectedPost(post)}>
-                            {thumb ? (
-                              <img src={thumb} alt="" className="trends-grid-img" />
-                            ) : (
-                              <div className="trends-grid-text-tile">
-                                <div className="trends-grid-text-author">{post.authorName}</div>
-                                <p>{post.text.slice(0, 120)}</p>
-                                <div className="trends-grid-text-footer">
-                                  <span><Zap size={10} /> {post.boosts}</span>
-                                  <span><MessageSquare size={10} /> {post.commentsCount || post.comments.length}</span>
-                                </div>
-                              </div>
-                            )}
-                            {thumb && trendsSort === 'top' && idx < 3 && (
+                          <button
+                            key={post.id}
+                            className={`tk-grid-cell${isFirst ? ' tk-grid-cell--featured' : ''}`}
+                            onClick={() => setGridSelectedPost(post)}
+                          >
+                            <img src={thumb} alt="" className="tk-grid-img" loading="lazy" />
+                            {trendsSort === 'top' && idx < 3 && (
                               <span className="trends-grid-rank">#{idx + 1}</span>
                             )}
-                            {thumb && (
-                              <div className="trends-grid-overlay">
-                                <Zap size={12} /> <span>{post.boosts}</span>
-                                <MessageSquare size={12} style={{marginLeft: '8px'}} /> <span>{post.commentsCount || post.comments.length}</span>
-                              </div>
+                            {(imgs.filter(Boolean).length > 1) && (
+                              <span className="tk-grid-multi"><Copy size={12} /></span>
                             )}
+                            <div className="tk-grid-overlay">
+                              <span><Zap size={13} fill="currentColor" />{post.boosts}</span>
+                              <span><MessageSquare size={13} />{post.commentsCount || post.comments.length}</span>
+                            </div>
                           </button>
                         )
                       })}
                     </div>
 
-                    {/* Post modal */}
+                    {/* Post detail sheet */}
                     {gridSelectedPost && (
-                      <div className="trends-post-modal-backdrop" onClick={() => setGridSelectedPost(null)}>
-                        <div className="trends-post-modal" onClick={e => e.stopPropagation()}>
-                          <button className="trends-post-modal-close" onClick={() => setGridSelectedPost(null)}><X size={18} /></button>
-                          <div className="trends-post-modal-header">
-                            <div className="trends-post-avatar">
-                              {gridSelectedPost.authorAvatarUrl
-                                ? <img src={gridSelectedPost.authorAvatarUrl} alt="" />
-                                : <span>{gridSelectedPost.authorName[0]}</span>}
-                            </div>
-                            <div className="trends-post-meta">
-                              <strong className="clickable-author" onClick={() => { setGridSelectedPost(null); void openUserProfile(gridSelectedPost.authorId) }}>{gridSelectedPost.authorName}</strong>
-                              <span>{gridSelectedPost.authorHandle}</span>
-                            </div>
-                            <small className="trends-post-time">{frt(gridSelectedPost.createdAt)}</small>
+                      <div className="pk-post-layer">
+                        <div className="pk-post-backdrop" onClick={() => setGridSelectedPost(null)} />
+                        <div className="pk-post-sheet">
+                          <div className="pk-post-images">
+                            {(gridSelectedPost.imageUrls?.length ? gridSelectedPost.imageUrls : [gridSelectedPost.imageUrl]).filter(Boolean).map((img, i) => (
+                              <img key={i} src={img!} alt="" className="pk-post-img" onClick={() => openImageLightbox((gridSelectedPost.imageUrls?.length ? gridSelectedPost.imageUrls : [gridSelectedPost.imageUrl]).filter(Boolean) as string[], i)} />
+                            ))}
                           </div>
-                          {(gridSelectedPost.imageUrls?.length || gridSelectedPost.imageUrl) && (
-                            <div className={`trends-post-image-wrap${(gridSelectedPost.imageUrls?.length || 0) > 1 ? ' multi' : ''}`}>
-                              {(gridSelectedPost.imageUrls?.length ? gridSelectedPost.imageUrls : [gridSelectedPost.imageUrl]).filter(Boolean).map((img, i) => (
-                                <img key={i} src={img!} alt="" className="trends-post-image" onClick={() => openImageLightbox((gridSelectedPost.imageUrls?.length ? gridSelectedPost.imageUrls : [gridSelectedPost.imageUrl]).filter(Boolean) as string[], i)} />
-                              ))}
-                            </div>
-                          )}
-                          <p className="trends-post-modal-text">{gridSelectedPost.text}</p>
-                          <div className="trends-post-actions">
-                            <div className="boost-btn-wrap">
-                              <button
-                                className={`trends-boost-btn${gridSelectedPost.boostedByViewer ? ' boosted' : ''}`}
-                                onClick={() => { void boostPost(gridSelectedPost.id); setGridSelectedPost(prev => prev ? {...prev, boostedByViewer: !prev.boostedByViewer, boosts: prev.boosts + (prev.boostedByViewer ? -1 : 1)} : null) }}
-                              >
-                                <Zap size={16} />
-                                <span>{gridSelectedPost.boosts}</span>
-                              </button>
-                            </div>
-                            <button
-                              className={expandedPostComments.has(gridSelectedPost.id) ? 'trends-comment-toggle active' : 'trends-comment-toggle'}
-                              onClick={() => togglePostComments(gridSelectedPost.id)}
-                            >
-                              <MessageSquare size={16} />
-                              <span>{gridSelectedPost.commentsCount || gridSelectedPost.comments.length}</span>
-                            </button>
-                          </div>
-                          {expandedPostComments.has(gridSelectedPost.id) && (
-                            <div className="trends-comments-section">
-                              {gridSelectedPost.comments.map(cmt => (
-                                <div key={cmt.id} className="trends-comment-item">
-                                  <div className="trends-comment-author">
-                                    <strong>{cmt.authorName}</strong>
-                                    <span>{cmt.authorHandle}</span>
-                                    <small>{frt(cmt.createdAt)}</small>
-                                  </div>
-                                  <p>{cmt.text}</p>
-                                </div>
-                              ))}
-                              <div className="trends-comment-input-row">
-                                <input
-                                  value={commentTexts[gridSelectedPost.id] || ''}
-                                  onChange={e => setCommentTexts(prev => ({...prev, [gridSelectedPost.id]: e.target.value}))}
-                                  placeholder={t.commentPlaceholder}
-                                  maxLength={300}
-                                  onKeyDown={e => { if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); void addComment(gridSelectedPost.id) } }}
-                                />
-                                <button className="trends-send-comment-btn" onClick={() => void addComment(gridSelectedPost.id)} disabled={!commentTexts[gridSelectedPost.id]?.trim()}>
-                                  <Send size={14} />
-                                </button>
+                          <div className="pk-post-body">
+                            <div className="pk-post-author">
+                              <div className="pk-post-avatar">
+                                {gridSelectedPost.authorAvatarUrl
+                                  ? <img src={gridSelectedPost.authorAvatarUrl} alt="" />
+                                  : <span>{gridSelectedPost.authorName[0]}</span>}
+                              </div>
+                              <div>
+                                <strong className="clickable-author" onClick={() => { setGridSelectedPost(null); void openUserProfile(gridSelectedPost.authorId) }}>{gridSelectedPost.authorName}</strong>
+                                <span>{gridSelectedPost.authorHandle} · {frt(gridSelectedPost.createdAt)}</span>
                               </div>
                             </div>
-                          )}
+                            {gridSelectedPost.text && <p className="pk-post-caption">{gridSelectedPost.text}</p>}
+                            <div className="pk-post-stats">
+                              <button className={`pk-stat-btn${gridSelectedPost.boostedByViewer ? ' active' : ''}`} onClick={() => { void boostPost(gridSelectedPost.id); setGridSelectedPost(prev => prev ? {...prev, boostedByViewer: !prev.boostedByViewer, boosts: prev.boosts + (prev.boostedByViewer ? -1 : 1)} : null) }}>
+                                <Zap size={17} fill={gridSelectedPost.boostedByViewer ? 'currentColor' : 'none'} />
+                                <span>{gridSelectedPost.boosts}</span>
+                              </button>
+                              <button className="pk-stat-btn" onClick={() => togglePostComments(gridSelectedPost.id)}>
+                                <MessageSquare size={17} />
+                                <span>{gridSelectedPost.commentsCount || gridSelectedPost.comments.length}</span>
+                              </button>
+                            </div>
+                            {(expandedPostComments.has(gridSelectedPost.id) || closingCommentPosts.has(gridSelectedPost.id)) && (
+                              <div className={`thr-comments pk-comments${closingCommentPosts.has(gridSelectedPost.id) ? ' closing' : ''}`}>
+                                {gridSelectedPost.comments.map(cmt => (
+                                  <div key={cmt.id} className="thr-comment">
+                                    <div className="thr-comment-head">
+                                      <strong>{cmt.authorName}</strong>
+                                      <span>{cmt.authorHandle}</span>
+                                      <small>{frt(cmt.createdAt)}</small>
+                                    </div>
+                                    <p>{cmt.text}</p>
+                                  </div>
+                                ))}
+                                <div className="thr-comment-input">
+                                  <input
+                                    value={commentTexts[gridSelectedPost.id] || ''}
+                                    onChange={e => setCommentTexts(prev => ({...prev, [gridSelectedPost.id]: e.target.value}))}
+                                    placeholder={t.commentPlaceholder}
+                                    maxLength={300}
+                                    onKeyDown={e => { if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); void addComment(gridSelectedPost.id) } }}
+                                  />
+                                  <button className="thr-comment-send" onClick={() => void addComment(gridSelectedPost.id)} disabled={!commentTexts[gridSelectedPost.id]?.trim()}>
+                                    <Send size={14} />
+                                  </button>
+                                </div>
+                              </div>
+                            )}
+                          </div>
+                          <button className="pk-post-close" onClick={() => setGridSelectedPost(null)}><X size={18} /></button>
                         </div>
                       </div>
                     )}
