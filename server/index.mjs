@@ -1052,9 +1052,22 @@ function canSignIn(state, existingUser) {
   return state.siteSettings.registrationsOpen
 }
 
+const CANONICAL_HOST = process.env.CANONICAL_HOST || 'regellik.org'
+
 const app = express()
 const server = createServer(app)
 const wss = new WebSocketServer({ server, path: '/ws' })
+
+// Redirect from *.onrender.com to canonical domain
+app.use((request, response, next) => {
+  const host = request.headers.host || ''
+  if (host.endsWith('.onrender.com') && CANONICAL_HOST) {
+    const url = `https://${CANONICAL_HOST}${request.originalUrl}`
+    response.redirect(301, url)
+    return
+  }
+  next()
+})
 
 app.use((request, response, next) => {
   const requestOrigin = request.headers.origin
