@@ -290,7 +290,7 @@ type ConversationPreview = {
   createdAt: string
   lastMessage: { text: string; senderId: string; createdAt: string } | null
   unreadCount: number
-  otherUser: { id: string; name: string; handle: string; avatarUrl: string | null } | null
+  otherUser: { id: string; name: string; handle: string; avatarUrl: string | null; isOnline?: boolean; lastSeen?: string | null } | null
 }
 
 type ChatMessage = {
@@ -597,7 +597,7 @@ function App() {
   // Trends / Posts state
   const [posts, setPosts] = useState<Post[]>([])
   const [trendsSort, setTrendsSort] = useState<'top' | 'new'>('top')
-  const [trendsView, setTrendsView] = useState<'grid' | 'feed'>('feed')
+  const [trendsView, setTrendsView] = useState<'grid' | 'feed'>('grid')
   const [gridSelectedPost, setGridSelectedPost] = useState<Post | null>(null)
   // Auth password
   // const [authMethod, setAuthMethod] = useState<'password' | 'code'>('password')
@@ -2981,7 +2981,13 @@ function App() {
                     )}
                     <div>
                       <strong>{isSystemChat ? 'Regellik' : chatOtherUser?.name || t.chatlar}</strong>
-                      <small>{isSystemChat ? t.systemChat : (chatOtherUser?.handle?.startsWith('@') ? chatOtherUser.handle : `@${chatOtherUser?.handle || ''}`)}</small>
+                      <small>{isSystemChat ? t.systemChat : (chatOtherUser?.isOnline
+                        ? (lang === 'uz' ? 'Onlayn' : 'В сети')
+                        : chatOtherUser?.lastSeen
+                          ? (lang === 'uz'
+                            ? `${formatRelativeTime(chatOtherUser.lastSeen, 'uz')} oldin ko'rilgan`
+                            : `был(а) ${formatRelativeTime(chatOtherUser.lastSeen, 'ru')} назад`)
+                          : (lang === 'uz' ? 'Ko\'rilmagan' : 'Не заходил(а)'))}</small>
                     </div>
                   </div>
                   {isSystemChat && <span className="chat-system-badge">SYSTEM</span>}
@@ -3094,7 +3100,7 @@ function App() {
                         <Zap size={14} /> {t.sortNew}
                       </button>
                     </div>
-                    <div className="trends-view-toggle">
+                    <div className="trends-view-toggle" style={{display:'none'}}>
                       <button className={trendsView === 'grid' ? 'trends-view-btn active' : 'trends-view-btn'} onClick={() => setTrendsView('grid')}>
                         <LayoutGrid size={15} />
                       </button>

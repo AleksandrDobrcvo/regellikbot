@@ -563,6 +563,8 @@ function createToken() {
 
 function createWelcomeConversation(state, userId) {
   const regellikId = 'seed-regellik'
+  const user = state.users.find(u => u.id === userId)
+  const firstName = (user?.name || '').split(' ')[0] || 'do\'st'
   const convoId = createToken()
   state.conversations.push({
     id: convoId,
@@ -574,7 +576,7 @@ function createWelcomeConversation(state, userId) {
     id: createToken(),
     conversationId: convoId,
     senderId: regellikId,
-    text: 'Добро пожаловать в Regellik! 👋\n\nЗдесь ты можешь отправлять анонимные сообщения, общаться с людьми рядом и зарабатывать бонусы за рефералов.\n\nЕсли есть вопросы — пиши сюда, мы ответим.',
+    text: `>] Regel'ga xush kelibsan, ${firstName}! Endi sen xavfsizsan, >]Regelliksan…\n\n>] Добро пожаловать в Regellik, ${firstName}! Теперь ты в безопасности, ты — >]Regellik…`,
     createdAt: new Date().toISOString(),
   })
   return convoId
@@ -597,7 +599,7 @@ function getConversationsForUser(state, userId) {
         createdAt: c.createdAt,
         lastMessage: lastMsg ? { text: lastMsg.text, senderId: lastMsg.senderId, createdAt: lastMsg.createdAt } : null,
         unreadCount: unread,
-        otherUser: otherUser ? { id: otherUser.id, name: otherUser.name, handle: otherUser.handle, avatarUrl: otherUser.avatarUrl } : null,
+        otherUser: otherUser ? { id: otherUser.id, name: otherUser.name, handle: otherUser.handle, avatarUrl: otherUser.avatarUrl, isOnline: otherUser.isOnline || false, lastSeen: otherUser.lastSeen || null } : null,
       }
     })
     .sort((a, b) => {
@@ -3216,7 +3218,7 @@ app.get('/api/conversations/:id/messages', (request, response) => {
 
   response.json({
     messages,
-    otherUser: otherUser ? { id: otherUser.id, name: otherUser.name, handle: otherUser.handle, avatarUrl: otherUser.avatarUrl } : null,
+    otherUser: otherUser ? { id: otherUser.id, name: otherUser.name, handle: otherUser.handle, avatarUrl: otherUser.avatarUrl, isOnline: otherUser.isOnline || false, lastSeen: otherUser.lastSeen || null } : null,
     isSystem: convo.isSystem || false,
   })
 })
