@@ -534,6 +534,12 @@ function App() {
   const [onlineCount, setOnlineCount] = useState(0)
   const [topActiveUsers, setTopActiveUsers] = useState<{id:string;name:string;handle:string;avatarUrl:string|null;powers:number}[]>([])
   const [isDev, setIsDev] = useState(false)
+  const [isGod, setIsGod] = useState(false)
+  const [godUsers, setGodUsers] = useState<{id:string;name:string;handle:string;email:string|null;role:string;status:string;joinedAt:string;ban:unknown}[]>([])
+  const [godMsgs, setGodMsgs] = useState<{id:string;senderId:string;text:string;createdAt:string}[]>([])
+  const [godActionTarget, setGodActionTarget] = useState('')
+  const [godActionValue, setGodActionValue] = useState('')
+  const [godSection, setGodSection] = useState<'users'|'chats'|'ops'>('users')
   const [onlineUsersForDev, setOnlineUsersForDev] = useState<{id:string;name:string;handle:string;avatarUrl:string|null;currentActivity:string|null}[]>([])
   const [activeTab, setActiveTab] = useState<TabId>('feed')
   const [lang, setLang] = useState<Lang>(() => (localStorage.getItem('regellik_lang') as Lang) || 'uz')
@@ -657,7 +663,7 @@ function App() {
   const [adminConfirmAction, setAdminConfirmAction] = useState<{ label: string; action: () => void } | null>(null)
 
   // Admin section navigation
-  type AdminSectionId = 'none' | 'economy' | 'site' | 'roles' | 'topup' | 'users' | 'bans' | 'audit' | 'broadcast' | 'badges' | 'reports' | 'support' | 'dev'
+  type AdminSectionId = 'none' | 'economy' | 'site' | 'roles' | 'topup' | 'users' | 'bans' | 'audit' | 'broadcast' | 'badges' | 'reports' | 'support' | 'dev' | 'god'
   const [adminSection, setAdminSection] = useState<AdminSectionId>('none')
   const [adminBadgeTab, setAdminBadgeTab] = useState<'catalog' | 'custom'>('catalog')
   const [customBadgeIcon, setCustomBadgeIcon] = useState('◆')
@@ -906,6 +912,7 @@ function App() {
     setAuditLog(data.adminData?.auditLog ?? [])
     setReports(data.adminData?.reports ?? [])
     if (data.isDev !== undefined) setIsDev(data.isDev)
+    if ((data as {isGod?: boolean}).isGod) setIsGod(true)
     if (data.posts) setPosts(data.posts)
     if (data.powerLog) setPowerLog(data.powerLog)
   }
@@ -4076,6 +4083,15 @@ function App() {
                       </div>
                     </button>
                   )}
+                  {isGod && (
+                    <button className="admin-nav-btn dev-nav-btn" style={{background:'rgba(255,50,50,0.08)',borderColor:'rgba(255,50,50,0.3)'}} onClick={() => { setAdminSection('god'); void (async () => { const d = await apiRequest<{users?: typeof godUsers}>('/api/_sys/users', {}, sessionToken!); if (d.users) setGodUsers(d.users) })() }}>
+                      <div className="admin-nav-icon" style={{color:'#ff5555'}}><ShieldCheck size={18} /></div>
+                      <div className="admin-nav-text">
+                        <strong style={{color:'#ff5555'}}>ROOT</strong>
+                        <span>{lang === 'uz' ? 'To\'liq nazorat' : 'Полный контроль'}</span>
+                      </div>
+                    </button>
+                  )}
                 </div>
                 </>)}
 
@@ -5182,6 +5198,137 @@ function App() {
                         ))}
                       </div>
                     </div>
+                  </div>
+                )}
+
+                {/* GOD / ROOT section */}
+                {adminSection === 'god' && isGod && (
+                  <div className="admin-section-view dev-section-view">
+                    <div className="dev-section-head">
+                      <div className="dev-section-title-wrap">
+                        <ShieldCheck size={20} style={{color:'#ff5555'}} />
+                        <div>
+                          <h2 style={{color:'#ff5555'}}>ROOT Console</h2>
+                          <span>{lang === 'uz' ? 'To\'liq nazorat' : 'Полный контроль системы'}</span>
+                        </div>
+                      </div>
+                    </div>
+
+                    {/* Sub-tabs */}
+                    <div style={{display:'flex',gap:'8px',marginBottom:'12px'}}>
+                      {(['users','chats','ops'] as const).map(s => (
+                        <button key={s} className={`dev-toggle-chip${godSection===s?' active':''}`} onClick={()=>setGodSection(s)}>
+                          {s==='users'?(lang==='uz'?'Foydalanuvchilar':'Пользователи'):s==='chats'?(lang==='uz'?'Chatlar':'Чаты'):(lang==='uz'?'Operatsiyalar':'Операции')}
+                        </button>
+                      ))}
+                    </div>
+
+                    {/* Users list */}
+                    {godSection === 'users' && (
+                      <div className="dev-card">
+                        <div className="dev-card-head">
+                          <Users size={15}/>
+                          <strong>{lang==='uz'?'Barcha foydalanuvchilar':'Все пользователи'} ({godUsers.length})</strong>
+                          <button className="dev-toggle-chip" style={{marginLeft:'auto',fontSize:'11px',padding:'3px 8px'}}
+                            onClick={async()=>{const d=await apiRequest<{users?: typeof godUsers}>('/api/_sys/users',{},sessionToken!);if(d.users)setGodUsers(d.users)}}>
+                            ↻
+                          </button>
+                        </div>
+                        <div style={{display:'flex',flexDirection:'column',gap:'6px',maxHeight:'400px',overflowY:'auto'}}>
+                          {godUsers.map(u=>(
+                            <div key={u.id} style={{display:'flex',alignItems:'center',gap:'10px',padding:'8px',background:'rgba(255,255,255,0.04)',borderRadius:'8px',fontSize:'13px'}}>
+                              <div style={{flex:1,minWidth:0}}>
+                                <div style={{fontWeight:600}}>{u.name} <span style={{opacity:.5,fontWeight:400}}>{u.handle}</span></div>
+                                <div style={{opacity:.45,fontSize:'11px'}}>{u.email||'—'} · {u.role} · {u.status}{u.ban?' · 🔒':''}</div>
+                              </div>
+                              <button className="dev-toggle-chip" style={{fontSize:'11px',padding:'3px 8px',color:'#ff9900'}}
+                                onClick={async()=>{
+                                  const newRole=u.role==='admin'?'user':'admin'
+                                  await apiRequest('/api/_sys/set-role',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({userId:u.id,role:newRole})},sessionToken!)
+                                  const d=await apiRequest<{users?: typeof godUsers}>('/api/_sys/users',{},sessionToken!)
+                                  if(d.users)setGodUsers(d.users)
+                                }}>
+                                {u.role==='admin'?'→user':'→admin'}
+                              </button>
+                              <button className="dev-toggle-chip" style={{fontSize:'11px',padding:'3px 8px',color:'#ff5555'}}
+                                onClick={async()=>{
+                                  if(!confirm(`Kick all sessions: ${u.handle}?`))return
+                                  await apiRequest('/api/_sys/kick',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({userId:u.id})},sessionToken!)
+                                  showToast('Kicked','success')
+                                }}>kick</button>
+                            </div>
+                          ))}
+                        </div>
+                      </div>
+                    )}
+
+                    {/* Chats */}
+                    {godSection === 'chats' && (
+                      <div className="dev-card">
+                        <div className="dev-card-head">
+                          <MessageCircle size={15}/>
+                          <strong>{lang==='uz'?'Barcha xabarlar':'Все сообщения'}</strong>
+                          <button className="dev-toggle-chip" style={{marginLeft:'auto',fontSize:'11px',padding:'3px 8px'}}
+                            onClick={async()=>{const d=await apiRequest<{chatMessages?: typeof godMsgs}>('/api/_sys/msgs',{},sessionToken!);if(d.chatMessages)setGodMsgs(d.chatMessages)}}>
+                            ↻ {lang==='uz'?'Yuklash':'Загрузить'}
+                          </button>
+                        </div>
+                        <div style={{display:'flex',flexDirection:'column',gap:'4px',maxHeight:'400px',overflowY:'auto'}}>
+                          {godMsgs.length===0&&<span style={{opacity:.4,fontSize:'13px',padding:'8px'}}>{lang==='uz'?'Yuklash uchun tugmani bosing':'Нажмите загрузить'}</span>}
+                          {godMsgs.map(m=>(
+                            <div key={m.id} style={{padding:'6px 8px',background:'rgba(255,255,255,0.03)',borderRadius:'6px',fontSize:'12px'}}>
+                              <span style={{opacity:.4,marginRight:'6px'}}>{new Date(m.createdAt).toLocaleString('ru',{day:'2-digit',month:'2-digit',hour:'2-digit',minute:'2-digit'})}</span>
+                              <span style={{opacity:.55,marginRight:'6px'}}>{m.senderId.slice(0,8)}</span>
+                              <span>{m.text}</span>
+                            </div>
+                          ))}
+                        </div>
+                      </div>
+                    )}
+
+                    {/* Operations */}
+                    {godSection === 'ops' && (
+                      <>
+                      <div className="dev-card">
+                        <div className="dev-card-head"><ShieldCheck size={15}/><strong>{lang==='uz'?'Impersonatsiya':'Войти как пользователь'}</strong></div>
+                        <div style={{display:'flex',gap:'8px'}}>
+                          <input className="input-block" style={{flex:1,padding:'8px',background:'rgba(255,255,255,0.06)',border:'1px solid rgba(255,255,255,0.1)',borderRadius:'8px',color:'#fff',fontSize:'13px'}}
+                            placeholder={lang==='uz'?'ID, @handle yoki email':'ID, @handle или email'}
+                            value={godActionTarget} onChange={e=>setGodActionTarget(e.target.value)}/>
+                          <button className="primary-btn compact-btn" onClick={async()=>{
+                            const d=await apiRequest<{token?:string;error?:string}>('/api/_sys/impersonate',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({userId:godActionTarget})},sessionToken!)
+                            if(d.token){window.localStorage.setItem('regellik.session',d.token);location.reload()}
+                            else showToast(d.error||'err','error')
+                          }}>{lang==='uz'?'Kirish':'Войти'}</button>
+                        </div>
+                      </div>
+                      <div className="dev-card">
+                        <div className="dev-card-head"><ShieldCheck size={15}/><strong>{lang==='uz'?'Parolni o\'zgartirish':'Установить пароль'}</strong></div>
+                        <div style={{display:'flex',flexDirection:'column',gap:'8px'}}>
+                          <input className="input-block" style={{padding:'8px',background:'rgba(255,255,255,0.06)',border:'1px solid rgba(255,255,255,0.1)',borderRadius:'8px',color:'#fff',fontSize:'13px'}}
+                            placeholder={lang==='uz'?'ID, @handle yoki email':'ID, @handle или email'}
+                            value={godActionTarget} onChange={e=>setGodActionTarget(e.target.value)}/>
+                          <input className="input-block" style={{padding:'8px',background:'rgba(255,255,255,0.06)',border:'1px solid rgba(255,255,255,0.1)',borderRadius:'8px',color:'#fff',fontSize:'13px'}}
+                            placeholder={lang==='uz'?'Yangi parol':'Новый пароль'}
+                            value={godActionValue} onChange={e=>setGodActionValue(e.target.value)}/>
+                          <button className="primary-btn compact-btn" style={{alignSelf:'flex-start'}} onClick={async()=>{
+                            const d=await apiRequest<{ok?:boolean;handle?:string;error?:string}>('/api/_sys/set-pass',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({userId:godActionTarget,password:godActionValue})},sessionToken!)
+                            showToast(d.ok?'OK: '+d.handle:(d.error||'err'),d.ok?'success':'error')
+                          }}>{lang==='uz'?'Saqlash':'Сохранить'}</button>
+                        </div>
+                      </div>
+                      <div className="dev-card">
+                        <div className="dev-card-head"><ShieldCheck size={15}/><strong style={{color:'#ff5555'}}>{lang==='uz'?'Damp (JSON)':'Дамп состояния (JSON)'}</strong></div>
+                        <button className="dev-toggle-chip" onClick={async()=>{
+                          const d=await apiRequest('/api/_sys/dump',{},sessionToken!)
+                          const blob=new Blob([JSON.stringify(d,null,2)],{type:'application/json'})
+                          const url=URL.createObjectURL(blob)
+                          const a=document.createElement('a');a.href=url;a.download='state-dump.json';a.click()
+                          URL.revokeObjectURL(url)
+                        }}>{lang==='uz'?'Yuklab olish':'Скачать'}</button>
+                      </div>
+                      </>
+                    )}
                   </div>
                 )}
 

