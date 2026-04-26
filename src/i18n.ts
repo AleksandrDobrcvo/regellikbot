@@ -3,7 +3,7 @@ export type Lang = 'uz' | 'ru'
 export const translations = {
   uz: {
     // Auth
-    login: "Kirish",
+    login: "KIROVR",
     register: "Ro'yxatdan o'tish",
     createAccount: "Akkaunt yaratish",
     enterAccount: "Akkauntga kirish",
